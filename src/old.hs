@@ -1,0 +1,71 @@
+{-# LANGUAGE ScopedTypeVariables, MultiParamTypeClasses,OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
+
+
+module Lib
+    ( someFunc
+    ) where
+
+import Graphics.PDF
+
+import Control.Monad (forM_, zipWithM_)
+import qualified Data.Text as T
+
+getF (Right f) = f
+
+someFunc :: IO ()
+someFunc = do
+  -- Use A4-like box: 595 x 842 points (you can change it)
+  let pageRect = PDFRect 0 0 595 842
+  font <- mkStdFont Times_Roman
+  let extractedFont = getF font
+  -- runPdf filename docInfo defaultRect (PDF monad)
+  runPdf "multipage.pdf" (standardDocInfo { author = T.pack "Your Name", compressed = False }) pageRect $ do
+    -- create N pages
+    pages <- sequence (replicate 5 (addPage Nothing))
+    -- create a table-of-contents style structure: each page in its own section
+    zipWithM_ (\i p -> newSection (T.pack $ "Chapter ") Nothing Nothing $ pageContent p i extractedFont)
+              [1 :: Int ..]
+              pages
+
+-- pageContent: draw a title and page number for the given page reference and index
+pageContent :: PDFReference PDFPage -> Int -> AnyFont -> PDF ()
+pageContent page pageIndex font = drawWithPage page $ do
+  -- draw a header box
+  strokeColor black
+  setWidth 1
+  stroke $ Rectangle (30 :+ 780) (535 :+ 820)
+
+  -- draw the big title near the top
+  drawText $ do
+    -- PDFFont takes an AnyFont (Times_Roman etc.) and a font size
+    text (PDFFont font 28) 40 800 (T.pack ("Chapter " ++ show pageIndex))
+
+  -- draw some body text a few lines below
+  drawText $ do
+    let body = T.pack $ "This is some example content for page " ++ show pageIndex ++ lotOfText
+    text (PDFFont font 12) 40 760 body
+
+  -- draw the page number in the footer
+  drawText $ do
+    text (PDFFont font 10) 520 20 (T.pack $ "Page " ++ show pageIndex)
+
+pageContentLong :: PDFReference PDFPage -> Int -> AnyFont -> PDF ()
+pageContentLong page pageIndex font = drawWithPage page $ do
+  -- draw a header box
+  strokeColor black
+  setWidth 1
+  stroke $ Rectangle (30 :+ 780) (535 :+ 820)
+
+  displayFormattedText (Rectangle (10 :+ 0) (110 :+ 300)) (NormalPara) (Normal timesRoman) $ do
+   paragraph $ do
+        txt $ "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor "
+        txt $ "incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud "
+        txt $ "exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute "
+        txt $ "irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla "
+        txt $ "pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia "
+        txt $ "deserunt mollit anim id est laborum."
+
+
+lotOfText :: String
+lotOfText = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas ac arcu in ligula tincidunt luctus. Vivamus ut eros cursus, malesuada tellus non, convallis lorem. Morbi at vulputate arcu, vitae pellentesque massa. Nullam est mauris, aliquet vestibulum tincidunt a, pharetra quis turpis. Maecenas gravida egestas tempus. Mauris ac tristique felis. Fusce lacinia, arcu vitae aliquet fermentum, enim arcu aliquet odio, vel scelerisque tellus erat nec orci. Nunc nisl mi, venenatis ac sem id, facilisis ultricies leo."
