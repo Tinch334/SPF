@@ -14,6 +14,8 @@ import Text.Megaparsec.Char
 import qualified Data.Text as T
 import qualified Text.Megaparsec.Char.Lexer as L
 
+import Text.Megaparsec.Debug
+
 -- \config{paragraphGlue}[0.5, 2, "Hola"]
 -- \config{paragraphGlue}[min: 0.5, max: 2]
 
@@ -75,7 +77,7 @@ textTypesTable =
 textTypeToParser :: TextType -> Parser PText
 textTypeToParser (TextType n c) = do
     void (string $ T.pack n)
-    t <- between (char '}') (char '{') (Text.Megaparsec.some alphaNumChar)
+    t <- between (char '{') (char '}') parseRawText
     return (c t)
 
 parseSpecialPText :: Parser PText
@@ -84,16 +86,34 @@ parseSpecialPText = void (char '\\') *> choice (map (try . textTypeToParser) tex
 parsePText :: Parser [PText]
 parsePText = do
     (do
-        t <- parseSpecialPText
+        t <- dbg "special" parseSpecialPText
         rest <- parsePText
         return $ t:rest)
     <|>
     (do
-        t <- (Text.Megaparsec.some alphaNumChar)
+        t <- dbg "normal" parseRawText
         rest <- parsePText
         return ((PNormal t):rest))
     <|>
         return []
+
+{-
+sentenceEnd :: Parser Char
+sentenceEnd = oneOf (",.:;!?" :: String)
+
+parseRawSentence :: Parser String
+parseRawSentence = unwords <$> sepEndBy1 (Text.Megaparsec.some alphaNumChar) space1 <* sentenceEnd
+
+parseRawText :: Parser String
+parseRawText = unwords <$> (space *> sepEndBy parseRawSentence space)
+-}
+
+parseRawText :: Parser String
+parseRawText = Text.Megaparsec.some $ choice
+    [ alphaNumChar
+    , spaceChar <* space
+    , oneOf (".,;:!?" :: String)
+    ]
 
 
 parseFilepath :: Parser FilePath

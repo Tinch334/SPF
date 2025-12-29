@@ -4,12 +4,18 @@ module Main (main) where
 -- Imports
 import Lib
 import qualified Constants as C
+import qualified Parser as P
+
+import System.FilePath
 import System.IO.Error
+
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+
 import Options.Applicative
 import qualified Options.Applicative.Simple as OPS
-import System.FilePath
+
+import qualified Text.Megaparsec as M
 
 
 -- Data structures
@@ -54,11 +60,11 @@ main :: IO ()
 main = do
     -- No commands used, second argument can be discarded.
     (opts, ()) <- OPS.simpleOptions "0.1.0.0" "SPF" "A simple document preparation system, using a DSL inspired in LaTeX" optionParser empty
-    
+
     strOrErr <- tryIOError $ TIO.readFile (inFile opts)
     case strOrErr of
         Left _ -> putStr $ "File " ++ (quoteFile $ inFile opts) ++ " could not be accessed!\n"
-        Right contents -> print contents--print (getOutFilename (inFile opts) (outFile opts))
+        Right contents -> print $ M.runParser P.parsePText (inFile opts) contents--print (getOutFilename (inFile opts) (outFile opts))
 
 
 -- Determines the output filename, based on if it was provided as an argument.

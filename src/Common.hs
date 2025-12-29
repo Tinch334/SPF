@@ -27,6 +27,7 @@ data PText  = PNormal String
             | PItalic String
             | PEmphasised String
             | PVerbatim String
+            deriving (Show)
 
 
 data ConfigOption   = Size
