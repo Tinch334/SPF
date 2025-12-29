@@ -1,4 +1,4 @@
-cabal-version: 2.2
+cabal-version: 1.12
 
 -- This file has been generated from package.yaml by hpack version 0.38.1.
 --
@@ -6,13 +6,13 @@ cabal-version: 2.2
 
 name:           SPF
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/SPF#readme>
-homepage:       https://github.com/githubuser/SPF#readme
-bug-reports:    https://github.com/githubuser/SPF/issues
-author:         Author name here
-maintainer:     example@example.com
-copyright:      2025 Author name here
-license:        BSD-3-Clause
+description:    Please see the README on GitHub at <https://github.com/Tinch334/SPF#readme>
+homepage:       https://github.com/Tinch334/SPF#readme
+bug-reports:    https://github.com/Tinch334/SPF/issues
+author:         Martín Goñi
+maintainer:     Martín Goñi
+copyright:      Martín Goñi
+license:        GPL-3
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
@@ -21,15 +21,16 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/SPF
+  location: https://github.com/Tinch334/SPF
 
 library
   exposed-modules:
+      Common
+      Constants
       Lib
+      Parser
       Penrose
   other-modules:
-      Paths_SPF
-  autogen-modules:
       Paths_SPF
   hs-source-dirs:
       src
@@ -41,6 +42,8 @@ library
     , filepath
     , megaparsec >=9.0
     , network-uri
+    , optparse-applicative
+    , optparse-simple
     , random
     , text
     , vector
@@ -49,8 +52,6 @@ library
 executable SPF-exe
   main-is: Main.hs
   other-modules:
-      Paths_SPF
-  autogen-modules:
       Paths_SPF
   hs-source-dirs:
       app
@@ -63,6 +64,8 @@ executable SPF-exe
     , filepath
     , megaparsec >=9.0
     , network-uri
+    , optparse-applicative
+    , optparse-simple
     , random
     , text
     , vector
@@ -72,8 +75,6 @@ test-suite SPF-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_SPF
-  autogen-modules:
       Paths_SPF
   hs-source-dirs:
       test
@@ -86,6 +87,8 @@ test-suite SPF-test
     , filepath
     , megaparsec >=9.0
     , network-uri
+    , optparse-applicative
+    , optparse-simple
     , random
     , text
     , vector
