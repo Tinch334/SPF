@@ -1,12 +1,15 @@
 module Common where
 
+import qualified Data.Text as T 
+
 -- A separate option datatype is used for more modular parsing.
-data POptionValue = Int | Float | String | Bool 
-data POption = POptionDirect ConfigOption [POptionValue] | POptionMap ConfigOption [(String, POptionValue)] 
+data POption    = POptionDirect [OptionValue]
+                | POptionMap [OptionPair]
+                deriving (Show)
 
 type PLang = [PCommOpt]
 data PCommOpt = PCommOpt PComm [POption]
-data PComm  = PConfig String
+data PComm  = PConfig ConfigOption
             | PBeginEnd PBeginEndContent -- The \begin and \end tags can be detected during parsing, an removed in favour of a singular tag.
             | PTitle [PText]
             | PAuthor [PText]
@@ -22,13 +25,21 @@ data PBeginEndContent   = PTextblock [PText] -- A block of text is represented a
                         | PTable [[PText]]
                         | PList [PText]
 
-data PText  = PNormal String
-            | PBold String
-            | PItalic String
-            | PEmphasised String
-            | PVerbatim String
+data PText  = PNormal T.Text
+            | PBold T.Text
+            | PItalic T.Text
+            | PEmphasised T.Text
+            | PVerbatim T.Text
+            | PQuoted T.Text
             deriving (Show)
 
+
+data OptionValue    = OVInt Int
+                    | OVFloat Float
+                    | OVText T.Text
+                    deriving (Show)
+
+type OptionPair = (T.Text, OptionValue)
 
 data ConfigOption   = Size
                     | Pagenumbering

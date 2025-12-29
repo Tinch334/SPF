@@ -5,33 +5,33 @@
 module Parser where
 
 import Common
+
 import Control.Applicative
 import Control.Monad
+
 import Data.Text (Text)
+import qualified Data.Char as DC
 import Data.Void
+
 import Text.Megaparsec hiding (State)
 import Text.Megaparsec.Char
-import qualified Data.Text as T
 import qualified Text.Megaparsec.Char.Lexer as L
-
 import Text.Megaparsec.Debug
 
--- \config{paragraphGlue}[0.5, 2, "Hola"]
--- \config{paragraphGlue}[min: 0.5, max: 2]
+import qualified Data.Text as T
+
 
 -- No custom error handling for now.
 type Parser = Parsec Void Text
 
+-- Characters that have special meanings and should not be considered as regular characters for parsing.
+specialCharacters :: [Char]
+specialCharacters = ['\\', '{', '}']
 
--- Auxiliary functions
--- 
-
-
--- Parser functions
-parseOptions :: Parser POption
-parseOptions = undefined
-
--- A generic parser for a command, checks for the structure: \<command>{argument}, options and \begin-\end commands are parsed separately.
+--------------------
+-- PARSER FUNCTIONS
+--------------------
+-- A generic parser for a command, checks for the structure: \<command>{argument}, \begin-\end commands and options are parsed separately.
 -- In order to streamline the parser we use a spec for each command.
 data CommandSpec = forall a. CommandSpec
     String          -- Name of the command, without backslash.
@@ -65,15 +65,17 @@ parseCommand = (char '\\') *> choice (map (try . commandToParser) commandTable)
 
 -- Similar idea to CommandSpec, simplified to the valid text types. In this case a quantifier isn't necessary, because all constructors take
 -- a string as their argument.
-data TextType = TextType String (String -> PText)
+data TextType = TextType String (T.Text -> PText)
 
 textTypesTable :: [TextType]
 textTypesTable = 
     [ TextType  "bold"      PBold
     , TextType  "italic"    PItalic
     , TextType  "emph"      PEmphasised
-    , TextType  "verbatim"  PVerbatim ]
+    , TextType  "verbatim"  PVerbatim
+    , TextType  "quoted"    PQuoted ]
 
+-- Creates a parser by applying the data constructor to the result of parsing the command name string; Followed by the parser for raw text.
 textTypeToParser :: TextType -> Parser PText
 textTypeToParser (TextType n c) = do
     void (string $ T.pack n)
@@ -97,34 +99,16 @@ parsePText = do
     <|>
         return []
 
-{-
-sentenceEnd :: Parser Char
-sentenceEnd = oneOf (",.:;!?" :: String)
-
-parseRawSentence :: Parser String
-parseRawSentence = unwords <$> sepEndBy1 (Text.Megaparsec.some alphaNumChar) space1 <* sentenceEnd
-
-parseRawText :: Parser String
-parseRawText = unwords <$> (space *> sepEndBy parseRawSentence space)
--}
-
-parseRawText :: Parser String
-parseRawText = Text.Megaparsec.some $ choice
+-- Parsing raw text is done one character at a time, note that multiple spaces are collapsed down to one.
+parseRawText :: Parser T.Text
+parseRawText = T.pack <$> (Text.Megaparsec.some $ choice
     [ alphaNumChar
     , spaceChar <* space
-    , oneOf (".,;:!?" :: String)
-    ]
+    , satisfy (\c -> not (elem c specialCharacters) && DC.isPunctuation c) ])
 
-
-parseFilepath :: Parser FilePath
-parseFilepath = Text.Megaparsec.some letterChar
-
-
-parseConfig :: Parser String 
-parseConfig = Text.Megaparsec.some letterChar
-
-parseConfigOption :: Parser ConfigOption
-parseConfigOption = choice
+-- Parses configuration options.
+parseConfig :: Parser ConfigOption
+parseConfig = choice
     [ Size              <$ string "size"
     , Pagenumbering     <$ string "pagenumbering"
     , Titlespacing      <$ string "titlespacing"
@@ -139,7 +123,37 @@ parseConfigOption = choice
     , Titlesize         <$ string "titlesize"
     , Justification     <$ string "justification" ]
 
+parseFilepath :: Parser FilePath
+parseFilepath = Text.Megaparsec.some letterChar
 
-pConfig :: Parser POption
-pConfig = undefined
-    
+
+-- Parses the options of a command.
+parseOptions :: Parser POption
+parseOptions = between (char '[') (char ']') $ choice 
+    [ try (POptionDirect <$> parseOptionList parseOptionValue)
+    , POptionMap <$> parseOptionList parseOptionsMap ]
+
+-- Both types of option lists follow the same form, a single parser can be used; Takes a parser for the elements of the list..
+parseOptionList :: Parser a -> Parser [a]
+parseOptionList ip = sepBy1 ip (space *> char ',' <* space)
+
+parseOptionsMap :: Parser OptionPair
+parseOptionsMap = do
+    k <- Text.Megaparsec.some letterChar
+    void space
+    void (char ':')
+    void space
+    v <- parseOptionValue
+    return $ (T.pack k, v)
+
+parseOptionValue :: Parser OptionValue
+parseOptionValue = choice
+    [ OVInt <$> L.decimal
+    , OVFloat <$> L.float
+    , OVText . T.pack <$> Text.Megaparsec.some letterChar ]
+    <* notFollowedBy (char ':') -- To avoid a errors. Otherwise in the case of a map the parser would read the key, commit it as "OVText"
+                                -- and then try to read a ":" causing an error.
+
+
+-- \config{paragraphGlue}[0.5, 2, "Hola"]
+-- \config{paragraphGlue}[min: 0.5, max: 2]

@@ -64,7 +64,8 @@ main = do
     strOrErr <- tryIOError $ TIO.readFile (inFile opts)
     case strOrErr of
         Left _ -> putStr $ "File " ++ (quoteFile $ inFile opts) ++ " could not be accessed!\n"
-        Right contents -> print $ M.runParser P.parsePText (inFile opts) contents--print (getOutFilename (inFile opts) (outFile opts))
+        --Right contents -> print $ M.runParser P.parsePText (inFile opts) contents
+        Right contents -> print $ M.runParser P.parseOptions (inFile opts) contents
 
 
 -- Determines the output filename, based on if it was provided as an argument.
