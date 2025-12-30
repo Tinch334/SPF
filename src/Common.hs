@@ -5,25 +5,26 @@ import qualified Data.Text as T
 -- A separate option datatype is used for more modular parsing.
 data POption    = POptionDirect [OptionValue]
                 | POptionMap [OptionPair]
+                | POptionNone
                 deriving (Show)
 
 type PLang = [PCommOpt]
-data PCommOpt = PCommOpt PComm [POption]
+data PCommOpt = PCommOpt PComm POption
 data PComm  = PConfig ConfigOption
-            | PBeginEnd PBeginEndContent -- The \begin and \end tags can be detected during parsing, an removed in favour of a singular tag.
             | PTitle [PText]
             | PAuthor [PText]
             | PDate [PText]
             | PSection [PText]
             | PSubsection [PText]
             | PFigure FilePath
+            -- The \begin and \end tags can be detected during parsing, an removed in favour of a singular tag. The "document" tag is not
+            -- included since there has to be only one per document.
+            | PTextblock [PText] -- A block of text is represented as a list of text data blocks, in order.
+            | PTable [[PText]]
+            | PList [PText]
             | PNewpage
             | PHLine
-            
--- The "document" tag is not included since there has to be only one per document.
-data PBeginEndContent   = PTextblock [PText] -- A block of text is represented as a list of text data blocks, in order.
-                        | PTable [[PText]]
-                        | PList [PText]
+
 
 data PText  = PNormal T.Text
             | PBold T.Text
@@ -35,7 +36,7 @@ data PText  = PNormal T.Text
 
 
 data OptionValue    = OVInt Int
-                    | OVFloat Float
+                    | OVFloat Double
                     | OVText T.Text
                     deriving (Show)
 

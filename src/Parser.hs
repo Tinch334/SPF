@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ExistentialQuantification #-}
 
 module Parser where
@@ -31,19 +30,19 @@ specialCharacters = ['\\', '{', '}']
 --------------------
 -- PARSER FUNCTIONS
 --------------------
--- A generic parser for a command, checks for the structure: \<command>{argument}, \begin-\end commands and options are parsed separately.
--- In order to streamline the parser we use a spec for each command.
+-- In order to streamline the command parser we use a spec for each command.
 data CommandSpec = forall a. CommandSpec
     String          -- Name of the command, without backslash.
     (Parser a)      -- The parser for the command's argument, can be "pure ()" if it has none.
-    (a -> PComm)    -- The function to construct the command given it's argument.
+    (a -> PComm)    -- The function to construct the command given it's argument; That is to say the data constructor.
+
 -- Creates a parser for a command without an argument.
 commandNoArg :: String -> PComm -> CommandSpec
 commandNoArg n c = CommandSpec n (pure ()) (\_ -> c)
 
 commandTable :: [CommandSpec]
 commandTable =
-    [ CommandSpec   "config"        parseConfig     PConfig
+    [ CommandSpec   "config"        parseConfig     PConfig         -- Commands with arguments
     , CommandSpec   "title"         parsePText      PTitle
     , CommandSpec   "author"        parsePText      PAuthor
     , CommandSpec   "date"          parsePText      PDate
@@ -53,15 +52,39 @@ commandTable =
     , commandNoArg  "newpage"       PNewpage
     , commandNoArg  "hline"         PHLine ]
 
+beginEndCommandTable :: [CommandSpec]
+beginEndCommandTable =
+    [ CommandSpec   "paragraph"     parsePText  PTextblock
+    , CommandSpec   "table"         parseTable      PTable
+    , CommandSpec   "list"          parseList       PList ]
+
 -- Creates a parser by applying the data constructor to the result of parsing the command name string; Followed by the internal parser between
 -- brackets.
-commandToParser :: CommandSpec -> Parser PComm
-commandToParser (CommandSpec n p f) = fmap f (string (T.pack n) *> between (char '}') (char '{') p)
+simpleSpecToParser :: CommandSpec -> Parser PComm
+simpleSpecToParser (CommandSpec n p f) = (char '\\') *> fmap f (string (T.pack n) *> between (char '}') (char '{') p)
 
--- Parses a command, we use the "try" in case a command matches partially.
-parseCommand :: Parser PComm
-parseCommand = (char '\\') *> choice (map (try . commandToParser) commandTable)
+beginEndSpecToParser :: CommandSpec -> Parser PCommOpt
+beginEndSpecToParser (CommandSpec n p f) = do
+    void (string "\\begin")
+    void (between (char '{') (char '}') (string $ T.pack n))
+    op <- optional parseOptions
+    r <- p
+    void (string "\\end")
+    void (between (char '{') (char '}') (string $ T.pack n))
+    case op of
+        Nothing -> return (PCommOpt (f r) POptionNone)
+        Just l -> return (PCommOpt (f r) l)
 
+-- Parses a command and it's options. Parsing a begin/end command is attempted first since it's the more restrictive command.
+parseCommandOption :: Parser PCommOpt
+parseCommandOption = choice 
+    [ choice (map (try . beginEndSpecToParser) commandTable)
+    , try $ do
+            com <- choice (map (try . simpleSpecToParser) commandTable)
+            op <- optional parseOptions -- Commands can have no options.
+            case op of
+                Nothing -> return (PCommOpt com POptionNone)
+                Just l -> return (PCommOpt com l) ]
 
 -- Similar idea to CommandSpec, simplified to the valid text types. In this case a quantifier isn't necessary, because all constructors take
 -- a string as their argument.
@@ -126,14 +149,21 @@ parseConfig = choice
 parseFilepath :: Parser FilePath
 parseFilepath = Text.Megaparsec.some letterChar
 
+parseTable :: Parser [[PText]]
+parseTable = undefined
 
--- Parses the options of a command.
+parseList :: Parser [PText]
+parseList = undefined
+
+
+-- Parses the options of a command. To avoid a errors the map parser must go first, otherwise in the case of a map the value parser would
+--read the key, commit it as "OVText" and then try to read a ":" causing an error.
 parseOptions :: Parser POption
-parseOptions = between (char '[') (char ']') $ choice 
-    [ try (POptionDirect <$> parseOptionList parseOptionValue)
-    , POptionMap <$> parseOptionList parseOptionsMap ]
+parseOptions = between (char '[' <* space) (space *> char ']') $ choice 
+    [ try (POptionMap <$> parseOptionList parseOptionsMap)
+    , POptionDirect <$> parseOptionList parseOptionValue ]
 
--- Both types of option lists follow the same form, a single parser can be used; Takes a parser for the elements of the list..
+-- Both types of option lists follow the same form, a single parser can be used. Takes a parser for the elements of the list.
 parseOptionList :: Parser a -> Parser [a]
 parseOptionList ip = sepBy1 ip (space *> char ',' <* space)
 
@@ -148,12 +178,6 @@ parseOptionsMap = do
 
 parseOptionValue :: Parser OptionValue
 parseOptionValue = choice
-    [ OVInt <$> L.decimal
-    , OVFloat <$> L.float
+    [ try $ OVFloat <$> L.float -- Goes first otherwise a float might be interpreted as a decimal number and committed, leaving a ".".
+    , OVInt <$> L.decimal
     , OVText . T.pack <$> Text.Megaparsec.some letterChar ]
-    <* notFollowedBy (char ':') -- To avoid a errors. Otherwise in the case of a map the parser would read the key, commit it as "OVText"
-                                -- and then try to read a ":" causing an error.
-
-
--- \config{paragraphGlue}[0.5, 2, "Hola"]
--- \config{paragraphGlue}[min: 0.5, max: 2]
