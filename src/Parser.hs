@@ -44,6 +44,15 @@ lexeme = L.lexeme sc
 symbol :: T.Text -> Parser T.Text
 symbol = L.symbol sc
 
+
+parseLanguage :: Parser PLang
+parseLanguage = sepEndBy1 (choice [lexeme parseCommandOption, lexeme generatePParagraph]) sc where
+    -- Necessary to parse standalone blocks of text without commands.
+    generatePParagraph :: Parser PCommOpt
+    generatePParagraph = do
+        t <- lexeme parsePText
+        return (PCommOpt (PParagraph t) POptionNone)
+
 -- In order to streamline the command parser we use a spec for each command.
 data CommandSpec = forall a. CommandSpec
     String          -- Name of the command, without backslash.
@@ -93,7 +102,7 @@ beginEndSpecToParser (CommandSpec n p f) = do
 -- Parses a command and it's options. Parsing a begin/end command is attempted first since it's the more restrictive command.
 parseCommandOption :: Parser PCommOpt
 parseCommandOption = choice 
-    [ choice (map (try . beginEndSpecToParser) commandTable)
+    [ choice (map (try . beginEndSpecToParser) beginEndCommandTable)
     , try $ do
             com <- choice (map (try . simpleSpecToParser) commandTable)
             void space -- There can be space between the closing brace and the opening bracket.
@@ -125,25 +134,13 @@ parseSpecialPText :: Parser PText
 parseSpecialPText = void (char '\\') *> choice (map (try . textTypeToParser) textTypesTable)
 
 parsePText :: Parser [PText]
-parsePText = do
-    (do
-        t <- parseSpecialPText
-        rest <- parsePText
-        return $ t:rest)
-    <|>
-    (do
-        t <- parseRawText
-        rest <- parsePText
-        return ((PNormal t):rest))
-    <|>
-        return []
+parsePText = Text.Megaparsec.some (choice [parseSpecialPText, PNormal <$> parseRawText])
 
 -- Parsing raw text is done one character at a time, note that multiple spaces are collapsed down to one.
 parseRawText :: Parser T.Text
-parseRawText = T.pack <$> (Text.Megaparsec.some $ choice
-    [ alphaNumChar
-    , spaceChar <* space
-    , satisfy (\c -> not (elem c specialCharacters) && DC.isPunctuation c) ])
+parseRawText = do
+    s <- takeWhile1P (Just "raw text") (\c -> not (elem c specialCharacters))
+    return (T.unwords $ T.words s) -- Trim additional spaces.
 
 -- Parses configuration options.
 parseConfig :: Parser ConfigOption

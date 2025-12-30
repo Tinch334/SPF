@@ -27,6 +27,7 @@ data PComm  = PConfig ConfigOption
             | PTable [[[PText]]] -- The type a list of lists of lists, represents the rows(a list), having multiple columns(a list) each of
                                  -- which is a block of PText(a list).
             | PList [[PText]]
+            | PParagraph [PText]
             | PNewpage
             | PHLine
             deriving (Show)
