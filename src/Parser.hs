@@ -30,14 +30,14 @@ specialCharacters = ['\\', '{', '}']
 --------------------
 -- PARSER FUNCTIONS
 --------------------
--- Parses blank space and line endings.
-parseSpaceAndEnding :: Parser String
-parseSpaceAndEnding = Text.Megaparsec.some spaceChar
-
+-- 
 sc :: Parser ()
-sc = L.space space1 empty empty   -- Consumes at least one whitespace.
+sc = L.space
+  space1                           -- Consumes at least one whitespace.
+  (L.skipLineComment "//")         -- Single line comments.
+  (L.skipBlockComment "/*" "*/")   -- Multiline comments.
 
--- Aliases for instantiated versions of lexeme and symbol.
+-- Instantiated versions of lexeme and symbol.
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
@@ -168,13 +168,12 @@ parseFilepath = Text.Megaparsec.some $ choice
     [ alphaNumChar
     , oneOf ("/\\-_." :: String)]
 
+-- The elements in a table row are separated by "|". A line ending is denoted by a "\\", that is two "\" characters.
 parseTable :: Parser [[[PText]]]
-parseTable = sepEndBy1 
-    (sepBy1 parsePText (space *> char '|' <* space)) -- The elements in a row are separated by "|".
-    (parseSpaceAndEnding *> string "\\\\" <* parseSpaceAndEnding) -- A line ending is denoted by a "\\", that is two "\" characters.
+parseTable = sepEndBy1 (sepBy1 parsePText (symbol "|"))  (symbol "\\\\")
 
 parseList :: Parser [[PText]]
-parseList = sepBy1 parsePText (string "\\item{}" <* space)
+parseList = sepBy1 parsePText (symbol "\\item{}")
 
 
 -- Parses the options of a command. To avoid a errors the map parser must go first, otherwise in the case of a map the value parser would
