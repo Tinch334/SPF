@@ -8,7 +8,7 @@ import Common
 import Control.Applicative
 import Control.Monad
 
-import Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Char as DC
 import Data.Void
 
@@ -17,11 +17,11 @@ import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec.Debug
 
-import qualified Data.Text as T
+import qualified System.FilePath as FP
 
 
 -- No custom error handling for now.
-type Parser = Parsec Void Text
+type Parser = Parsec Void T.Text
 
 -- Characters that have special meanings and should not be considered as regular characters for parsing.
 specialCharacters :: [Char]
@@ -30,6 +30,20 @@ specialCharacters = ['\\', '{', '}']
 --------------------
 -- PARSER FUNCTIONS
 --------------------
+-- Parses blank space and line endings.
+parseSpaceAndEnding :: Parser String
+parseSpaceAndEnding = Text.Megaparsec.some spaceChar
+
+sc :: Parser ()
+sc = L.space space1 empty empty   -- Consumes at least one whitespace.
+
+-- Aliases for instantiated versions of lexeme and symbol.
+lexeme :: Parser a -> Parser a
+lexeme = L.lexeme sc
+
+symbol :: T.Text -> Parser T.Text
+symbol = L.symbol sc
+
 -- In order to streamline the command parser we use a spec for each command.
 data CommandSpec = forall a. CommandSpec
     String          -- Name of the command, without backslash.
@@ -61,7 +75,7 @@ beginEndCommandTable =
 -- Creates a parser by applying the data constructor to the result of parsing the command name string; Followed by the internal parser between
 -- brackets.
 simpleSpecToParser :: CommandSpec -> Parser PComm
-simpleSpecToParser (CommandSpec n p f) = (char '\\') *> fmap f (string (T.pack n) *> between (char '}') (char '{') p)
+simpleSpecToParser (CommandSpec n p f) = (char '\\') *> fmap f (string (T.pack n) *> between (char '{') (char '}') p)
 
 beginEndSpecToParser :: CommandSpec -> Parser PCommOpt
 beginEndSpecToParser (CommandSpec n p f) = do
@@ -71,6 +85,7 @@ beginEndSpecToParser (CommandSpec n p f) = do
     r <- p
     void (string "\\end")
     void (between (char '{') (char '}') (string $ T.pack n))
+    void space -- There can be space between the closing brace and the opening bracket.
     case op of
         Nothing -> return (PCommOpt (f r) POptionNone)
         Just l -> return (PCommOpt (f r) l)
@@ -81,6 +96,7 @@ parseCommandOption = choice
     [ choice (map (try . beginEndSpecToParser) commandTable)
     , try $ do
             com <- choice (map (try . simpleSpecToParser) commandTable)
+            void space -- There can be space between the closing brace and the opening bracket.
             op <- optional parseOptions -- Commands can have no options.
             case op of
                 Nothing -> return (PCommOpt com POptionNone)
@@ -111,12 +127,12 @@ parseSpecialPText = void (char '\\') *> choice (map (try . textTypeToParser) tex
 parsePText :: Parser [PText]
 parsePText = do
     (do
-        t <- dbg "special" parseSpecialPText
+        t <- parseSpecialPText
         rest <- parsePText
         return $ t:rest)
     <|>
     (do
-        t <- dbg "normal" parseRawText
+        t <- parseRawText
         rest <- parsePText
         return ((PNormal t):rest))
     <|>
@@ -146,38 +162,43 @@ parseConfig = choice
     , Titlesize         <$ string "titlesize"
     , Justification     <$ string "justification" ]
 
+-- The simplest possible filepath definition, will probably need tweaking. Follows POSIX "Fully portable filenames".
 parseFilepath :: Parser FilePath
-parseFilepath = Text.Megaparsec.some letterChar
+parseFilepath = Text.Megaparsec.some $ choice 
+    [ alphaNumChar
+    , oneOf ("/\\-_." :: String)]
 
-parseTable :: Parser [[PText]]
-parseTable = undefined
+parseTable :: Parser [[[PText]]]
+parseTable = sepEndBy1 
+    (sepBy1 parsePText (space *> char '|' <* space)) -- The elements in a row are separated by "|".
+    (parseSpaceAndEnding *> string "\\\\" <* parseSpaceAndEnding) -- A line ending is denoted by a "\\", that is two "\" characters.
 
-parseList :: Parser [PText]
-parseList = undefined
+parseList :: Parser [[PText]]
+parseList = sepBy1 parsePText (string "\\item{}" <* space)
 
 
 -- Parses the options of a command. To avoid a errors the map parser must go first, otherwise in the case of a map the value parser would
 --read the key, commit it as "OVText" and then try to read a ":" causing an error.
 parseOptions :: Parser POption
-parseOptions = between (char '[' <* space) (space *> char ']') $ choice 
-    [ try (POptionMap <$> parseOptionList parseOptionsMap)
+parseOptions = between (symbol "[") (symbol "]") $ choice 
+    [ try (POptionMap <$> parseOptionList parseOptionMap)
     , POptionDirect <$> parseOptionList parseOptionValue ]
 
 -- Both types of option lists follow the same form, a single parser can be used. Takes a parser for the elements of the list.
 parseOptionList :: Parser a -> Parser [a]
-parseOptionList ip = sepBy1 ip (space *> char ',' <* space)
+parseOptionList ip = sepBy1 (lexeme ip) (symbol ",")
 
-parseOptionsMap :: Parser OptionPair
-parseOptionsMap = do
-    k <- Text.Megaparsec.some letterChar
-    void space
-    void (char ':')
-    void space
+-- Parses an option in map form.
+parseOptionMap :: Parser OptionPair
+parseOptionMap = do
+    k <- lexeme $ Text.Megaparsec.some letterChar
+    void (symbol ":")
     v <- parseOptionValue
     return $ (T.pack k, v)
 
+-- Parses an option in value form.
 parseOptionValue :: Parser OptionValue
 parseOptionValue = choice
-    [ try $ OVFloat <$> L.float -- Goes first otherwise a float might be interpreted as a decimal number and committed, leaving a ".".
+    [ try $ OVFloat <$> L.float -- Goes first otherwise  arfloat might be interpreted as a decimal number and committed, leaving a ".".
     , OVInt <$> L.decimal
     , OVText . T.pack <$> Text.Megaparsec.some letterChar ]

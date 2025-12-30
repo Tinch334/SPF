@@ -3,7 +3,7 @@ module Main (main) where
 
 -- Imports
 import Lib
-import qualified Constants as C
+import qualified Common as C
 import qualified Parser as P
 
 import System.FilePath
@@ -64,7 +64,8 @@ main = do
     strOrErr <- tryIOError $ TIO.readFile (inFile opts)
     case strOrErr of
         Left _ -> putStr $ "File " ++ (quoteFile $ inFile opts) ++ " could not be accessed!\n"
-        Right contents -> print $ M.runParser P.parsePText (inFile opts) contents
+        Right contents -> print $ M.runParser P.parseCommandOption (inFile opts) contents
+        --Right contents -> print $ M.runParser P.parsePText (inFile opts) contents
         --Right contents -> print $ M.runParser P.parseOptions (inFile opts) contents
 
 
