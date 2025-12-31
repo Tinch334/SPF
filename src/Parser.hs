@@ -1,42 +1,37 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Parser where
+module Parser (parseLanguage) where
 
 import Common
 
 import Control.Applicative
 import Control.Monad
 
+import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Char as DC
-import Data.Void
 
-import Text.Megaparsec hiding (State)
+import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
-import Text.Megaparsec.Debug
 
 
 --------------------
 -- ERROR HANDLING FUNCTIONS
 --------------------
-data CustomError    = UnknownCommand T.Text         -- Thrown when encountering \command, where command is invalid.
-                    | UnknownText T.Text            -- Thrown when encountering \text-type, where text-type is invalid.
-                    | IncorrectMapOption T.Text     -- Thrown when options are improperly formatted in a map.
-                    | OtherError T.Text             -- Generic constructor for other types of errors.
+data CustomError    = UnknownCommand Text         -- Thrown when encountering \command, where command is invalid.
+                    | UnknownText Text            -- Thrown when encountering \text-type, where text-type is invalid.
+                    | OtherError Text             -- Generic constructor for other types of errors.
                     deriving (Eq, Ord, Show)
 
 -- To allow for easy error throwing.
-unknownCommand :: T.Text -> Parser a
+unknownCommand :: Text -> Parser a
 unknownCommand = customFailure . UnknownCommand
 
-unknownText :: T.Text -> Parser a
+unknownText :: Text -> Parser a
 unknownText = customFailure . UnknownText
 
-incorrectMapOption :: T.Text -> Parser a
-incorrectMapOption = customFailure . IncorrectMapOption
-
-otherError :: T.Text -> Parser a
+otherError :: Text -> Parser a
 otherError = customFailure . OtherError
 
 -- Helper functions.
@@ -44,14 +39,13 @@ quote :: String -> String
 quote t = "\"" ++ t ++ "\""
 
 -- Make error labelling easier.
-mkErrStr :: String -> T.Text -> String -> String
+mkErrStr :: String -> Text -> String -> String
 mkErrStr b t a = b ++ (T.unpack t) ++ a
 
 -- How each custom error will be shown.
 instance ShowErrorComponent CustomError where
     showErrorComponent (UnknownCommand c) = "Unknown command: " ++ quote (T.unpack c)
     showErrorComponent (UnknownText t) = "Unknown text type: " ++ quote (T.unpack t)
-    showErrorComponent (IncorrectMapOption o) = "Invalid option shape in map: " ++ quote (T.unpack o)
     showErrorComponent (OtherError t) = "Error during parsing: " ++ quote(T.unpack t)
         
 
@@ -59,7 +53,7 @@ instance ShowErrorComponent CustomError where
 -- GENERAL DEFINITIONS
 --------------------
 -- Parser for Text using custom errors.
-type Parser = Parsec CustomError T.Text
+type Parser = Parsec CustomError Text
 
 -- Characters that have special meanings and should not be considered as regular characters for parsing.
 specialCharacters :: [Char]
@@ -68,10 +62,6 @@ specialCharacters = ['\\', '{', '}']
 newlineCharacters :: [Char]
 newlineCharacters = ['\n', '\r', '\036']
 
---------------------
--- GENERAL PARSING FUNCTIONS
---------------------
--- 
 sc :: Parser ()
 sc = L.space
   space1                           -- Consumes at least one whitespace.
@@ -82,10 +72,13 @@ sc = L.space
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
-symbol :: T.Text -> Parser T.Text
+symbol :: Text -> Parser Text
 symbol = L.symbol sc
 
 
+--------------------
+-- GENERAL PARSING FUNCTIONS
+--------------------
 parseLanguage :: Parser PLang
 parseLanguage = do
     cfg <- sepEndBy (parseCommandOption preDocumentCommandTable) sc
@@ -93,8 +86,10 @@ parseLanguage = do
     return (cfg ++ doc)
 
 parseDocument :: Parser PLang
-parseDocument = sepEndBy1 (choice [lexeme (parseCommandOption (beginEndCommandTable ++ documentCommandTable)), lexeme parseParagraph]) sc where
-    -- Necessary to parse standalone blocks of text without commands.
+parseDocument = sepEndBy1 documentOptions sc where
+    documentOptions = choice 
+        [ lexeme (parseCommandOption (beginEndCommandTable ++ documentCommandTable))
+        , lexeme parseParagraph ]
     
 
 --------------------
@@ -102,13 +97,16 @@ parseDocument = sepEndBy1 (choice [lexeme (parseCommandOption (beginEndCommandTa
 --------------------
 -- In order to streamline the command parser we use a spec for each command.
 data CommandSpec = CommandSpec
-    T.Text              -- Name of the command, without backslash.
+    Text              -- Name of the command, without backslash.
     (Parser PCommOpt)   -- The parser for the command's argument.
 
+commandBackslash :: Parser ()
+commandBackslash = void (char '\\') <?> "backslash before command"
+
 -- Creates a CommandSpec, this is then used to parse the commands.
-simpleSpecMake :: T.Text -> Parser a -> (a -> PComm) -> CommandSpec
+simpleSpecMake :: Text -> Parser a -> (a -> PComm) -> CommandSpec
 simpleSpecMake n p f = CommandSpec n $ do
-    void (char '\\') <?> mkErrStr "backslash before " n ""
+    commandBackslash
     void (string n) <?> T.unpack n
     arg <- between (char '{') (char '}') p <?> mkErrStr "" n " argument"
     void sc
@@ -117,9 +115,9 @@ simpleSpecMake n p f = CommandSpec n $ do
         Nothing -> return (PCommOpt (f arg) POptionNone)
         Just l -> return (PCommOpt (f arg) l)
 
-simpleNoArgSpecMake :: T.Text -> PComm -> CommandSpec
+simpleNoArgSpecMake :: Text -> PComm -> CommandSpec
 simpleNoArgSpecMake n f = CommandSpec n $ do
-    void (char '\\') <?> mkErrStr "backslash before " n ""
+    commandBackslash
     void (string n) <?> T.unpack n
     void sc
     op <- optional parseOptions
@@ -127,7 +125,7 @@ simpleNoArgSpecMake n f = CommandSpec n $ do
         Nothing -> return (PCommOpt f POptionNone)
         Just l -> return (PCommOpt f l)
 
-beginEndSpecMake :: T.Text -> Parser a -> (a -> PComm) -> CommandSpec
+beginEndSpecMake :: Text -> Parser a -> (a -> PComm) -> CommandSpec
 beginEndSpecMake n p f = CommandSpec n $ do
     void (string "\\begin") <?> "\\begin"
     void (between (char '{') (char '}') (string n)) <?> mkErrStr "" n " for begin"
@@ -145,7 +143,7 @@ parseCommandOption :: [CommandSpec] -> Parser PCommOpt
 parseCommandOption lst = label "command" $ (choice (map (try . (\(CommandSpec n p) -> p <?> T.unpack n)) lst)) <|> try unknown where
     -- Runs after all other commands are tried, detects invalid commands.
     unknown = do
-        void (char '\\')
+        commandBackslash
         c <- Text.Megaparsec.some letterChar
         unknownCommand (T.pack c)
 
@@ -176,6 +174,7 @@ beginEndCommandTable =
 --------------------
 -- TEXT PARSING FUNCTIONS
 --------------------
+-- Necessary to parse standalone blocks of text without commands.
 parseParagraph :: Parser PCommOpt
 parseParagraph = label "paragraph" $ do
         t <- parsePText
@@ -187,7 +186,7 @@ parsePText = Text.Megaparsec.some (choice [parseSpecialPText, PNormal <$> parseR
 
 -- Similar idea to CommandSpec, simplified to the valid text types. In this case a quantifier isn't necessary, because all constructors take
 -- a string as their argument.
-data TextType = TextType T.Text (T.Text -> PText)
+data TextType = TextType Text (Text -> PText)
 
 textTypesTable :: [TextType]
 textTypesTable = 
@@ -213,7 +212,7 @@ parseSpecialPText = do
             unknownText (T.pack c)
 
 -- Parsing raw text is done one character at a time, this parser stops after hitting a newline.
-parseRawTextLine :: Parser T.Text
+parseRawTextLine :: Parser Text
 parseRawTextLine = label "raw text" $ do
     s <- takeWhile1P (Just "raw text") (\c -> notElem c (specialCharacters ++ newlineCharacters))
     return s -- Additional spaces are not trimmed, done later depending on the type of text.
@@ -237,13 +236,13 @@ parseConfig = label "config option" $ choice
 
 -- The simplest possible filepath definition, will probably need tweaking. Follows POSIX "Fully portable filenames".
 parseFilepath :: Parser FilePath
-parseFilepath = label "filepath" $ Text.Megaparsec.some $ choice 
-    [ alphaNumChar
-    , oneOf ("/\\-_." :: String)]
+parseFilepath = label "filepath" $ do
+    t <- takeWhile1P (Just "filepath char") (\c -> DC.isAlphaNum c || elem c ("/\\-_." :: String))
+    return (T.unpack t)
 
 -- The elements in a table row are separated by "|". A line ending is denoted by a "\\", that is two "\" characters.
 parseTable :: Parser [[[PText]]]
-parseTable = label "table" $ sepEndBy1 (sepBy1 parsePText (symbol "|"))  (symbol "\\\\")
+parseTable = label "table" $ sepEndBy1 (sepBy1 parsePText (symbol "|")) (symbol "\\\\")
 
 parseList :: Parser [[PText]]
 parseList = label "list" $ sepBy1 parsePText (symbol "\\item{}")
@@ -267,13 +266,9 @@ parseOptionList ip = sepBy1 (lexeme ip) (symbol ",")
 parseOptionMap :: Parser OptionPair
 parseOptionMap = label "map option pair" $ do
     k <- lexeme $ Text.Megaparsec.some letterChar
-    sep <- optional (symbol ":")
-    -- Check for absence of separator.
-    case sep of
-        Nothing -> incorrectMapOption (T.pack k)
-        Just _ -> do
-            v <- parseOptionValue
-            return $ (T.pack k, v)
+    void (symbol ":") <?> "':' after key in map style options"
+    v <- parseOptionValue
+    return $ (T.pack k, v)        
 
 -- Parses an option in value form.
 parseOptionValue :: Parser OptionValue
