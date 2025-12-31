@@ -67,7 +67,9 @@ main = do
         --Right contents -> print $ M.runParser P.parseCommandOption (inFile opts) contents
         --Right contents -> print $ M.runParser P.parsePText (inFile opts) contents
         --Right contents -> print $ M.runParser P.parseOptions (inFile opts) contents
-        Right contents -> print $ M.runParser P.parseLanguage (inFile opts) contents
+        Right contents -> case M.runParser P.parseLanguage (inFile opts) contents of
+            Left e -> putStr (M.errorBundlePretty e)
+            Right p -> print p
 
 
 -- Determines the output filename, based on if it was provided as an argument.
