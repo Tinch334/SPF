@@ -17,8 +17,6 @@ import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec.Debug
 
-import qualified System.FilePath as FP
-
 
 -- No custom error handling for now.
 type Parser = Parsec Void T.Text
@@ -28,7 +26,7 @@ specialCharacters :: [Char]
 specialCharacters = ['\\', '{', '}']
 
 --------------------
--- PARSER FUNCTIONS
+-- GENERAL PARSING FUNCTIONS
 --------------------
 -- 
 sc :: Parser ()
@@ -47,85 +45,91 @@ symbol = L.symbol sc
 
 parseLanguage :: Parser PLang
 parseLanguage = do
-    cfg <- sepEndBy (simpleCommandParser preDocumentCommandTable) sc
+    cfg <- sepEndBy (parseCommandOption preDocumentCommandTable) sc
     doc <- parseDocument
     return (cfg ++ doc)
 
 parseDocument :: Parser PLang
-parseDocument = sepEndBy1 (choice [lexeme parseCommandOption, lexeme generatePParagraph]) sc where
+parseDocument = sepEndBy1 (choice [lexeme (parseCommandOption (beginEndCommandTable ++ documentCommandTable)), lexeme generatePParagraph]) sc where
     -- Necessary to parse standalone blocks of text without commands.
     generatePParagraph :: Parser PCommOpt
     generatePParagraph = do
-        t <- lexeme parsePText
+        t <- parsePText
         return (PCommOpt (PParagraph t) POptionNone)
 
+--------------------
+-- COMAMND PARSING FUNCTIONS
+--------------------
 -- In order to streamline the command parser we use a spec for each command.
 data CommandSpec = forall a. CommandSpec
-    String          -- Name of the command, without backslash.
-    (Parser a)      -- The parser for the command's argument, can be "pure ()" if it has none.
-    (a -> PComm)    -- The function to construct the command given it's argument; That is to say the data constructor.
+    T.Text              -- Name of the command, without backslash.
+    (Parser PCommOpt)   -- The parser for the command's argument.
 
--- Creates a parser for a command without an argument.
-commandNoArg :: String -> PComm -> CommandSpec
-commandNoArg n c = CommandSpec n (pure ()) (\_ -> c)
+-- Creates a CommandSpec, this is then used to parse the commands.
+simpleSpecMake :: T.Text -> Parser a -> (a -> PComm) -> CommandSpec
+simpleSpecMake n p f = CommandSpec n $ do
+    void (char '\\')
+    void (string n)
+    arg <- between (char '{') (char '}') p
+    void sc
+    op <- optional parseOptions
+    case op of
+        Nothing -> return (PCommOpt (f arg) POptionNone)
+        Just l -> return (PCommOpt (f arg) l)
+
+simpleNoArgSpecMake :: T.Text -> PComm -> CommandSpec
+simpleNoArgSpecMake n f = CommandSpec n $ do
+    void (char '\\')
+    void (string n)
+    void sc
+    op <- optional parseOptions
+    case op of
+        Nothing -> return (PCommOpt f POptionNone)
+        Just l -> return (PCommOpt f l)
+
+beginEndSpecMake :: T.Text -> Parser a -> (a -> PComm) -> CommandSpec
+beginEndSpecMake n p f = CommandSpec n $ do
+    void (string "\\begin")
+    void (between (char '{') (char '}') (string n))
+    void sc -- There can be space between the closing brace and the opening bracket.
+    op <- optional parseOptions
+    b <- p
+    void (string "\\end")
+    void (between (char '{') (char '}') (string n))
+    case op of
+        Nothing -> return (PCommOpt (f b) POptionNone)
+        Just l -> return (PCommOpt (f b) l)
 
 -- Configuration commands are currently the only commands accepted before the document.
 preDocumentCommandTable :: [CommandSpec]
 preDocumentCommandTable =
-    [ CommandSpec   "config"        parseConfig     PConfig ]
+    [ simpleSpecMake    "config"     parseConfig    PConfig ]
 
 -- Commands accepted in the document.
 documentCommandTable :: [CommandSpec]
 documentCommandTable =
-    [ CommandSpec   "title"         parsePText      PTitle          -- Commands with arguments.
-    , CommandSpec   "author"        parsePText      PAuthor
-    , CommandSpec   "date"          parsePText      PDate
-    , CommandSpec   "section"       parsePText      PSection
-    , CommandSpec   "subsection"    parsePText      PSubsection
-    , CommandSpec   "figure"        parseFilepath   PFigure
-    , commandNoArg  "newpage"       PNewpage                        -- Commands with no arguments.
-    , commandNoArg  "hline"         PHLine ]
+    [ simpleSpecMake        "title"         parsePText      PTitle          -- Commands with arguments.
+    , simpleSpecMake        "author"        parsePText      PAuthor
+    , simpleSpecMake        "date"          parsePText      PDate
+    , simpleSpecMake        "section"       parsePText      PSection
+    , simpleSpecMake        "subsection"    parsePText      PSubsection
+    , simpleSpecMake        "figure"        parseFilepath   PFigure
+    , simpleNoArgSpecMake   "newpage"       PNewpage                        -- Commands with no arguments.
+    , simpleNoArgSpecMake   "hline"         PHLine ]
 
 beginEndCommandTable :: [CommandSpec]
 beginEndCommandTable =
-    [ CommandSpec   "paragraph"     parsePText  PTextblock
-    , CommandSpec   "table"         parseTable      PTable
-    , CommandSpec   "list"          parseList       PList ]
+    [ beginEndSpecMake  "paragraph"     parsePText  PTextblock
+    , beginEndSpecMake  "table"         parseTable      PTable
+    , beginEndSpecMake  "list"          parseList       PList ]
 
--- Creates a parser by applying the data constructor to the result of parsing the command name string; Followed by the internal parser between
--- brackets.
-simpleSpecToParser :: CommandSpec -> Parser PComm
-simpleSpecToParser (CommandSpec n p f) = (char '\\') *> fmap f (string (T.pack n) *> between (char '{') (char '}') p)
+-- Parses a command and it's options. Try begin/end commands first since they are more restrictive.
+parseCommandOption :: [CommandSpec] -> Parser PCommOpt
+parseCommandOption lst = choice $ map (try . (\(CommandSpec _ p) -> p)) lst
 
-simpleCommandParser :: [CommandSpec] -> Parser PCommOpt
-simpleCommandParser ct = do
-    com <- choice (map (try . simpleSpecToParser) ct)
-    void space -- There can be space between the closing brace and the opening bracket.
-    op <- optional parseOptions -- Commands can have no options.
-    case op of
-        Nothing -> return (PCommOpt com POptionNone)
-        Just l -> return (PCommOpt com l)
-
-beginEndSpecToParser :: CommandSpec -> Parser PCommOpt
-beginEndSpecToParser (CommandSpec n p f) = do
-    void (string "\\begin")
-    void (between (char '{') (char '}') (string $ T.pack n))
-    op <- optional parseOptions
-    r <- p
-    void (string "\\end")
-    void (between (char '{') (char '}') (string $ T.pack n))
-    void space -- There can be space between the closing brace and the opening bracket.
-    case op of
-        Nothing -> return (PCommOpt (f r) POptionNone)
-        Just l -> return (PCommOpt (f r) l)
-
--- Parses a command and it's options. Parsing a begin/end command is attempted first since it's the more restrictive command.
-parseCommandOption :: Parser PCommOpt
-parseCommandOption = choice 
-    [ choice (map (try . beginEndSpecToParser) beginEndCommandTable)
-    , try $ simpleCommandParser documentCommandTable ]
-
-
+--------------------
+-- TEXT PARSING FUNCTIONS
+--------------------
 parsePText :: Parser [PText]
 parsePText = Text.Megaparsec.some (choice [parseSpecialPText, PNormal <$> parseRawText])
 
@@ -155,7 +159,7 @@ parseSpecialPText = void (char '\\') *> choice (map (try . textTypeToParser) tex
 parseRawText :: Parser T.Text
 parseRawText = do
     s <- takeWhile1P (Just "raw text") (\c -> not (elem c specialCharacters))
-    return (T.unwords $ T.words s) -- Trim additional spaces.
+    return s -- Additional spaces are not trimmed, done later depending on the type of text.
 
 -- Parses configuration options.
 parseConfig :: Parser ConfigOption
@@ -188,6 +192,9 @@ parseList :: Parser [[PText]]
 parseList = sepBy1 parsePText (symbol "\\item{}")
 
 
+--------------------
+-- OPTIONS PARSING FUNCTIONS
+--------------------
 -- Parses the options of a command. To avoid a errors the map parser must go first, otherwise in the case of a map the value parser would
 --read the key, commit it as "OVText" and then try to read a ":" causing an error.
 parseOptions :: Parser POption
