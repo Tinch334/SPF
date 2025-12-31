@@ -1,10 +1,13 @@
+\config{paragraphspacing}[sep: 10, height: 0.5, align: Left]
+
+
 \author{A great author}   [  size : 10   ,    font: Arial  ]
 
 \section{Chapter 1}
-
-
 \subsection{A second chapter 1}
 
 Lorem ipsum dolor          sit amet, \bold{consectetur adipiscing elit}. Mauris bibendum mauris eu dolor semper, ac aliquam quam commodo. Donec eleifend eros velit, et sodales urna feugiat ut. Suspendisse potenti. Fusce cursus elementum porta. Aliquam risus ante, tincidunt vel enim at, bibendum vehicula felis. In tristique quam at est hendrerit posuere aliquet non ante. Sed mattis tincidunt enim vel sollicitudin. Interdum et malesuada fames ac ante ipsum primis in faucibus.                 Donec justo lorem, \italic{efficitur eget pretium placerat}, blandit in lorem. Etiam viverra nisl non enim porta, id malesuada mauris bibendum. Praesent semper quam et nibh ullamcorper dictum id in nibh. Curabitur id arcu vestibulum, varius arcu vitae, sodales lorem. In efficitur risus ac ligula aliquam, non facilisis massa aliquam. Praesent sit amet lorem non nulla feugiat convallis at bibendum turpis.
 More text
+
+
 Some more text!!

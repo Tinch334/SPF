@@ -46,7 +46,13 @@ symbol = L.symbol sc
 
 
 parseLanguage :: Parser PLang
-parseLanguage = sepEndBy1 (choice [lexeme parseCommandOption, lexeme generatePParagraph]) sc where
+parseLanguage = do
+    cfg <- sepEndBy (simpleCommandParser preDocumentCommandTable) sc
+    doc <- parseDocument
+    return (cfg ++ doc)
+
+parseDocument :: Parser PLang
+parseDocument = sepEndBy1 (choice [lexeme parseCommandOption, lexeme generatePParagraph]) sc where
     -- Necessary to parse standalone blocks of text without commands.
     generatePParagraph :: Parser PCommOpt
     generatePParagraph = do
@@ -63,16 +69,21 @@ data CommandSpec = forall a. CommandSpec
 commandNoArg :: String -> PComm -> CommandSpec
 commandNoArg n c = CommandSpec n (pure ()) (\_ -> c)
 
-commandTable :: [CommandSpec]
-commandTable =
-    [ CommandSpec   "config"        parseConfig     PConfig         -- Commands with arguments
-    , CommandSpec   "title"         parsePText      PTitle
+-- Configuration commands are currently the only commands accepted before the document.
+preDocumentCommandTable :: [CommandSpec]
+preDocumentCommandTable =
+    [ CommandSpec   "config"        parseConfig     PConfig ]
+
+-- Commands accepted in the document.
+documentCommandTable :: [CommandSpec]
+documentCommandTable =
+    [ CommandSpec   "title"         parsePText      PTitle          -- Commands with arguments.
     , CommandSpec   "author"        parsePText      PAuthor
     , CommandSpec   "date"          parsePText      PDate
     , CommandSpec   "section"       parsePText      PSection
     , CommandSpec   "subsection"    parsePText      PSubsection
     , CommandSpec   "figure"        parseFilepath   PFigure
-    , commandNoArg  "newpage"       PNewpage
+    , commandNoArg  "newpage"       PNewpage                        -- Commands with no arguments.
     , commandNoArg  "hline"         PHLine ]
 
 beginEndCommandTable :: [CommandSpec]
@@ -85,6 +96,15 @@ beginEndCommandTable =
 -- brackets.
 simpleSpecToParser :: CommandSpec -> Parser PComm
 simpleSpecToParser (CommandSpec n p f) = (char '\\') *> fmap f (string (T.pack n) *> between (char '{') (char '}') p)
+
+simpleCommandParser :: [CommandSpec] -> Parser PCommOpt
+simpleCommandParser ct = do
+    com <- choice (map (try . simpleSpecToParser) ct)
+    void space -- There can be space between the closing brace and the opening bracket.
+    op <- optional parseOptions -- Commands can have no options.
+    case op of
+        Nothing -> return (PCommOpt com POptionNone)
+        Just l -> return (PCommOpt com l)
 
 beginEndSpecToParser :: CommandSpec -> Parser PCommOpt
 beginEndSpecToParser (CommandSpec n p f) = do
@@ -103,13 +123,11 @@ beginEndSpecToParser (CommandSpec n p f) = do
 parseCommandOption :: Parser PCommOpt
 parseCommandOption = choice 
     [ choice (map (try . beginEndSpecToParser) beginEndCommandTable)
-    , try $ do
-            com <- choice (map (try . simpleSpecToParser) commandTable)
-            void space -- There can be space between the closing brace and the opening bracket.
-            op <- optional parseOptions -- Commands can have no options.
-            case op of
-                Nothing -> return (PCommOpt com POptionNone)
-                Just l -> return (PCommOpt com l) ]
+    , try $ simpleCommandParser documentCommandTable ]
+
+
+parsePText :: Parser [PText]
+parsePText = Text.Megaparsec.some (choice [parseSpecialPText, PNormal <$> parseRawText])
 
 -- Similar idea to CommandSpec, simplified to the valid text types. In this case a quantifier isn't necessary, because all constructors take
 -- a string as their argument.
@@ -133,10 +151,7 @@ textTypeToParser (TextType n c) = do
 parseSpecialPText :: Parser PText
 parseSpecialPText = void (char '\\') *> choice (map (try . textTypeToParser) textTypesTable)
 
-parsePText :: Parser [PText]
-parsePText = Text.Megaparsec.some (choice [parseSpecialPText, PNormal <$> parseRawText])
-
--- Parsing raw text is done one character at a time, note that multiple spaces are collapsed down to one.
+-- Parsing raw text is done one character at a time, multiple spaces are collapsed down to one.
 parseRawText :: Parser T.Text
 parseRawText = do
     s <- takeWhile1P (Just "raw text") (\c -> not (elem c specialCharacters))
@@ -195,6 +210,6 @@ parseOptionMap = do
 -- Parses an option in value form.
 parseOptionValue :: Parser OptionValue
 parseOptionValue = choice
-    [ try $ OVFloat <$> L.float -- Goes first otherwise  arfloat might be interpreted as a decimal number and committed, leaving a ".".
+    [ try $ OVFloat <$> L.float -- Goes first otherwise a float might be interpreted as a decimal number and committed, leaving a ".".
     , OVInt <$> L.decimal
     , OVText . T.pack <$> Text.Megaparsec.some letterChar ]
