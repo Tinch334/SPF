@@ -25,6 +25,9 @@ type Parser = Parsec Void T.Text
 specialCharacters :: [Char]
 specialCharacters = ['\\', '{', '}']
 
+newlineCharacters :: [Char]
+newlineCharacters = ['\n', '\r', '\036']
+
 --------------------
 -- GENERAL PARSING FUNCTIONS
 --------------------
@@ -50,12 +53,9 @@ parseLanguage = do
     return (cfg ++ doc)
 
 parseDocument :: Parser PLang
-parseDocument = sepEndBy1 (choice [lexeme (parseCommandOption (beginEndCommandTable ++ documentCommandTable)), lexeme generatePParagraph]) sc where
+parseDocument = sepEndBy1 (choice [lexeme (parseCommandOption (beginEndCommandTable ++ documentCommandTable)), lexeme parseParagraph]) sc where
     -- Necessary to parse standalone blocks of text without commands.
-    generatePParagraph :: Parser PCommOpt
-    generatePParagraph = do
-        t <- parsePText
-        return (PCommOpt (PParagraph t) POptionNone)
+    
 
 --------------------
 -- COMAMND PARSING FUNCTIONS
@@ -100,6 +100,10 @@ beginEndSpecMake n p f = CommandSpec n $ do
         Nothing -> return (PCommOpt (f b) POptionNone)
         Just l -> return (PCommOpt (f b) l)
 
+-- Parses a command and it's options.
+parseCommandOption :: [CommandSpec] -> Parser PCommOpt
+parseCommandOption lst = choice $ map (try . (\(CommandSpec _ p) -> p)) lst
+
 -- Configuration commands are currently the only commands accepted before the document.
 preDocumentCommandTable :: [CommandSpec]
 preDocumentCommandTable =
@@ -123,15 +127,19 @@ beginEndCommandTable =
     , beginEndSpecMake  "table"         parseTable      PTable
     , beginEndSpecMake  "list"          parseList       PList ]
 
--- Parses a command and it's options. Try begin/end commands first since they are more restrictive.
-parseCommandOption :: [CommandSpec] -> Parser PCommOpt
-parseCommandOption lst = choice $ map (try . (\(CommandSpec _ p) -> p)) lst
 
 --------------------
 -- TEXT PARSING FUNCTIONS
 --------------------
+parseParagraph :: Parser PCommOpt
+parseParagraph = do
+        t <- parsePText
+        void (optional eol)
+        --void (space)
+        return (PCommOpt (PParagraph t) POptionNone)
+
 parsePText :: Parser [PText]
-parsePText = Text.Megaparsec.some (choice [parseSpecialPText, PNormal <$> parseRawText])
+parsePText = Text.Megaparsec.some (choice [parseSpecialPText, PNormal <$> parseRawTextLine])
 
 -- Similar idea to CommandSpec, simplified to the valid text types. In this case a quantifier isn't necessary, because all constructors take
 -- a string as their argument.
@@ -149,16 +157,16 @@ textTypesTable =
 textTypeToParser :: TextType -> Parser PText
 textTypeToParser (TextType n c) = do
     void (string $ T.pack n)
-    t <- between (char '{') (char '}') parseRawText
+    t <- between (char '{') (char '}') parseRawTextLine
     return (c t)
 
 parseSpecialPText :: Parser PText
 parseSpecialPText = void (char '\\') *> choice (map (try . textTypeToParser) textTypesTable)
 
--- Parsing raw text is done one character at a time, multiple spaces are collapsed down to one.
-parseRawText :: Parser T.Text
-parseRawText = do
-    s <- takeWhile1P (Just "raw text") (\c -> not (elem c specialCharacters))
+-- Parsing raw text is done one character at a time, this parser stops after hitting a newline.
+parseRawTextLine :: Parser T.Text
+parseRawTextLine = do
+    s <- takeWhile1P (Just "raw text") (\c -> notElem c (specialCharacters ++ newlineCharacters))
     return s -- Additional spaces are not trimmed, done later depending on the type of text.
 
 -- Parses configuration options.
