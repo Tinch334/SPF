@@ -14,6 +14,7 @@ import qualified Data.Char as DC
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
+import Text.Megaparsec.Debug
 
 
 --------------------
@@ -182,7 +183,7 @@ parseParagraph = label "paragraph" $ do
         return (PCommOpt (PParagraph t) POptionNone)
 
 parsePText :: Parser [PText]
-parsePText = Text.Megaparsec.some (choice [parseSpecialPText, PNormal <$> parseRawTextLine])
+parsePText = Text.Megaparsec.some (choice [parseSpecialPText, PNormal <$> parseRawTextParagraph])
 
 -- Similar idea to CommandSpec, simplified to the valid text types. In this case a quantifier isn't necessary, because all constructors take
 -- a string as their argument.
@@ -200,7 +201,7 @@ textTypesTable =
 textTypeToParser :: TextType -> Parser PText
 textTypeToParser (TextType n c) = do
     void (string n) <?> mkErrStr "" n " command"
-    t <- between (char '{') (char '}') parseRawTextLine <?> mkErrStr "" n " argument"
+    t <- between (char '{') (char '}') parseRawTextParagraph <?> mkErrStr "" n " argument"
     return (c t)
 
 parseSpecialPText :: Parser PText
@@ -211,11 +212,23 @@ parseSpecialPText = do
             c <- Text.Megaparsec.some letterChar
             unknownText (T.pack c)
 
--- Parsing raw text is done one character at a time, this parser stops after hitting a newline.
+-- Parsing raw text is done one character at a time, this parser stops after hitting an empty line. Follows LaTeX style paragraph separation.
+parseRawTextParagraph :: Parser Text
+parseRawTextParagraph = label "raw paragraph" $ do
+    l <- sepEndBy1 parseRawTextLine singleNewline
+    return (foldl mappend "" l)
+
 parseRawTextLine :: Parser Text
-parseRawTextLine = label "raw text" $ do
-    s <- takeWhile1P (Just "raw text") (\c -> notElem c (specialCharacters ++ newlineCharacters))
-    return s -- Additional spaces are not trimmed, done later depending on the type of text.
+parseRawTextLine = takeWhile1P (Just "raw line") (\c -> notElem c (specialCharacters ++ newlineCharacters))
+
+-- Succeeds when a single newline is present.
+singleNewline :: Parser ()
+singleNewline = try $ newline *> notFollowedBy newline where
+    newline = choice
+        [ string "\r\n"
+        , string "\n\r"
+        , string "\n"
+        , string "\r" ]
 
 -- Parses configuration options.
 parseConfig :: Parser ConfigOption
@@ -234,7 +247,7 @@ parseConfig = label "config option" $ choice
     , Titlesize         <$ string "titlesize"
     , Justification     <$ string "justification" ]
 
--- The simplest possible filepath definition, will probably need tweaking. Follows POSIX "Fully portable filenames".
+-- Parses a filepath, doesn't check that it's valid. Follows POSIX standard "Fully portable filenames".
 parseFilepath :: Parser FilePath
 parseFilepath = label "filepath" $ do
     t <- takeWhile1P (Just "filepath char") (\c -> DC.isAlphaNum c || elem c ("/\\-_." :: String))

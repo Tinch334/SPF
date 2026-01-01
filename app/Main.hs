@@ -64,9 +64,6 @@ main = do
     strOrErr <- tryIOError $ TIO.readFile (inFile opts)
     case strOrErr of
         Left _ -> putStr $ "File " ++ (quoteFile $ inFile opts) ++ " could not be accessed!\n"
-        --Right contents -> print $ M.runParser P.parseCommandOption (inFile opts) contents
-        --Right contents -> print $ M.runParser P.parsePText (inFile opts) contents
-        --Right contents -> print $ M.runParser P.parseOptions (inFile opts) contents
         Right contents -> case M.runParser P.parseLanguage (inFile opts) contents of
             Left e -> putStr (M.errorBundlePretty e)
             Right p -> print p
