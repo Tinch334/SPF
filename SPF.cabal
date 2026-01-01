@@ -25,7 +25,9 @@ source-repository head
 
 library
   exposed-modules:
-      Common
+      Datatypes.Common
+      Datatypes.ParseTokens
+      Datatypes.ValidatedTokens
       Lib
       Parser
       Penrose

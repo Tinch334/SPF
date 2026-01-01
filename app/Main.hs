@@ -3,7 +3,7 @@ module Main (main) where
 
 -- Imports
 import Lib
-import qualified Common as C
+import qualified Datatypes.Common as C
 import qualified Parser as P
 
 import System.FilePath

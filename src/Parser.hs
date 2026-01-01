@@ -2,7 +2,7 @@
 
 module Parser (parseLanguage) where
 
-import Common
+import Datatypes.ParseTokens
 
 import Control.Applicative
 import Control.Monad
@@ -14,7 +14,6 @@ import qualified Data.Char as DC
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
-import Text.Megaparsec.Debug
 
 
 --------------------
@@ -36,8 +35,8 @@ otherError :: Text -> Parser a
 otherError = customFailure . OtherError
 
 -- Helper functions.
-quote :: String -> String
-quote t = "\"" ++ t ++ "\""
+quote :: T.Text -> String
+quote t = "\"" ++ (T.unpack t) ++ "\""
 
 -- Make error labelling easier.
 mkErrStr :: String -> Text -> String -> String
@@ -45,9 +44,9 @@ mkErrStr b t a = b ++ (T.unpack t) ++ a
 
 -- How each custom error will be shown.
 instance ShowErrorComponent CustomError where
-    showErrorComponent (UnknownCommand c) = "Unknown command: " ++ quote (T.unpack c)
-    showErrorComponent (UnknownText t) = "Unknown text type: " ++ quote (T.unpack t)
-    showErrorComponent (OtherError t) = "Error during parsing: " ++ quote(T.unpack t)
+    showErrorComponent (UnknownCommand c) = "Unknown command: " ++ quote c
+    showErrorComponent (UnknownText t) = "Unknown text type: " ++ quote t
+    showErrorComponent (OtherError t) = "Error during parsing: " ++ quote t
         
 
 --------------------
@@ -98,7 +97,7 @@ parseDocument = sepEndBy1 documentOptions sc where
 --------------------
 -- In order to streamline the command parser we use a spec for each command.
 data CommandSpec = CommandSpec
-    Text              -- Name of the command, without backslash.
+    Text                -- Name of the command, without backslash.
     (Parser PCommOpt)   -- The parser for the command's argument.
 
 commandBackslash :: Parser ()
@@ -167,7 +166,7 @@ documentCommandTable =
 
 beginEndCommandTable :: [CommandSpec]
 beginEndCommandTable =
-    [ beginEndSpecMake  "paragraph"     parsePText  PTextblock
+    [ beginEndSpecMake  "paragraph"     parsePText  PParagraph
     , beginEndSpecMake  "table"         parseTable      PTable
     , beginEndSpecMake  "list"          parseList       PList ]
 
@@ -175,7 +174,7 @@ beginEndCommandTable =
 --------------------
 -- TEXT PARSING FUNCTIONS
 --------------------
--- Necessary to parse standalone blocks of text without commands.
+-- Parses standalone blocks of text without commands, note that text modes are not commands.
 parseParagraph :: Parser PCommOpt
 parseParagraph = label "paragraph" $ do
         t <- parsePText
@@ -216,36 +215,36 @@ parseSpecialPText = do
 parseRawTextParagraph :: Parser Text
 parseRawTextParagraph = label "raw paragraph" $ do
     l <- sepEndBy1 parseRawTextLine singleNewline
-    return (foldl mappend "" l)
+    return (foldl mappend "" l) -- Additional spaces are not trimmed, this is done later depending on the type of text.
 
 parseRawTextLine :: Parser Text
 parseRawTextLine = takeWhile1P (Just "raw line") (\c -> notElem c (specialCharacters ++ newlineCharacters))
 
 -- Succeeds when a single newline is present.
 singleNewline :: Parser ()
-singleNewline = try $ newline *> notFollowedBy newline where
-    newline = choice
+singleNewline = try $ parseNewline *> notFollowedBy parseNewline where
+    parseNewline = choice
         [ string "\r\n"
         , string "\n\r"
         , string "\n"
         , string "\r" ]
 
 -- Parses configuration options.
-parseConfig :: Parser ConfigOption
+parseConfig :: Parser PConfigOption
 parseConfig = label "config option" $ choice
-    [ Size              <$ string "size"
-    , Pagenumbering     <$ string "pagenumbering"
-    , Titlespacing      <$ string "titlespacing"
-    , Paragraphspacing  <$ string "paragraphspacing"
-    , Listspacing       <$ string "listspacing"
-    , Tablespacing      <$ string "tablespacing"
-    , Figurespacing     <$ string "figurespacing"
-    , Spacingglue       <$ string "spacingglue"
-    , Textglue          <$ string "textglue"
-    , Font              <$ string "font"
-    , Parsize           <$ string "parsize"
-    , Titlesize         <$ string "titlesize"
-    , Justification     <$ string "justification" ]
+    [ PSize              <$ string "size"
+    , PPagenumbering     <$ string "pagenumbering"
+    , PTitlespacing      <$ string "titlespacing"
+    , PParagraphspacing  <$ string "paragraphspacing"
+    , PListspacing       <$ string "listspacing"
+    , PTablespacing      <$ string "tablespacing"
+    , PFigurespacing     <$ string "figurespacing"
+    , PSpacingglue       <$ string "spacingglue"
+    , PTextglue          <$ string "textglue"
+    , PFont              <$ string "font"
+    , PParsize           <$ string "parsize"
+    , PTitlesize         <$ string "titlesize"
+    , PJustification     <$ string "justification" ]
 
 -- Parses a filepath, doesn't check that it's valid. Follows POSIX standard "Fully portable filenames".
 parseFilepath :: Parser FilePath
@@ -276,7 +275,7 @@ parseOptionList :: Parser a -> Parser [a]
 parseOptionList ip = sepBy1 (lexeme ip) (symbol ",")
 
 -- Parses an option in map form.
-parseOptionMap :: Parser OptionPair
+parseOptionMap :: Parser POptionPair
 parseOptionMap = label "map option pair" $ do
     k <- lexeme $ Text.Megaparsec.some letterChar
     void (symbol ":") <?> "':' after key in map style options"
@@ -284,8 +283,8 @@ parseOptionMap = label "map option pair" $ do
     return $ (T.pack k, v)        
 
 -- Parses an option in value form.
-parseOptionValue :: Parser OptionValue
+parseOptionValue :: Parser POptionValue
 parseOptionValue = label "option value" $ choice
-    [ try $ OVFloat <$> L.float -- Goes first otherwise a float might be interpreted as a decimal number and committed, leaving a ".".
-    , OVInt <$> L.decimal
-    , OVText . T.pack <$> Text.Megaparsec.some letterChar ]
+    [ try $ PFloat <$> L.float -- Goes first otherwise a float might be interpreted as a decimal number and committed, leaving a ".".
+    , PInt <$> L.decimal
+    , PText . T.pack <$> Text.Megaparsec.some letterChar ]
