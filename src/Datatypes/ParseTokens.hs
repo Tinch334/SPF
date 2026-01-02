@@ -7,7 +7,7 @@ import Data.Text (Text)
 -- DATATYPE DEFINITIONS
 --------------------
 -- A separate option datatype is used for more modular parsing.
-data POption    = POptionDirect  [POptionValue]
+data POption    = POptionValue  [POptionValue]
                 | POptionMap     [POptionPair]
                 | POptionNone
                 deriving (Show)

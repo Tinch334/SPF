@@ -10,18 +10,21 @@ import Control.Monad
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Char as DC
+import Data.Either
 
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
+import Text.Megaparsec.Debug
 
 
 --------------------
 -- ERROR HANDLING FUNCTIONS
 --------------------
-data CustomError    = UnknownCommand Text         -- Thrown when encountering \command, where command is invalid.
-                    | UnknownText Text            -- Thrown when encountering \text-type, where text-type is invalid.
-                    | OtherError Text             -- Generic constructor for other types of errors.
+data CustomError    = UnknownCommand Text   -- Thrown when encountering \command, where command is invalid.
+                    | UnknownText Text      -- Thrown when encountering \text-type, where text-type is invalid.
+                    | InvalidOptions Text   -- Thrown when a set of options has an invalid format.
+                    | OtherError Text       -- Generic constructor for other types of errors.
                     deriving (Eq, Ord, Show)
 
 -- To allow for easy error throwing.
@@ -30,6 +33,9 @@ unknownCommand = customFailure . UnknownCommand
 
 unknownText :: Text -> Parser a
 unknownText = customFailure . UnknownText
+
+invalidOptions :: Text -> Parser a
+invalidOptions = customFailure . InvalidOptions
 
 otherError :: Text -> Parser a
 otherError = customFailure . OtherError
@@ -46,6 +52,7 @@ mkErrStr b t a = b ++ (T.unpack t) ++ a
 instance ShowErrorComponent CustomError where
     showErrorComponent (UnknownCommand c) = "Unknown command: " ++ quote c
     showErrorComponent (UnknownText t) = "Unknown text type: " ++ quote t
+    showErrorComponent (InvalidOptions o) = "Invalid format for options, encountered " ++ T.unpack o
     showErrorComponent (OtherError t) = "Error during parsing: " ++ quote t
         
 
@@ -110,7 +117,7 @@ simpleSpecMake n p f = CommandSpec n $ do
     void (string n) <?> T.unpack n
     arg <- between (char '{') (char '}') p <?> mkErrStr "" n " argument"
     void sc
-    op <- optional parseOptions
+    op <- lexeme $ optional parseOptions
     case op of
         Nothing -> return (PCommOpt (f arg) POptionNone)
         Just l -> return (PCommOpt (f arg) l)
@@ -120,7 +127,7 @@ simpleNoArgSpecMake n f = CommandSpec n $ do
     commandBackslash
     void (string n) <?> T.unpack n
     void sc
-    op <- optional parseOptions
+    op <- lexeme $ optional parseOptions
     case op of
         Nothing -> return (PCommOpt f POptionNone)
         Just l -> return (PCommOpt f l)
@@ -130,7 +137,7 @@ beginEndSpecMake n p f = CommandSpec n $ do
     void (string "\\begin") <?> "\\begin"
     void (between (char '{') (char '}') (string n)) <?> mkErrStr "" n " for begin"
     void sc -- There can be space between the closing brace and the opening bracket.
-    op <- optional parseOptions
+    op <- lexeme $ optional parseOptions
     b <- p <?> mkErrStr "" n " argument"
     void (string "\\end") <?> "\\end"
     void (between (char '{') (char '}') (string n)) <?> mkErrStr "" n " for end"
@@ -266,25 +273,39 @@ parseList = label "list" $ sepBy1 parsePText (symbol "\\item{}")
 -- Parses the options of a command. To avoid a errors the map parser must go first, otherwise in the case of a map the value parser would
 --read the key, commit it as "OVText" and then try to read a ":" causing an error.
 parseOptions :: Parser POption
-parseOptions = label "options" $ between (symbol "[") (symbol "]") $ choice 
-    [ try (POptionMap <$> parseOptionList parseOptionMap) <?> "map style options"
-    , POptionDirect <$> parseOptionList parseOptionValue <?> "value style options"]
+parseOptions = label "options" $ between (symbol "[") (symbol "]") $ do
+    l <- parseOptionList
+    -- Check that all options are of the same type, otherwise throw an error.
+    let (maps, values) = partitionEithers l
+    case (null maps, null values) of
+        (False, True) -> return $ POptionMap maps
+        (True, False) -> return $ POptionValue values
+        _ -> invalidOptions $ if (isLeft (head l)) 
+            then "value format in map style options"
+            else "map format in value style options"
 
--- Both types of option lists follow the same form, a single parser can be used. Takes a parser for the elements of the list.
-parseOptionList :: Parser a -> Parser [a]
-parseOptionList ip = sepBy1 (lexeme ip) (symbol ",")
+-- Parses all elements in the list, regardless of type.
+parseOptionList :: Parser [Either POptionPair (POptionValue)]
+parseOptionList = sepBy1 (lexeme parseOption) (symbol ",")
+
+parseOption :: Parser (Either POptionPair (POptionValue))
+parseOption = label "option" $ (Left <$> try parseOptionMap) <|> (Right <$> parseOptionValue)
 
 -- Parses an option in map form.
 parseOptionMap :: Parser POptionPair
-parseOptionMap = label "map option pair" $ do
+parseOptionMap = label "option pair" $ do
     k <- lexeme $ Text.Megaparsec.some letterChar
+    --lookAhead (symbol ":") <?> "':' after key in map style options"
     void (symbol ":") <?> "':' after key in map style options"
-    v <- parseOptionValue
-    return $ (T.pack k, v)        
+    v <- lexeme parseOptionValue
+    return $ (T.pack k, v)
 
 -- Parses an option in value form.
 parseOptionValue :: Parser POptionValue
 parseOptionValue = label "option value" $ choice
     [ try $ PFloat <$> L.float -- Goes first otherwise a float might be interpreted as a decimal number and committed, leaving a ".".
     , PInt <$> L.decimal
-    , PText . T.pack <$> Text.Megaparsec.some letterChar ]
+    , do
+        t <- Text.Megaparsec.some letterChar
+        notFollowedBy (symbol ":") -- Avoids situations where there's a value and colon followed by nothing, for example "key:".
+        return (PText $ T.pack t) ]
