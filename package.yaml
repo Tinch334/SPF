@@ -30,6 +30,7 @@ dependencies:
 - megaparsec >= 9.0
 - optparse-applicative
 - optparse-simple
+- validation
 
 ghc-options:
 - -Wall

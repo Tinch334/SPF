@@ -1,7 +1,7 @@
 \config{paragraphspacing}[sep: 10, height: 0.5, align: Left]
 
 
-\author{A great author}[  size : 10   ,  Arial, justification: Center  ]
+\author{A great author}  [  size : 10   ,  Arial, justification: Center  ]
 
 \section{Chapter 1}
 \subsection{A second chapter 1}
