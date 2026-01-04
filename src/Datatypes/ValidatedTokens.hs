@@ -4,8 +4,8 @@ import Data.Text (Text)
 
 
 type VLang = [VComm]
--- The maybe in most of the options indicates that they are optional. If parsed they are added, with Just, otherwise Nothing is left.
--- The Nothing's are later be replaced with the default values for those arguments.
+-- The maybe in the options indicates that they are optional. If parsed they are added, with Just, otherwise Nothing is used.
+-- The Nothing's are then replaced with the default values for those arguments.
 data VComm  = VConfig VConfigOpt
             | VTitle        [VText] (Maybe FontName) (Maybe FontSize)
             | VAuthor       [VText] (Maybe FontName) (Maybe FontSize)

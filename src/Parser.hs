@@ -15,7 +15,6 @@ import Data.Either
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
-import Text.Megaparsec.Debug
 
 
 --------------------
@@ -300,11 +299,12 @@ parseOptionMap = label "option pair" $ do
     v <- lexeme parseOptionValue
     return $ (T.pack k, v)
 
--- Parses an option in value form.
+-- Parses an option in value form., note that both integers and floats are returned as numbers, the parsing separation is simply
+-- because there's not a single parser for integers and floats.
 parseOptionValue :: Parser POptionValue
 parseOptionValue = label "option value" $ choice
-    [ try $ PFloat <$> L.float -- Goes first otherwise a float might be interpreted as a decimal number and committed, leaving a ".".
-    , PInt <$> L.decimal
+    [ try $ PNumber <$> L.float -- Goes first otherwise a float might be interpreted as a decimal number and committed, leaving a ".".
+    , PNumber . fromIntegral <$> L.decimal
     , do
         t <- Text.Megaparsec.some letterChar
         notFollowedBy (symbol ":") -- Avoids situations where there's a value and colon followed by nothing, for example "key:".

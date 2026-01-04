@@ -26,12 +26,12 @@ source-repository head
 library
   exposed-modules:
       Datatypes.Common
-      Datatypes.Monads
       Datatypes.ParseTokens
       Datatypes.ValidatedTokens
       Lib
       Parser
       Penrose
+      Validation
   other-modules:
       Paths_SPF
   hs-source-dirs:

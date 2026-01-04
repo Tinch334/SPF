@@ -41,8 +41,7 @@ data PText  = PNormal      Text
             deriving (Show)
 
 
-data POptionValue   = PInt    Int
-                    | PFloat  Double
+data POptionValue   = PNumber  Double
                     | PText   Text
                     deriving (Show)
 
