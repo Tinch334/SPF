@@ -6,7 +6,7 @@ import Data.Text (Text)
 type VLang = [VComm]
 -- The maybe in the options indicates that they are optional. If parsed they are added, with Just, otherwise Nothing is used.
 -- The Nothing's are then replaced with the default values for those arguments.
-data VComm  = VConfig VConfigOpt
+data VComm  = VConfig       VConfigOpt
             | VTitle        [VText] (Maybe FontName) (Maybe FontSize)
             | VAuthor       [VText] (Maybe FontName) (Maybe FontSize)
             | VDate         [VText] (Maybe FontName) (Maybe FontSize)
@@ -36,20 +36,20 @@ data VParSizeOpt = ParSize Double -- paragraph size
 data VTitleSizeOpt = TitleSize Double -- title size
 data VJustificationOpt = JustifyLeft | JustifyRight | JustifyCentered | JustifyFull
 
-data VConfigOpt = VPageSize VPageSizeOpt
-                | VPageNumbering VPageNumberingOpt
-                | VTitleSpacing VTitleSpacingOpt
-                | VParagraphSpacing VParagraphSpacingOpt
-                | VListSpacing VListSpacingOpt
-                | VTableSpacing VTableSpacingOpt
-                | VFigureSpacing VFigureSpacingOpt
-                | VSpacingGlue VSpacingGlueOpt
-                | VTextGlue VTextGlueOpt
-                | VParIndent VParIndentOpt
-                | VFont VFontOpt
-                | VParSize VParSizeOpt
-                | VTitleSize VTitleSizeOpt
-                | VJustification VJustificationOpt
+data VConfigOpt = VPageSize             VPageSizeOpt
+                | VPageNumbering        VPageNumberingOpt
+                | VTitleSpacing         VTitleSpacingOpt
+                | VParagraphSpacing     VParagraphSpacingOpt
+                | VListSpacing          VListSpacingOpt
+                | VTableSpacing         VTableSpacingOpt
+                | VFigureSpacing        VFigureSpacingOpt
+                | VSpacingGlue          VSpacingGlueOpt
+                | VTextGlue             VTextGlueOpt
+                | VParIndent            VParIndentOpt
+                | VFont                 VFontOpt
+                | VParSize              VParSizeOpt
+                | VTitleSize            VTitleSizeOpt
+                | VJustification        VJustificationOpt
 
 -- Options for commands.
 data FontName = FontName Text
