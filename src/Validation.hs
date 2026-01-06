@@ -27,9 +27,9 @@ quoteList l = L.intercalate ", " (map quote l)
 
 configErrorString :: PConfigOption -> String
 configErrorString PSize =
-    "Expected " ++ quoteList ["a4", "a3", "legal"] ++ " or two numeric values (width: pt, height: pt)."
+    "Expected one of: " ++ quoteList ["a4", "a3", "legal"] ++ " or two numeric values (width: pt, height: pt)."
 configErrorString PPagenumbering =
-    "Expected " ++ quoteList ["arabic", "roman", "none"]
+    "Expected one of: " ++ quoteList ["arabic", "roman", "none"] ++ "."
 configErrorString PTitlespacing =
     "Expected two numeric values (before: pt, after: pt)"
 configErrorString PParagraphspacing =
@@ -41,13 +41,17 @@ configErrorString PTablespacing =
 configErrorString PFigurespacing =
     "Expected two numeric values (before: pt, after: pt)" 
 configErrorString PSpacingglue =
-    "Expected two numeric values (before: pt, after: pt)" 
+    "Expected two numeric values (stretchability: pt, shrinkability: pt)" 
 configErrorString PTextglue =
-    "Expected two numeric values (before: pt, after: pt)" 
-configErrorString PFont = undefined
-configErrorString PParsize = undefined
-configErrorString PTitlesize = undefined
-configErrorString PJustification = undefined 
+    "Expected two numeric values (stretchability: pt, shrinkability: pt)" 
+configErrorString PFont =
+    "Expected one of: " ++ quoteList ["helvetica", "courier", "times"] ++ "."
+configErrorString PParsize =
+    "Expected a numeric value (size: pt)"
+configErrorString PTitlesize =
+    "Expected a numeric value (size: pt)"
+configErrorString PJustification = 
+    "Expected one of: " ++ quoteList ["left", "right", "centred", "full"]
 
 --------------------
 -- SCHEMA DEFINITION AND FUNCTIONS
@@ -137,9 +141,10 @@ customSizeSchema = VPageSize <$> (SizeCustom <$>
 -- Page numbering validation.
 validateNamedNumbering :: Text -> Maybe VPageNumberingOpt
 validateNamedNumbering t = case T.toLower t of
-        "arabic" -> Just NumberingArabic
-        "roman" -> Just NumberingRoman
-        "none" -> Just NumberingNone
+    "arabic" -> Just NumberingArabic
+    "roman" -> Just NumberingRoman
+    "none" -> Just NumberingNone
+    other -> Nothing
 
 namedPagenumberingSchema :: Schema VConfigOpt
 namedPagenumberingSchema = VPageNumbering <$>
@@ -149,10 +154,44 @@ namedPagenumberingSchema = VPageNumbering <$>
 namedBeforeAndAfterSchema :: (Double -> Double -> a) -> Schema a
 namedBeforeAndAfterSchema = (\c -> c <$> requireNumber "before" <*> requireNumber "after")
 
-customGlueSchema :: (Double -> Double -> a) -> Schema a
-customGlueSchema = (\c -> c <$> 
+-- Glue validation, same idea as the previous validator.
+namedGlueSchema :: (Double -> Double -> a) -> Schema a
+namedGlueSchema = (\c -> c <$> 
     requireNumberWith "stretch" positiveNumber ("Stretch must be positive")
     <*> requireNumberWith "shrink" positiveNumber ("Shrink height must be positive"))
+
+-- Font validation.
+validateNamedFont :: Text -> Maybe VFontOpt
+validateNamedFont t = case T.toLower t of
+    "helvetica" -> Just FontHelvetica
+    "courier" -> Just FontCourier
+    "times" -> Just FontTimes
+    other -> Nothing
+
+namedFontSchema :: Schema VConfigOpt
+namedFontSchema = VFont <$> requireTextWith "font" validateNamedFont ("Unknown font type. " ++ configErrorString PFont)
+
+-- Text size validation.
+namedFontSizeSchema :: (Double -> a) -> Schema a
+namedFontSizeSchema = (\c -> c <$> requireNumberWith "size" positiveNumber ("Font size must be positive"))
+
+-- Text justification validation.
+validateJustification :: Text -> Maybe VJustificationOpt
+validateJustification t = case T.toLower t of
+    "left" -> Just JustifyLeft
+    "right" -> Just JustifyRight
+    "centred" -> Just JustifyCentred
+    "full" -> Just JustifyFull
+    other -> Nothing
+
+namedJustifySchema :: Schema VConfigOpt
+namedJustifySchema = VJustification <$>
+    requireTextWith "justification" validateJustification ("Unknown text justification. " ++ configErrorString PJustification)
+    
+
+-- Generic failure function
+noArgumentFail :: String -> PConfigOption -> Validation [String] VConfigOpt
+noArgumentFail err opt = Failure [err ++ configErrorString opt]
 
 -- Configuration options validation.
 validateConfig :: PConfigOption -> POption -> Validation [String] VConfigOpt
@@ -162,56 +201,56 @@ validateConfig PSize (POptionMap m) = runSchema
         , customSizeSchema ])
     m
 validateConfig PSize (POptionValue l) = undefined
-validateConfig PSize POptionNone = Failure ["Invalid form for page size. " ++ configErrorString PSize]
+validateConfig PSize POptionNone = noArgumentFail "Invalid form for page size. " PSize
 
 validateConfig PPagenumbering (POptionMap m) = runSchema namedPagenumberingSchema m 
 validateConfig PPagenumbering (POptionValue l) = undefined
-validateConfig PPagenumbering POptionNone = Failure ["Invalid form for page numbering. " ++ configErrorString PPagenumbering]
+validateConfig PPagenumbering POptionNone = noArgumentFail "Invalid form for page numbering. " PPagenumbering
 
 --validateConfig PTitlespacing (POptionMap m) = runSchema (namedBeforeAndAfterSchema TitleSpacing) m
 validateConfig PTitlespacing (POptionMap m) = VTitleSpacing <$> runSchema (namedBeforeAndAfterSchema TitleSpacing) m
 validateConfig PTitlespacing (POptionValue l) = undefined
-validateConfig PTitlespacing POptionNone = Failure ["Title spacing requires arguments. " ++ configErrorString PTitlespacing]
+validateConfig PTitlespacing POptionNone = noArgumentFail "Title spacing requires arguments. " PTitlespacing
 
 validateConfig PParagraphspacing (POptionMap m) = VParagraphSpacing <$> runSchema (namedBeforeAndAfterSchema ParagraphSpacing) m
 validateConfig PParagraphspacing (POptionValue l) = undefined
-validateConfig PParagraphspacing POptionNone = Failure ["Paragraph spacing requires arguments. " ++ configErrorString PParagraphspacing]
+validateConfig PParagraphspacing POptionNone = noArgumentFail "Paragraph spacing requires arguments. " PParagraphspacing
 
 validateConfig PListspacing (POptionMap m) = VListSpacing <$> runSchema (namedBeforeAndAfterSchema ListSpacing) m
 validateConfig PListspacing (POptionValue l) = undefined
-validateConfig PListspacing POptionNone = Failure ["List spacing requires arguments. " ++ configErrorString PListspacing]
+validateConfig PListspacing POptionNone = noArgumentFail "List spacing requires arguments. " PListspacing
 
 validateConfig PTablespacing (POptionMap m) = VTableSpacing <$> runSchema (namedBeforeAndAfterSchema TableSpacing) m
 validateConfig PTablespacing (POptionValue l) = undefined
-validateConfig PTablespacing POptionNone = Failure ["Table spacing requires arguments. " ++ configErrorString PTablespacing]
+validateConfig PTablespacing POptionNone = noArgumentFail "Table spacing requires arguments. " PTablespacing
 
 validateConfig PFigurespacing (POptionMap m) = VFigureSpacing <$> runSchema (namedBeforeAndAfterSchema FigureSpacing) m
 validateConfig PFigurespacing (POptionValue l) = undefined
-validateConfig PFigurespacing POptionNone = Failure ["Figure spacing requires arguments. " ++ configErrorString PFigurespacing]
+validateConfig PFigurespacing POptionNone = noArgumentFail "Figure spacing requires arguments. " PFigurespacing
 
-validateConfig PSpacingglue (POptionMap m) = VSpacingGlue <$> runSchema (namedBeforeAndAfterSchema SpacingGlue) m
+validateConfig PSpacingglue (POptionMap m) = VSpacingGlue <$> runSchema (namedGlueSchema SpacingGlue) m
 validateConfig PSpacingglue (POptionValue l) = undefined
-validateConfig PSpacingglue POptionNone = undefined
+validateConfig PSpacingglue POptionNone = noArgumentFail "Spacing glue requires arguments. " PSpacingglue
 
-validateConfig PTextglue (POptionMap m) = VTextGlue <$> runSchema (namedBeforeAndAfterSchema TextGlue) m
+validateConfig PTextglue (POptionMap m) = VTextGlue <$> runSchema (namedGlueSchema TextGlue) m
 validateConfig PTextglue (POptionValue l) = undefined
-validateConfig PTextglue POptionNone = undefined
+validateConfig PTextglue POptionNone = noArgumentFail "Paragraph glue requires arguments. " PTextglue
 
-validateConfig PFont (POptionMap m) = undefined
+validateConfig PFont (POptionMap m) = runSchema namedFontSchema m
 validateConfig PFont (POptionValue l) = undefined
-validateConfig PFont POptionNone = undefined
+validateConfig PFont POptionNone = noArgumentFail "Font type requires arguments. " PFont
 
-validateConfig PParsize (POptionMap m) = undefined
+validateConfig PParsize (POptionMap m) = VParSize <$> runSchema (namedFontSizeSchema ParSize) m
 validateConfig PParsize (POptionValue l) = undefined
-validateConfig PParsize POptionNone = undefined
+validateConfig PParsize POptionNone = noArgumentFail "Paragraph font size requires arguments. " PParsize
 
-validateConfig PTitlesize (POptionMap m) = undefined
+validateConfig PTitlesize (POptionMap m) = VTitleSize <$> runSchema (namedFontSizeSchema TitleSize) m
 validateConfig PTitlesize (POptionValue l) = undefined
-validateConfig PTitlesize POptionNone = undefined
+validateConfig PTitlesize POptionNone = noArgumentFail "Title font size requires arguments. " PTitlesize
 
-validateConfig PJustification (POptionMap m) = undefined
+validateConfig PJustification (POptionMap m) = runSchema namedJustifySchema m
 validateConfig PJustification (POptionValue l) = undefined
-validateConfig PJustification POptionNone = undefined
+validateConfig PJustification POptionNone = noArgumentFail "Text justification requires arguments" PJustification
 
 {-
 data RequirementsField  = Required (POptionValue -> Bool)

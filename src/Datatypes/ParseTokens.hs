@@ -10,10 +10,10 @@ import Data.Text (Text)
 data POption    = POptionValue  [POptionValue]
                 | POptionMap     [POptionPair]
                 | POptionNone
-                deriving (Show)
+                deriving (Show, Eq, Ord)
 
 type PLang = [PCommOpt]
-data PCommOpt = PCommOpt PComm POption deriving (Show)
+data PCommOpt = PCommOpt PComm POption deriving (Show, Eq, Ord)
 data PComm  = PConfig      PConfigOption
             | PTitle       [PText]
             | PAuthor      [PText]
@@ -29,7 +29,7 @@ data PComm  = PConfig      PConfigOption
             | PParagraph   [PText] -- Used for both regular paragraphs and those enclosed in begin/end.
             | PNewpage
             | PHLine
-            deriving (Show)
+            deriving (Show, Eq, Ord)
 
 
 data PText  = PNormal      Text
@@ -38,12 +38,12 @@ data PText  = PNormal      Text
             | PEmphasised  Text
             | PVerbatim    Text
             | PQuoted      Text
-            deriving (Show)
+            deriving (Show, Eq, Ord)
 
 
 data POptionValue   = PNumber  Double
                     | PText   Text
-                    deriving (Show)
+                    deriving (Show, Eq, Ord)
 
 type POptionPair = (Text, POptionValue)
 
@@ -60,4 +60,4 @@ data PConfigOption  = PSize
                     | PParsize
                     | PTitlesize
                     | PJustification
-                    deriving (Show, Eq)
+                    deriving (Show, Eq, Ord)

@@ -34,7 +34,7 @@ data VParIndentOpt = ParIndent Double -- indent pt
 data VFontOpt = FontHelvetica | FontCourier | FontTimes
 data VParSizeOpt = ParSize Double -- paragraph size
 data VTitleSizeOpt = TitleSize Double -- title size
-data VJustificationOpt = JustifyLeft | JustifyRight | JustifyCentered | JustifyFull
+data VJustificationOpt = JustifyLeft | JustifyRight | JustifyCentred | JustifyFull
 
 data VConfigOpt = VPageSize             VPageSizeOpt
                 | VPageNumbering        VPageNumberingOpt
