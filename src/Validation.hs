@@ -115,8 +115,13 @@ requireTextWith k vf err = Schema $ \o ->
         Just _ -> Failure ["Map option key " ++ quote k ++ " has wrong type"]
         Nothing -> Failure ["Missing key " ++ quote k]
 
-positiveNumber :: Double -> Maybe Double
-positiveNumber n = if n > 0 then Just n else Nothing
+
+-- Ensures only valid keys are present, fails if an element not in the given key list is in the options.
+ensureValidKeys :: String -> [Text] -> Schema (a -> a)
+ensureValidKeys err keys  = Schema $ \o ->
+    if filter (\e -> notElem e (map fst o)) keys /= []
+        then Failure [err]
+        else Success id
 
 --------------------
 -- VALIDATION FUNCTIONS
@@ -189,93 +194,94 @@ namedJustifySchema = VJustification <$>
     requireTextWith "justification" validateJustification ("Unknown text justification. " ++ configErrorString PJustification)
     
 
--- Generic failure function
+-- Failure and error functions.
 noArgumentFail :: String -> PConfigOption -> Validation [String] VConfigOpt
 noArgumentFail err opt = Failure [err ++ configErrorString opt]
+
+-- Takes a number, returns it if it's positive.
+positiveNumber :: Double -> Maybe Double
+positiveNumber n = if n > 0 then Just n else Nothing
+
 
 -- Configuration options validation.
 validateConfig :: PConfigOption -> POption -> Validation [String] VConfigOpt
 validateConfig PSize (POptionMap m) = runSchema
     (choiceSchema
-        [ namedSizeSchema
-        , customSizeSchema ])
+        [ (ensureValidKeys ("Invalid option for page size. " ++ configErrorString PSize)  ["size"]) <*> namedSizeSchema
+        , (ensureValidKeys ("Invalid option for page size. " ++ configErrorString PSize)  ["width", "height"]) <*> customSizeSchema ])
     m
 validateConfig PSize (POptionValue l) = undefined
 validateConfig PSize POptionNone = noArgumentFail "Invalid form for page size. " PSize
 
-validateConfig PPagenumbering (POptionMap m) = runSchema namedPagenumberingSchema m 
+validateConfig PPagenumbering (POptionMap m) = 
+    (ensureValidKeys ("Invalid option for page numbering. " ++ configErrorString PPagenumbering) ["numbering"])
+    <*> (runSchema namedPagenumberingSchema m)
 validateConfig PPagenumbering (POptionValue l) = undefined
 validateConfig PPagenumbering POptionNone = noArgumentFail "Invalid form for page numbering. " PPagenumbering
 
 --validateConfig PTitlespacing (POptionMap m) = runSchema (namedBeforeAndAfterSchema TitleSpacing) m
-validateConfig PTitlespacing (POptionMap m) = VTitleSpacing <$> runSchema (namedBeforeAndAfterSchema TitleSpacing) m
+validateConfig PTitlespacing (POptionMap m) =
+    (ensureValidKeys ("Invalid option for title spacing. " ++ configErrorString PTitlespacing) ["before", "after"])
+    <*> (VTitleSpacing <$> runSchema (namedBeforeAndAfterSchema TitleSpacing) m)
 validateConfig PTitlespacing (POptionValue l) = undefined
 validateConfig PTitlespacing POptionNone = noArgumentFail "Title spacing requires arguments. " PTitlespacing
 
-validateConfig PParagraphspacing (POptionMap m) = VParagraphSpacing <$> runSchema (namedBeforeAndAfterSchema ParagraphSpacing) m
+validateConfig PParagraphspacing (POptionMap m) =
+    (ensureValidKeys ("Invalid option for paragraph spacing. " ++ configErrorString PParagraphspacing) ["before", "after"])
+    <*> (VParagraphSpacing <$> runSchema (namedBeforeAndAfterSchema ParagraphSpacing) m)
 validateConfig PParagraphspacing (POptionValue l) = undefined
 validateConfig PParagraphspacing POptionNone = noArgumentFail "Paragraph spacing requires arguments. " PParagraphspacing
 
-validateConfig PListspacing (POptionMap m) = VListSpacing <$> runSchema (namedBeforeAndAfterSchema ListSpacing) m
+validateConfig PListspacing (POptionMap m) = 
+    (ensureValidKeys ("Invalid option for list spacing. " ++ configErrorString PListspacing) ["before", "after"])
+    <*> (VListSpacing <$> runSchema (namedBeforeAndAfterSchema ListSpacing) m)
 validateConfig PListspacing (POptionValue l) = undefined
 validateConfig PListspacing POptionNone = noArgumentFail "List spacing requires arguments. " PListspacing
 
-validateConfig PTablespacing (POptionMap m) = VTableSpacing <$> runSchema (namedBeforeAndAfterSchema TableSpacing) m
+validateConfig PTablespacing (POptionMap m) =
+    (ensureValidKeys ("Invalid option for table spacing. " ++ configErrorString PTablespacing) ["before", "after"])
+    <*> (VTableSpacing <$> runSchema (namedBeforeAndAfterSchema TableSpacing) m)
 validateConfig PTablespacing (POptionValue l) = undefined
 validateConfig PTablespacing POptionNone = noArgumentFail "Table spacing requires arguments. " PTablespacing
 
-validateConfig PFigurespacing (POptionMap m) = VFigureSpacing <$> runSchema (namedBeforeAndAfterSchema FigureSpacing) m
+validateConfig PFigurespacing (POptionMap m) =
+    (ensureValidKeys ("Invalid option for figure spacing. " ++ configErrorString PFigurespacing) ["before", "after"])
+    <*> (VFigureSpacing <$> runSchema (namedBeforeAndAfterSchema FigureSpacing) m)
 validateConfig PFigurespacing (POptionValue l) = undefined
 validateConfig PFigurespacing POptionNone = noArgumentFail "Figure spacing requires arguments. " PFigurespacing
 
-validateConfig PSpacingglue (POptionMap m) = VSpacingGlue <$> runSchema (namedGlueSchema SpacingGlue) m
+validateConfig PSpacingglue (POptionMap m) =
+    (ensureValidKeys ("Invalid option for spacing glue. " ++ configErrorString PSpacingglue) ["stretchability", "shrinkability"])
+    <*> (VSpacingGlue <$> runSchema (namedGlueSchema SpacingGlue) m)
 validateConfig PSpacingglue (POptionValue l) = undefined
 validateConfig PSpacingglue POptionNone = noArgumentFail "Spacing glue requires arguments. " PSpacingglue
 
-validateConfig PTextglue (POptionMap m) = VTextGlue <$> runSchema (namedGlueSchema TextGlue) m
+validateConfig PTextglue (POptionMap m) =
+    (ensureValidKeys ("Invalid option for text glue. " ++ configErrorString PTextglue) ["stretchability", "shrinkability"])
+    <*> (VTextGlue <$> runSchema (namedGlueSchema TextGlue) m)
 validateConfig PTextglue (POptionValue l) = undefined
 validateConfig PTextglue POptionNone = noArgumentFail "Paragraph glue requires arguments. " PTextglue
 
-validateConfig PFont (POptionMap m) = runSchema namedFontSchema m
+validateConfig PFont (POptionMap m) =
+    (ensureValidKeys ("Invalid option for font. " ++ configErrorString PFont) ["font"])
+    <*> (runSchema namedFontSchema m)
 validateConfig PFont (POptionValue l) = undefined
 validateConfig PFont POptionNone = noArgumentFail "Font type requires arguments. " PFont
 
-validateConfig PParsize (POptionMap m) = VParSize <$> runSchema (namedFontSizeSchema ParSize) m
+validateConfig PParsize (POptionMap m) =
+    (ensureValidKeys ("Invalid option for paragraph font size. " ++ configErrorString PParsize) ["size"])
+    <*> (VParSize <$> runSchema (namedFontSizeSchema ParSize) m)
 validateConfig PParsize (POptionValue l) = undefined
 validateConfig PParsize POptionNone = noArgumentFail "Paragraph font size requires arguments. " PParsize
 
-validateConfig PTitlesize (POptionMap m) = VTitleSize <$> runSchema (namedFontSizeSchema TitleSize) m
+validateConfig PTitlesize (POptionMap m) =
+    (ensureValidKeys ("Invalid option for title font size. " ++ configErrorString PTitlesize) ["size"])
+    <*> (VTitleSize <$> runSchema (namedFontSizeSchema TitleSize) m)
 validateConfig PTitlesize (POptionValue l) = undefined
 validateConfig PTitlesize POptionNone = noArgumentFail "Title font size requires arguments. " PTitlesize
 
-validateConfig PJustification (POptionMap m) = runSchema namedJustifySchema m
+validateConfig PJustification (POptionMap m) =
+    (ensureValidKeys ("Invalid option for paragraph justification. " ++ configErrorString PJustification) ["justification"])
+    <*> (runSchema namedJustifySchema m)
 validateConfig PJustification (POptionValue l) = undefined
 validateConfig PJustification POptionNone = noArgumentFail "Text justification requires arguments" PJustification
-
-{-
-data RequirementsField  = Required (POptionValue -> Bool)
-                        | Optional (POptionValue -> Bool)
-
-type ValueRequirements = [RequirementsField]
-type MapRequirements = [(Text, RequirementsField)]
-
-validateMapOptions :: MapRequirements -> POption -> Validation String ()
-validateMapOptions l m = let
-    keys = map fst m
-
-    -- Check for missing required keys
-    missing = filter (\(k, Required _) -> notElem k keys) l in Failure "Bad"
-
-validateConfig :: PConfigOption -> POption -> Validation String VConfigOpt
-validateConfig PSize (POptionMap m) = 
-    case m of
-        [("size", PText t)] -> validate ("Unknown page size. " ++ (configErrorString PSize)) validateNamedSize t
-        [("width", PNumber w), ("height", PNumber h)] -> Success $ VPageSize (SizeCustom w h)
-        [("height", PNumber h), ("width", PNumber w)] -> Success $ VPageSize (SizeCustom w h)
-        _ -> Failure $ "Invalid form for page size. " ++ configErrorString PSize
-
-validateConfig PSize POptionNone = Failure $ "Invalid form for page size. " ++ configErrorString PSize
-
-
-
--}
