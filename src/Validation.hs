@@ -124,7 +124,19 @@ ensureValidKeys err keys s = Schema $ \o ->
         else Failure [err]
 
 --------------------
--- VALIDATION FUNCTIONS
+-- VALIDAITON FUNCTIONS
+--------------------
+data ExpectedType = ENumber | EText
+type OptionCheck = POptionValue -> Bool
+
+trueCheck :: POptionValue -> Bool
+trueCheck _ = True
+
+--listStyleValidation :: [ExpectedType] -> [POptionValue] -> [OptionCheck] -> Validation [String] 
+--listStyleValidation [] [] = 
+
+--------------------
+-- SCHEMA VALIDATION FUNCTIONS
 --------------------
 -- Page size validation.
 validateNamedSize :: Text -> Maybe VPageSizeOpt
@@ -210,7 +222,7 @@ validateConfig PSize (POptionMap m) = runSchema
         [ ensureValidKeys (configErrorString PSize) ["size"] namedSizeSchema
         , ensureValidKeys (configErrorString PSize)  ["width", "height"] customSizeSchema ])
     m
-validateConfig PSize (POptionValue l) = undefined
+validateConfig PSize (POptionValue l) = listStyleValidation [PNumber, ]
 validateConfig PSize POptionNone = noArgumentFail "Invalid form for page size. " PSize
 
 validateConfig PPagenumbering (POptionMap m) = runSchema
