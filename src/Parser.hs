@@ -3,6 +3,7 @@
 module Parser (parseLanguage) where
 
 import Datatypes.ParseTokens
+import Common
 
 import Control.Applicative
 import Control.Monad
@@ -38,10 +39,6 @@ invalidOptions = customFailure . InvalidOptions
 
 otherError :: Text -> Parser a
 otherError = customFailure . OtherError
-
--- Helper functions.
-quote :: T.Text -> String
-quote t = "\"" ++ (T.unpack t) ++ "\""
 
 -- Make error labelling easier.
 mkErrStr :: String -> Text -> String -> String
@@ -275,20 +272,11 @@ parseOptions :: Parser POption
 parseOptions = label "options" $ between (symbol "[") (symbol "]") $ do
     l <- parseOptionList
     -- Check that all options are of the same type, otherwise throw an error.
-    let (maps, values) = partitionEithers l
-    case (null maps, null values) of
-        (False, True) -> return $ POptionMap maps
-        (True, False) -> return $ POptionValue values
-        _ -> invalidOptions $ if (isLeft (head l)) 
-            then "value format in map style options"
-            else "map format in value style options"
+    return $ POptionMap l
 
 -- Parses all elements in the list, regardless of type.
-parseOptionList :: Parser [Either POptionPair (POptionValue)]
-parseOptionList = sepBy1 (lexeme parseOption) (symbol ",")
-
-parseOption :: Parser (Either POptionPair (POptionValue))
-parseOption = label "option" $ (Left <$> try parseOptionMap) <|> (Right <$> parseOptionValue)
+parseOptionList :: Parser [POptionPair]
+parseOptionList = label "option" $ sepBy1 (lexeme parseOptionMap) (symbol ",")
 
 -- Parses an option in map form.
 parseOptionMap :: Parser POptionPair

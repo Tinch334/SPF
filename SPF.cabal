@@ -25,13 +25,15 @@ source-repository head
 
 library
   exposed-modules:
-      Datatypes.Common
+      Common
       Datatypes.ParseTokens
       Datatypes.ValidatedTokens
       Lib
       Parser
       Penrose
-      Validation
+      Validation.Commands
+      Validation.Configuration
+      Validation.Schema
   other-modules:
       Paths_SPF
   hs-source-dirs:

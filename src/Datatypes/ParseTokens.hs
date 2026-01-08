@@ -6,9 +6,14 @@ import Data.Text (Text)
 --------------------
 -- DATATYPE DEFINITIONS
 --------------------
+data POptionValue   = PNumber  Double
+                    | PText   Text
+                    deriving (Show, Eq, Ord)
+
+type POptionPair = (Text, POptionValue)
+
 -- A separate option datatype is used for more modular parsing.
-data POption    = POptionValue  [POptionValue]
-                | POptionMap     [POptionPair]
+data POption    = POptionMap     [POptionPair]
                 | POptionNone
                 deriving (Show, Eq, Ord)
 
@@ -39,13 +44,6 @@ data PText  = PNormal      Text
             | PVerbatim    Text
             | PQuoted      Text
             deriving (Show, Eq, Ord)
-
-
-data POptionValue   = PNumber  Double
-                    | PText   Text
-                    deriving (Show, Eq, Ord)
-
-type POptionPair = (Text, POptionValue)
 
 data PConfigOption  = PSize
                     | PPagenumbering

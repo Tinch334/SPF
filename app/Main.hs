@@ -5,6 +5,7 @@ module Main (main) where
 import Lib
 import qualified Datatypes.Common as C
 import qualified Parser as P
+import Common
 
 import System.FilePath
 import System.IO.Error
@@ -50,11 +51,6 @@ optionParser =
     <*> outFileParser
 
 
--- Helper functions.
-quoteFile :: FilePath -> FilePath
-quoteFile p = "\"" ++ p ++ "\""
-
-
 -- Main body.
 main :: IO ()
 main = do
@@ -63,7 +59,7 @@ main = do
 
     strOrErr <- tryIOError $ TIO.readFile (inFile opts)
     case strOrErr of
-        Left _ -> putStr $ "File " ++ (quoteFile $ inFile opts) ++ " could not be accessed!\n"
+        Left _ -> putStr $ "File " ++ (quote $ inFile opts) ++ " could not be accessed!\n"
         Right contents -> case M.runParser P.parseLanguage (inFile opts) contents of
             Left e -> putStr (M.errorBundlePretty e)
             Right p -> print p
