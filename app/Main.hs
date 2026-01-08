@@ -3,9 +3,8 @@ module Main (main) where
 
 -- Imports
 import Lib
-import qualified Datatypes.Common as C
 import qualified Parser as P
-import Common
+import qualified Common as C
 
 import System.FilePath
 import System.IO.Error
@@ -22,7 +21,7 @@ import qualified Text.Megaparsec as M
 -- Data structures
 data Options = Options
     {   verbose :: Bool
-    ,   inFile :: FilePath
+    ,   inFile  :: FilePath
     ,   outFile :: Maybe FilePath
     }
 
@@ -59,7 +58,7 @@ main = do
 
     strOrErr <- tryIOError $ TIO.readFile (inFile opts)
     case strOrErr of
-        Left _ -> putStr $ "File " ++ (quote $ inFile opts) ++ " could not be accessed!\n"
+        Left _ -> putStr $ "File " ++ (C.quote $ T.pack (inFile opts)) ++ " could not be accessed!\n"
         Right contents -> case M.runParser P.parseLanguage (inFile opts) contents of
             Left e -> putStr (M.errorBundlePretty e)
             Right p -> print p

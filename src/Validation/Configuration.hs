@@ -61,21 +61,21 @@ validateNamedSize t = case T.toLower t of
     "a4"    -> Just SizeA4
     "a3"    -> Just SizeA3
     "legal" -> Just SizeLegal
-    other   -> Nothing
+    _   -> Nothing
 -- Page numbering validation.
 validateNamedNumbering :: Text -> Maybe VPageNumberingOpt
 validateNamedNumbering t = case T.toLower t of
     "arabic" -> Just NumberingArabic
     "roman" -> Just NumberingRoman
     "none" -> Just NumberingNone
-    other -> Nothing
+    _ -> Nothing
 -- Font validation.
 validateNamedFont :: Text -> Maybe VFontOpt
 validateNamedFont t = case T.toLower t of
     "helvetica" -> Just FontHelvetica
     "courier" -> Just FontCourier
     "times" -> Just FontTimes
-    other -> Nothing
+    _ -> Nothing
 -- Text justification validation.
 validateJustification :: Text -> Maybe VJustificationOpt
 validateJustification t = case T.toLower t of
@@ -83,7 +83,7 @@ validateJustification t = case T.toLower t of
     "right" -> Just JustifyRight
     "centred" -> Just JustifyCentred
     "full" -> Just JustifyFull
-    other -> Nothing
+    _ -> Nothing
 
 -- Takes a number, returns it if it's positive, otherwise Nothing.
 validatePositive :: Double -> Maybe Double
@@ -130,10 +130,10 @@ requireTextMapWith k vf err = Schema $ \o ->
 -- Ensures only valid keys are present, fails if an element not in the given key list is in the options.
 ensureValidKeys :: String -> [Text] -> Schema POptionPair b -> Schema POptionPair b
 ensureValidKeys err keys s = Schema $ \o ->
-    let fLst = filter (\e -> notElem e (map fst o)) keys in
-    if null fLst
+    let invalidKey = filter (\e -> notElem e keys) (map fst o) in
+    if null invalidKey
         then (runSchema s o) -- If the key check succeeded the inner validation schema is run.
-        else Failure ["Invalid key" ++ quote (head fLst) ++ ". " ++ err]
+        else Failure ["Invalid keys: " ++ quoteList invalidKey ++ ". " ++ err]
 
 namedSizeSchema :: Schema POptionPair VConfigOpt
 namedSizeSchema = VPageSize <$>

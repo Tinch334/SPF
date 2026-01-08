@@ -7,12 +7,13 @@ import Control.Monad
 
 import Data.Validation
 
--- A newtype is used to allow for generic Functor and Applicative instances.
+-- This data type is used to validate lists of options for commands. A newtype is used to allow for generic Functor and Applicative instances,
+-- which allow for sequential validations to be performed.
 newtype Schema a b = Schema {
     runSchema :: [a] -> Validation [String] b
 }
 
--- The important definition here is the Applicative one, it allows for the concatenation of Schemas.
+-- The important definition here is the Applicative one, it allows for the sequential application of Schemas.
 instance Functor (Schema env) where
     fmap f (Schema g) = Schema (\o -> fmap f (g o))
 
