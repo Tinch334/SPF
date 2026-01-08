@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Validation where
 
@@ -56,21 +57,21 @@ configErrorString PJustification =
 --------------------
 -- SCHEMA DEFINITION AND FUNCTIONS
 --------------------
-data Schema a = Schema {
-    runSchema :: [POptionPair] -> Validation [String] a
+data Schema a b = Schema {
+    runSchema :: [a] -> Validation [String] b
 }
 
 -- The important definition here is the Applicative one, it allows for the concatenation of Schemas.
-instance Functor Schema where
+instance Functor (Schema POptionPair) where
     fmap f (Schema g) = Schema (\o -> fmap f (g o)) -- Note that "g o" is a validation, therefore we cannot apply f directly.
 
-instance Applicative Schema where
+instance Applicative (Schema POptionPair) where
     pure x = Schema (\_ -> Success x)
     (Schema f) <*> (Schema g) = Schema (\o -> f o <*> g o) -- "f o" and "g o" are a validations, therefore they are applicative.
 
 
 -- Returns a valid schema with the corresponding values, or an error if no valid matches are found.
-choiceSchema :: [Schema a] -> Schema a
+choiceSchema :: [Schema a b] -> Schema a b
 choiceSchema [] = Schema (\_ -> Failure ["Options did not match any valid form"])
 choiceSchema ((Schema s):xs) =
     Schema $ \o ->
@@ -82,7 +83,7 @@ choiceSchema ((Schema s):xs) =
                 Failure e' -> Failure (e <> e') -- Errors have to implement <>, they are a semigroup.
 
 -- Takes a key, if it corresponds to a numeric value has it then a "Success" is returned, otherwise a "Failure".
-requireNumber :: Text -> Schema Double
+requireNumber :: Text -> Schema POptionPair Double
 requireNumber k = Schema $ \o ->
     case lookup k o of
         Just (PNumber n) -> Success n
@@ -91,7 +92,7 @@ requireNumber k = Schema $ \o ->
 
 -- Takes a key, if it corresponds to a text value has it and the given function returns "Just" then a "Success" is returned, otherwise a
 -- "Failure". Could be implemented using requireNumber, however that would require more lines, a small amount of repetition is acceptable.
-requireNumberWith :: Text -> (Double -> Maybe a) -> String -> Schema a
+requireNumberWith :: Text -> (Double -> Maybe b) -> String -> Schema POptionPair b
 requireNumberWith k vf err = Schema $ \o ->
     case lookup k o of
         Just (PNumber n) -> validate [err] vf n
@@ -99,7 +100,7 @@ requireNumberWith k vf err = Schema $ \o ->
         Nothing -> Failure ["Missing key " ++ quote k]
 
 -- Takes a key, if it corresponds to a text value has it then a "Success" is returned, otherwise a "Failure".
-requireText :: Text -> Schema Text
+requireText :: Text -> Schema POptionPair Text
 requireText k = Schema $ \o ->
     case lookup k o of
         Just (PText t) -> Success t
@@ -108,7 +109,7 @@ requireText k = Schema $ \o ->
 
 -- Takes a key, if it corresponds to a text value has it and the given function returns "Just" then a "Success" is returned, otherwise a
 -- "Failure".
-requireTextWith :: Text -> (Text -> Maybe a) -> String -> Schema a
+requireTextWith :: Text -> (Text -> Maybe b) -> String -> Schema POptionPair b
 requireTextWith k vf err = Schema $ \o ->
     case lookup k o of
         Just (PText t) -> validate [err] vf t
@@ -117,7 +118,7 @@ requireTextWith k vf err = Schema $ \o ->
 
 
 -- Ensures only valid keys are present, fails if an element not in the given key list is in the options.
-ensureValidKeys :: String -> [Text] -> Schema a -> Schema a
+ensureValidKeys :: String -> [Text] -> Schema POptionPair b -> Schema POptionPair b
 ensureValidKeys err keys s = Schema $ \o ->
     if null $ filter (\e -> notElem e (map fst o)) keys
         then (runSchema s o) -- If the key check succeeded the inner validation schema is run.
@@ -146,11 +147,11 @@ validateNamedSize t = case T.toLower t of
     "legal" -> Just SizeLegal
     other   -> Nothing
 
-namedSizeSchema :: Schema VConfigOpt
+namedSizeSchema :: Schema POptionPair VConfigOpt
 namedSizeSchema = VPageSize <$>
     requireTextWith "size" validateNamedSize ("Unknown page size. " ++ (configErrorString PSize))
 
-customSizeSchema :: Schema VConfigOpt
+customSizeSchema :: Schema POptionPair VConfigOpt
 customSizeSchema = VPageSize <$> (SizeCustom <$> 
     requireNumberWith "width" positiveNumber ("Page width must be positive. " ++ (configErrorString PSize))
     <*> requireNumberWith "height" positiveNumber ("Page height must be positive. " ++ (configErrorString PSize)))
@@ -163,16 +164,16 @@ validateNamedNumbering t = case T.toLower t of
     "none" -> Just NumberingNone
     other -> Nothing
 
-namedPagenumberingSchema :: Schema VConfigOpt
+namedPagenumberingSchema :: Schema POptionPair VConfigOpt
 namedPagenumberingSchema = VPageNumbering <$>
     requireTextWith "numbering" validateNamedNumbering ("Unknown page numbering type. " ++ (configErrorString PPagenumbering))
 
 -- Before and after spacing validation. Takes a constructor, so the function can be used with any constructor of Double -> Double -> a.
-namedBeforeAndAfterSchema :: (Double -> Double -> a) -> Schema a
+namedBeforeAndAfterSchema :: (Double -> Double -> b) -> Schema POptionPair b
 namedBeforeAndAfterSchema = (\c -> c <$> requireNumber "before" <*> requireNumber "after")
 
 -- Glue validation, same idea as the previous validator.
-namedGlueSchema :: (Double -> Double -> a) -> Schema a
+namedGlueSchema :: (Double -> Double -> b) -> Schema POptionPair b
 namedGlueSchema = (\c -> c <$> 
     requireNumberWith "stretch" positiveNumber ("Stretch must be positive")
     <*> requireNumberWith "shrink" positiveNumber ("Shrink height must be positive"))
@@ -185,11 +186,11 @@ validateNamedFont t = case T.toLower t of
     "times" -> Just FontTimes
     other -> Nothing
 
-namedFontSchema :: Schema VConfigOpt
+namedFontSchema :: Schema POptionPair VConfigOpt
 namedFontSchema = VFont <$> requireTextWith "font" validateNamedFont ("Unknown font type. " ++ configErrorString PFont)
 
 -- Text size validation.
-namedFontSizeSchema :: (Double -> a) -> Schema a
+namedFontSizeSchema :: (Double -> b) -> Schema POptionPair b
 namedFontSizeSchema = (\c -> c <$> requireNumberWith "size" positiveNumber ("Font size must be positive"))
 
 -- Text justification validation.
@@ -201,7 +202,7 @@ validateJustification t = case T.toLower t of
     "full" -> Just JustifyFull
     other -> Nothing
 
-namedJustifySchema :: Schema VConfigOpt
+namedJustifySchema :: Schema POptionPair VConfigOpt
 namedJustifySchema = VJustification <$>
     requireTextWith "justification" validateJustification ("Unknown text justification. " ++ configErrorString PJustification)
     
@@ -222,7 +223,7 @@ validateConfig PSize (POptionMap m) = runSchema
         [ ensureValidKeys (configErrorString PSize) ["size"] namedSizeSchema
         , ensureValidKeys (configErrorString PSize)  ["width", "height"] customSizeSchema ])
     m
-validateConfig PSize (POptionValue l) = listStyleValidation [PNumber, ]
+validateConfig PSize (POptionValue l) = undefined--listStyleValidation [PNumber, ]
 validateConfig PSize POptionNone = noArgumentFail "Invalid form for page size. " PSize
 
 validateConfig PPagenumbering (POptionMap m) = runSchema
