@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralisedNewtypeDeriving #-} -- For generic Functor and Applicative instances.
 
 module Validation where
 
@@ -57,17 +57,18 @@ configErrorString PJustification =
 --------------------
 -- SCHEMA DEFINITION AND FUNCTIONS
 --------------------
-data Schema a b = Schema {
+-- A newtype is used to allow for generic Functor and Applicative instances.
+newtype Schema a b = Schema {
     runSchema :: [a] -> Validation [String] b
 }
 
 -- The important definition here is the Applicative one, it allows for the concatenation of Schemas.
-instance Functor (Schema POptionPair) where
-    fmap f (Schema g) = Schema (\o -> fmap f (g o)) -- Note that "g o" is a validation, therefore we cannot apply f directly.
+instance Functor (Schema env) where
+    fmap f (Schema g) = Schema (\o -> fmap f (g o))
 
-instance Applicative (Schema POptionPair) where
+instance Applicative (Schema env) where
     pure x = Schema (\_ -> Success x)
-    (Schema f) <*> (Schema g) = Schema (\o -> f o <*> g o) -- "f o" and "g o" are a validations, therefore they are applicative.
+    (Schema f) <*> (Schema g) = Schema (\o -> f o <*> g o)
 
 
 -- Returns a valid schema with the corresponding values, or an error if no valid matches are found.
