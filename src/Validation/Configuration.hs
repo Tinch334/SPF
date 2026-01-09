@@ -89,85 +89,43 @@ validateJustification t = case T.toLower t of
 validatePositive :: Double -> Maybe Double
 validatePositive n = if n > 0 then Just n else Nothing
 
+
 --------------------
--- MAP SCHEMA VALIDATION FUNCTIONS
+-- SCHEMA VALIDATION FUNCTIONS
 --------------------
--- Takes a key, if it corresponds to a numeric value has it then a "Success" is returned, otherwise a "Failure".
-requireNumberMap :: Text -> Schema POptionPair Double
-requireNumberMap k = Schema $ \o ->
-    case lookup k o of
-        Just (PNumber n) -> Success n
-        Just _ -> Failure ["Map option key " ++ quote k ++ " has wrong type"]
-        Nothing -> Failure ["Missing key " ++ quote k]
-
--- Takes a key, if it corresponds to a text value has it and the given function returns "Just" then a "Success" is returned, otherwise a
--- "Failure". Could be implemented using requireNumberMap, however that would require more lines, a small amount of repetition is acceptable.
-requireNumberMapWith :: Text -> (Double -> Maybe b) -> String -> Schema POptionPair b
-requireNumberMapWith k vf err = Schema $ \o ->
-    case lookup k o of
-        Just (PNumber n) -> validate [err] vf n
-        Just _ -> Failure ["Map option key " ++ quote k ++ " has wrong type"]
-        Nothing -> Failure ["Missing key " ++ quote k]
-
--- Takes a key, if it corresponds to a text value has it then a "Success" is returned, otherwise a "Failure".
-requireTextMap :: Text -> Schema POptionPair Text
-requireTextMap k = Schema $ \o ->
-    case lookup k o of
-        Just (PText t) -> Success t
-        Just _ -> Failure ["Map option key " ++ quote k ++ " has wrong type"]
-        Nothing -> Failure ["Missing key " ++ quote k]
-
--- Takes a key, if it corresponds to a text value has it and the given function returns "Just" then a "Success" is returned, otherwise a
--- "Failure".
-requireTextMapWith :: Text -> (Text -> Maybe b) -> String -> Schema POptionPair b
-requireTextMapWith k vf err = Schema $ \o ->
-    case lookup k o of
-        Just (PText t) -> validate [err] vf t
-        Just _ -> Failure ["Map option key " ++ quote k ++ " has wrong type"]
-        Nothing -> Failure ["Missing key " ++ quote k]
-
-
--- Ensures only valid keys are present, fails if an element not in the given key list is in the options.
-ensureValidKeys :: String -> [Text] -> Schema POptionPair b -> Schema POptionPair b
-ensureValidKeys err keys s = Schema $ \o ->
-    let invalidKey = filter (\e -> notElem e keys) (map fst o) in
-    if null invalidKey
-        then (runSchema s o) -- If the key check succeeded the inner validation schema is run.
-        else Failure ["Invalid keys: " ++ quoteList invalidKey ++ ". " ++ err]
-
 namedSizeSchema :: Schema POptionPair VConfigOpt
 namedSizeSchema = VPageSize <$>
-    requireTextMapWith "size" validateNamedSize ("Unknown page size. " ++ (configErrorString PSize))
+    requireTextWith "size" validateNamedSize ("Unknown page size. " ++ (configErrorString PSize))
 
 customSizeSchema :: Schema POptionPair VConfigOpt
 customSizeSchema = VPageSize <$> (SizeCustom <$> 
-    requireNumberMapWith "width" validatePositive ("Page width must be positive. " ++ (configErrorString PSize))
-    <*> requireNumberMapWith "height" validatePositive ("Page height must be positive. " ++ (configErrorString PSize)))
+    requireNumberWith "width" validatePositive ("Page width must be positive. " ++ (configErrorString PSize))
+    <*> requireNumberWith "height" validatePositive ("Page height must be positive. " ++ (configErrorString PSize)))
 
 namedPagenumberingSchema :: Schema POptionPair VConfigOpt
 namedPagenumberingSchema = VPageNumbering <$>
-    requireTextMapWith "numbering" validateNamedNumbering ("Unknown page numbering type. " ++ (configErrorString PPagenumbering))
+    requireTextWith "numbering" validateNamedNumbering ("Unknown page numbering type. " ++ (configErrorString PPagenumbering))
 
 -- Before and after spacing validation. Takes a constructor, so the function can be used with any constructor of Double -> Double -> a.
 namedBeforeAndAfterSchema :: (Double -> Double -> b) -> Schema POptionPair b
-namedBeforeAndAfterSchema = (\c -> c <$> requireNumberMap "before" <*> requireNumberMap "after")
+namedBeforeAndAfterSchema = (\c -> c <$> requireNumber "before" <*> requireNumber "after")
 
 -- Glue validation, same idea as the previous validator.
 namedGlueSchema :: (Double -> Double -> b) -> Schema POptionPair b
 namedGlueSchema = (\c -> c <$> 
-    requireNumberMapWith "stretch" validatePositive ("Stretch must be positive")
-    <*> requireNumberMapWith "shrink" validatePositive ("Shrink height must be positive"))
+    requireNumberWith "stretch" validatePositive ("Stretch must be positive")
+    <*> requireNumberWith "shrink" validatePositive ("Shrink height must be positive"))
 
 namedFontSchema :: Schema POptionPair VConfigOpt
-namedFontSchema = VFont <$> requireTextMapWith "font" validateNamedFont ("Unknown font type. " ++ configErrorString PFont)
+namedFontSchema = VFont <$> requireTextWith "font" validateNamedFont ("Unknown font type. " ++ configErrorString PFont)
 
 -- Text size validation.
 namedFontSizeSchema :: (Double -> b) -> Schema POptionPair b
-namedFontSizeSchema = (\c -> c <$> requireNumberMapWith "size" validatePositive ("Font size must be positive"))
+namedFontSizeSchema = (\c -> c <$> requireNumberWith "size" validatePositive ("Font size must be positive"))
 
 namedJustifySchema :: Schema POptionPair VConfigOpt
 namedJustifySchema = VJustification <$>
-    requireTextMapWith "justification" validateJustification ("Unknown text justification. " ++ configErrorString PJustification)
+    requireTextWith "justification" validateJustification ("Unknown text justification. " ++ configErrorString PJustification)
 
 
 --------------------

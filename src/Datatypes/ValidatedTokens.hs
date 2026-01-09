@@ -18,23 +18,24 @@ data VComm  = VConfig       VConfigOpt
             | VParagraph    [VText] (Maybe FontName) (Maybe FontSize) (Maybe TextJustify)
             | VNewpage
             | VHLine
+            deriving (Show, Eq, Ord)
 
 
 -- Options for configuration.
-data VPageSizeOpt = SizeA4 | SizeA3 | SizeLegal | SizeCustom Double Double -- width pt, height pt
-data VPageNumberingOpt = NumberingArabic | NumberingRoman | NumberingNone
-data VTitleSpacingOpt = TitleSpacing Double Double -- before pt, after pt
-data VParagraphSpacingOpt = ParagraphSpacing Double Double -- before pt, after pt
-data VListSpacingOpt = ListSpacing Double Double -- before pt, after pt
-data VTableSpacingOpt = TableSpacing Double Double -- before pt, after pt
-data VFigureSpacingOpt = FigureSpacing Double Double -- before pt, after pt
-data VSpacingGlueOpt = SpacingGlue Double Double -- stretchability pt, shrinkability pt
-data VTextGlueOpt = TextGlue Double Double -- stretchability pt, shrinkability pt
-data VParIndentOpt = ParIndent Double -- indent pt
-data VFontOpt = FontHelvetica | FontCourier | FontTimes
-data VParSizeOpt = ParSize Double -- paragraph size
-data VTitleSizeOpt = TitleSize Double -- title size
-data VJustificationOpt = JustifyLeft | JustifyRight | JustifyCentred | JustifyFull
+data VPageSizeOpt = SizeA4 | SizeA3 | SizeLegal | SizeCustom Double Double deriving (Show, Eq, Ord) -- width pt, height pt
+data VPageNumberingOpt = NumberingArabic | NumberingRoman | NumberingNone deriving (Show, Eq, Ord)
+data VTitleSpacingOpt = TitleSpacing Double Double deriving (Show, Eq, Ord) -- before pt, after pt
+data VParagraphSpacingOpt = ParagraphSpacing Double Double deriving (Show, Eq, Ord) -- before pt, after pt
+data VListSpacingOpt = ListSpacing Double Double deriving (Show, Eq, Ord) -- before pt, after pt
+data VTableSpacingOpt = TableSpacing Double Double deriving (Show, Eq, Ord) -- before pt, after pt
+data VFigureSpacingOpt = FigureSpacing Double Double deriving (Show, Eq, Ord)  -- before pt, after pt
+data VSpacingGlueOpt = SpacingGlue Double Double deriving (Show, Eq, Ord) -- stretchability pt, shrinkability pt
+data VTextGlueOpt = TextGlue Double Double deriving (Show, Eq, Ord) -- stretchability pt, shrinkability pt
+data VParIndentOpt = ParIndent Double deriving (Show, Eq, Ord) -- indent pt
+data VFontOpt = FontHelvetica | FontCourier | FontTimes deriving (Show, Eq, Ord)
+data VParSizeOpt = ParSize Double deriving (Show, Eq, Ord) -- paragraph size
+data VTitleSizeOpt = TitleSize Double deriving (Show, Eq, Ord) -- title size
+data VJustificationOpt = JustifyLeft | JustifyRight | JustifyCentred | JustifyFull deriving (Show, Eq, Ord)
 
 data VConfigOpt = VPageSize             VPageSizeOpt
                 | VPageNumbering        VPageNumberingOpt
@@ -50,16 +51,17 @@ data VConfigOpt = VPageSize             VPageSizeOpt
                 | VParSize              VParSizeOpt
                 | VTitleSize            VTitleSizeOpt
                 | VJustification        VJustificationOpt
+                deriving (Show, Eq, Ord)
 
 -- Options for commands.
-data FontName = FontName Text
-data FontSize = FontSize Double
-data TextJustify = TextJustifyLeft | TextJustifyRight | TextJustifyCentered | TextJustifyFull
-data TextIndent = TextIndent Double
-data TableColumns = TableColumns Int
-data ListStyle = ListBullet | ListSquare | ListArrow | ListNumber
-data FigureWidth = FigureWidth Double
-data FigureCaption = FigureCaption Text
+data FontName = TextFontHelvetica | TextFontCourier | TextFontTimes deriving (Show, Eq, Ord)
+data FontSize = FontSize Double deriving (Show, Eq, Ord)
+data TextJustify = TextJustifyLeft | TextJustifyRight | TextJustifyCentred | TextJustifyFull deriving (Show, Eq, Ord)
+data TextIndent = TextIndent Double deriving (Show, Eq, Ord)
+data TableColumns = TableColumns Int deriving (Show, Eq, Ord)
+data ListStyle = ListBullet | ListSquare | ListArrow | ListNumber deriving (Show, Eq, Ord)
+data FigureWidth = FigureWidth Double deriving (Show, Eq, Ord)
+data FigureCaption = FigureCaption Text deriving (Show, Eq, Ord)
 
 -- The types are the same as those obtained in the parser; The new definition is simply for consistency.
 data VText  = VNormal       Text
@@ -68,3 +70,4 @@ data VText  = VNormal       Text
             | VEmphasised   Text
             | VVerbatim     Text
             | VQuoted       Text
+            deriving (Show, Eq, Ord)

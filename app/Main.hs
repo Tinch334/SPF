@@ -54,14 +54,19 @@ optionParser =
 main :: IO ()
 main = do
     -- No commands used, second argument can be discarded.
-    (opts, ()) <- OPS.simpleOptions "0.1.0.0" "SPF" "A simple document preparation system, using a DSL inspired in LaTeX" optionParser empty
+    (opts, ()) <- OPS.simpleOptions "0.1.2.0" "SPF" "A simple document preparation system, using a DSL inspired in LaTeX" optionParser empty
 
     strOrErr <- tryIOError $ TIO.readFile (inFile opts)
     case strOrErr of
         Left _ -> putStr $ "File " ++ (C.quote $ T.pack (inFile opts)) ++ " could not be accessed!\n"
         Right contents -> case M.runParser P.parseLanguage (inFile opts) contents of
             Left e -> putStr (M.errorBundlePretty e)
-            Right p -> print p
+            Right p -> if verbose opts
+                then do 
+                    putStrLn "Parsed file: "
+                    print p
+                    putStr "\n\n"
+                else print "File parsed"
 
 
 -- Determines the output filename, based on if it was provided as an argument.
