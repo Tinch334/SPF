@@ -1,11 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralisedNewtypeDeriving #-}
 
-module Validation.Configuration where
+module Validation.Configuration (validateConfig) where
 
 import Datatypes.ParseTokens
 import Datatypes.ValidatedTokens
 import Validation.Schema
+import Validation.GenericValidations
 import Common
 
 import Control.Applicative
@@ -51,44 +52,6 @@ configErrorString PJustification =
 
 noArgumentFail :: String -> PConfigOption -> Validation [String] VConfig
 noArgumentFail err opt = Failure [err ++ configErrorString opt]
-
-
---------------------
--- GENERAL VALIDATION FUNCTIONS
---------------------
--- Page size validation.
-validateNamedSize :: Text -> Maybe PageSize
-validateNamedSize t = case T.toLower t of
-    "a4"    -> Just SizeA4
-    "a3"    -> Just SizeA3
-    "legal" -> Just SizeLegal
-    _   -> Nothing
--- Page numbering validation.
-validateNamedNumbering :: Text -> Maybe PageNumbering
-validateNamedNumbering t = case T.toLower t of
-    "arabic" -> Just NumberingArabic
-    "roman" -> Just NumberingRoman
-    "none" -> Just NumberingNone
-    _ -> Nothing
--- Font validation.
-validateNamedFont :: Text -> Maybe Font
-validateNamedFont t = case T.toLower t of
-    "helvetica" -> Just Helvetica
-    "courier" -> Just Courier
-    "times" -> Just Times
-    _ -> Nothing
--- Text justification validation.
-validateJustification :: Text -> Maybe Justification
-validateJustification t = case T.toLower t of
-    "left" -> Just JustifyLeft
-    "right" -> Just JustifyRight
-    "center" -> Just JustifyCenter
-    "full" -> Just JustifyFull
-    _ -> Nothing
-
--- Takes a number, returns it if it's positive, otherwise Nothing.
-validatePositiveInst :: (Num a, Ord a) => (a -> b) -> a -> Maybe b
-validatePositiveInst i n = if n > 0 then Just (i n) else Nothing
 
 --------------------
 -- SETTER FUNCTIONS
@@ -151,7 +114,7 @@ namedFontSizeSchema c = c <$> requireNumberWith "size" (validatePositiveInst Pt)
 -- Option specific schemas.
 namedSizeSchema :: Schema POptionPair VConfig
 namedSizeSchema = withPageSize <$>
-  requireTextWith "size" validateNamedSize ("Unknown page size. " ++ configErrorString PSize)
+  requireTextWith "size" validateSize ("Unknown page size. " ++ configErrorString PSize)
 
 customSizeSchema :: Schema POptionPair VConfig
 customSizeSchema = withPageSize <$> (SizeCustom <$> 
@@ -160,7 +123,7 @@ customSizeSchema = withPageSize <$> (SizeCustom <$>
 
 namedPagenumberingSchema :: Schema POptionPair VConfig
 namedPagenumberingSchema = withPageNumbering <$>
-  requireTextWith "numbering" validateNamedNumbering ("Unknown page numbering type. " ++ configErrorString PPagenumbering)
+  requireTextWith "numbering" validateNumbering ("Unknown page numbering type. " ++ configErrorString PPagenumbering)
 
 -- concrete spacing schemas built from the generic helper
 titleSpacingSchema :: Schema POptionPair VConfig
@@ -187,7 +150,7 @@ textGlueSchema = namedGlueSchema withTextGlue
 
 -- font and sizes
 namedFontSchema :: Schema POptionPair VConfig
-namedFontSchema = withFont <$> requireTextWith "font" validateNamedFont ("Unknown font type. " ++ configErrorString PFont)
+namedFontSchema = withFont <$> requireTextWith "font" validateFont ("Unknown font type. " ++ configErrorString PFont)
 
 parSizeSchema :: Schema POptionPair VConfig
 parSizeSchema = namedFontSizeSchema withParSize

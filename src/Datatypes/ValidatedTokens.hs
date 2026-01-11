@@ -1,7 +1,6 @@
 module Datatypes.ValidatedTokens where
 
 import Data.Text (Text)
-import Data.List.NonEmpty (NonEmpty)
 import GHC.Generics (Generic)
 
 -- Standard size units.
@@ -20,15 +19,15 @@ type VLang = [VComm]
 -- The maybe in the options indicates that they are optional. If parsed they are added, with Just, otherwise Nothing is used.
 -- The Nothing's are then replaced with the default values for those arguments.
 data VComm  = VConfigComm   VConfig
-            | VTitle        (NonEmpty VText) (Maybe Font) (Maybe FontSize)
-            | VAuthor       (NonEmpty VText) (Maybe Font) (Maybe FontSize)
-            | VDate         (NonEmpty VText) (Maybe Font) (Maybe FontSize)
-            | VSection      (NonEmpty VText) (Maybe Font) (Maybe FontSize)
-            | VSubsection   (NonEmpty VText) (Maybe Font) (Maybe FontSize)
+            | VTitle        [VText] (Maybe Font) (Maybe Pt)
+            | VAuthor       [VText] (Maybe Font) (Maybe Pt)
+            | VDate         [VText] (Maybe Font) (Maybe Pt)
+            | VSection      [VText] (Maybe Font) (Maybe Pt)
+            | VSubsection   [VText] (Maybe Font) (Maybe Pt)
             | VFigure       FilePath (Maybe PageWidth) (Maybe Caption)
             | VTable        Table TableColumns
             | VList         [[VText]] (Maybe ListStyle)
-            | VParagraph    [VText] (Maybe Font) (Maybe FontSize) (Maybe Justification)
+            | VParagraph    [VText] (Maybe Font) (Maybe Pt) (Maybe Justification)
             | VNewpage
             | VHLine
             deriving (Show, Eq, Ord)
@@ -90,10 +89,7 @@ newtype Glue = Glue { unGlue :: (Pt, Pt) }            -- stretch, shrink
 data Font = Helvetica | Courier | Times
     deriving (Show, Eq, Ord)
 
-newtype FontSize = FontSize Pt
-    deriving (Show, Eq, Ord)
-
-data TextStyle = Bold | Italic | Emphasised | Verbatim | Quoted
+data TextStyle = Normal | Bold | Italic | Emphasised | Verbatim | Quoted
     deriving (Show, Eq, Ord)
 
 data Justification = JustifyLeft | JustifyRight | JustifyCenter | JustifyFull
@@ -101,8 +97,8 @@ data Justification = JustifyLeft | JustifyRight | JustifyCenter | JustifyFull
 
 -- Text definition.
 data VText = VText
-    { vtText    :: Text
-    , vtStyles  :: [TextStyle]
+    { text  :: Text
+    , style :: TextStyle
     } deriving (Show, Eq, Ord)
 
 -- Command specific types.

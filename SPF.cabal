@@ -33,6 +33,7 @@ library
       Penrose
       Validation.Commands
       Validation.Configuration
+      Validation.GenericValidations
       Validation.Schema
   other-modules:
       Paths_SPF

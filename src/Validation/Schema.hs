@@ -64,6 +64,15 @@ requireNumberWith k vf err = Schema $ \o ->
         Just _ -> Failure ["Option key " ++ quote k ++ " has wrong type"]
         Nothing -> Failure ["Missing key " ++ quote k]
 
+tryNumberWith :: Text -> (Double -> Maybe b) -> String -> Schema POptionPair (Maybe b)
+tryNumberWith k vf err = Schema $ \o ->
+    case lookup k o of
+        Just (PNumber t) -> case vf t of
+            Just v -> Success (Just v)
+            Nothing -> Failure [err]
+        Just _ -> Failure ["Option key " ++ quote k ++ " has wrong type"]
+        Nothing -> Success Nothing
+
 -- Takes a key, if it corresponds to a text value has it then a "Success" is returned, otherwise a "Failure".
 requireText :: Text -> Schema POptionPair Text
 requireText k = Schema $ \o ->
@@ -81,6 +90,14 @@ requireTextWith k vf err = Schema $ \o ->
         Just _ -> Failure ["Option key " ++ quote k ++ " has wrong type"]
         Nothing -> Failure ["Missing key " ++ quote k]
 
+tryTextWith :: Text -> (Text -> Maybe b) -> String -> Schema POptionPair (Maybe b)
+tryTextWith k vf err = Schema $ \o ->
+    case lookup k o of
+        Just (PText t) -> case vf t of
+            Just v -> Success (Just v)
+            Nothing -> Failure [err]
+        Just _ -> Failure ["Option key " ++ quote k ++ " has wrong type"]
+        Nothing -> Success Nothing
 
 -- Ensures only valid keys are present, fails if an element not in the given key list is in the options.
 ensureValidKeys :: String -> [Text] -> Schema POptionPair b -> Schema POptionPair b
