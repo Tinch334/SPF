@@ -18,7 +18,8 @@ data POption    = POptionMap     [POptionPair]
                 deriving (Show, Eq, Ord)
 
 type PLang = [PCommOpt]
-data PCommOpt = PCommOpt PComm POption deriving (Show, Eq, Ord)
+data PCommOpt = PCommOpt PComm POption
+   deriving (Show, Eq, Ord)
 data PComm  = PConfig      PConfigOption
             | PTitle       [PText]
             | PAuthor      [PText]

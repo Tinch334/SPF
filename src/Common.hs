@@ -13,6 +13,9 @@ quote t = "\"" ++ (T.unpack t) ++ "\""
 quoteList :: [T.Text] -> String
 quoteList l = L.intercalate ", " (map quote l)
 
+-- Useful for creating tuples in a monadic context.
+tuple :: a -> b -> (a, b)
+tuple a b = (a, b)
 
 --------------------
 -- CONSTANTS

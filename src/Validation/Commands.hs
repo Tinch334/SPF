@@ -17,6 +17,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.List as L
 
+{-
 -- Font validation.
 validateNamedFont :: Text -> Maybe FontName
 validateNamedFont t = case T.toLower t of
@@ -33,12 +34,13 @@ validateJustification t = case T.toLower t of
     "full" -> Just TextJustifyFull
     _ -> Nothing
 
-{-
+
 namedTitleSchema :: Schema POptionPair (Text -> VTitle)
 namedTitleSchema = (\t -> VTitle t) <$>
     requireTextWith "font" validateFont
--}
+
 
 validateCommand :: PCommOpt -> Validation [String] VComm
 validateCommand (PCommOpt (PConfig cfg) opts) = VConfig <$> validateConfig cfg opts
 validateCommand (PCommOpt (PTitle text) opts) = undefined
+-}

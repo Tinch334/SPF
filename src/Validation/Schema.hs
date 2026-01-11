@@ -44,8 +44,16 @@ requireNumber :: Text -> Schema POptionPair Double
 requireNumber k = Schema $ \o ->
     case lookup k o of
         Just (PNumber n) -> Success n
-        Just _ -> Failure ["Map option key " ++ quote k ++ " has wrong type"]
+        Just _ -> Failure ["Option key " ++ quote k ++ " has wrong type"]
         Nothing -> Failure ["Missing key " ++ quote k]
+
+-- Takes a key, if it corresponds to a numeric value has it then a "Success" is returned, otherwise a "Failure". The returned value is
+-- instantiated with the given constructor.
+requireNumberInst :: Text -> (Double -> b) -> Schema POptionPair b
+requireNumberInst k i = Schema $ \o ->
+    case runSchema (requireNumber k) o of
+        Failure e -> Failure e
+        Success n -> Success (i n)
 
 -- Takes a key, if it corresponds to a text value has it and the given function returns "Just" then a "Success" is returned, otherwise a
 -- "Failure". Could be implemented using requireNumber, however that would require more lines, a small amount of repetition is acceptable.
@@ -53,7 +61,7 @@ requireNumberWith :: Text -> (Double -> Maybe b) -> String -> Schema POptionPair
 requireNumberWith k vf err = Schema $ \o ->
     case lookup k o of
         Just (PNumber n) -> validate [err] vf n
-        Just _ -> Failure ["Map option key " ++ quote k ++ " has wrong type"]
+        Just _ -> Failure ["Option key " ++ quote k ++ " has wrong type"]
         Nothing -> Failure ["Missing key " ++ quote k]
 
 -- Takes a key, if it corresponds to a text value has it then a "Success" is returned, otherwise a "Failure".
@@ -61,7 +69,7 @@ requireText :: Text -> Schema POptionPair Text
 requireText k = Schema $ \o ->
     case lookup k o of
         Just (PText t) -> Success t
-        Just _ -> Failure ["Map option key " ++ quote k ++ " has wrong type"]
+        Just _ -> Failure ["Option key " ++ quote k ++ " has wrong type"]
         Nothing -> Failure ["Missing key " ++ quote k]
 
 -- Takes a key, if it corresponds to a text value has it and the given function returns "Just" then a "Success" is returned, otherwise a
@@ -70,7 +78,7 @@ requireTextWith :: Text -> (Text -> Maybe b) -> String -> Schema POptionPair b
 requireTextWith k vf err = Schema $ \o ->
     case lookup k o of
         Just (PText t) -> validate [err] vf t
-        Just _ -> Failure ["Map option key " ++ quote k ++ " has wrong type"]
+        Just _ -> Failure ["Option key " ++ quote k ++ " has wrong type"]
         Nothing -> Failure ["Missing key " ++ quote k]
 
 
