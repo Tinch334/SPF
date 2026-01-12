@@ -14,21 +14,28 @@ import Common
 
 -- This data type is used to validate lists of options for commands. A newtype is used for generic Functor and Applicative instances. The
 -- Applicative instance allows for sequential validations to be performed.
-newtype Schema a b = Schema {
-    runSchema :: [a] -> Validation [String] b
+newtype Schema a = Schema {
+    runSchema :: [POptionPair] -> Validation [String] a
 }
 
 -- The important definition here is the Applicative one, it allows for the sequential application of Schemas.
-instance Functor (Schema env) where
+instance Functor Schema where
     fmap f (Schema g) = Schema (\o -> fmap f (g o))
 
-instance Applicative (Schema env) where
+instance Applicative Schema where
     pure x = Schema (\_ -> Success x)
     (Schema f) <*> (Schema g) = Schema (\o -> f o <*> g o)
 
 
+--------------------
+-- INTERNAL AUXILIARY FUNCTIONS
+--------------------
+-- Generic error function.
+failType :: Text -> String
+failType k = "Option key " ++ quote k ++ " has wrong type"
+
 -- Returns a valid schema with the corresponding values, or an error if no valid matches are found.
-choiceSchema :: [Schema a b] -> Schema a b
+choiceSchema :: [Schema a] -> Schema a
 choiceSchema [] = Schema (\_ -> Failure ["Options did not match any valid form"])
 choiceSchema ((Schema s):xs) =
     Schema $ \o ->
@@ -39,70 +46,71 @@ choiceSchema ((Schema s):xs) =
                 Success v' -> Success v'
                 Failure e' -> Failure (e <> e') -- Errors have to implement <>, they are a semigroup.
 
--- Takes a key, if it corresponds to a numeric value has it then a "Success" is returned, otherwise a "Failure".
-requireNumber :: Text -> Schema POptionPair Double
-requireNumber k = Schema $ \o ->
+-- Takes a key, if it corresponds to a value in the options and the given function returns "Just" then a "Success" is returned, otherwise a
+-- "Failure". If the key is not present a "Success" with "Nothing" is returned.
+getMaybeWith :: Text -> (POptionValue -> Maybe a) -> String -> Schema (Maybe a)
+getMaybeWith k vf err = Schema $ \o ->
     case lookup k o of
-        Just (PNumber n) -> Success n
-        Just _ -> Failure ["Option key " ++ quote k ++ " has wrong type"]
-        Nothing -> Failure ["Missing key " ++ quote k]
-
--- Takes a key, if it corresponds to a numeric value has it then a "Success" is returned, otherwise a "Failure". The returned value is
--- instantiated with the given constructor.
-requireNumberInst :: Text -> (Double -> b) -> Schema POptionPair b
-requireNumberInst k i = Schema $ \o ->
-    case runSchema (requireNumber k) o of
-        Failure e -> Failure e
-        Success n -> Success (i n)
-
--- Takes a key, if it corresponds to a text value has it and the given function returns "Just" then a "Success" is returned, otherwise a
--- "Failure". Could be implemented using requireNumber, however that would require more lines, a small amount of repetition is acceptable.
-requireNumberWith :: Text -> (Double -> Maybe b) -> String -> Schema POptionPair b
-requireNumberWith k vf err = Schema $ \o ->
-    case lookup k o of
-        Just (PNumber n) -> validate [err] vf n
-        Just _ -> Failure ["Option key " ++ quote k ++ " has wrong type"]
-        Nothing -> Failure ["Missing key " ++ quote k]
-
-tryNumberWith :: Text -> (Double -> Maybe b) -> String -> Schema POptionPair (Maybe b)
-tryNumberWith k vf err = Schema $ \o ->
-    case lookup k o of
-        Just (PNumber t) -> case vf t of
+        Just ov -> case vf ov of
             Just v -> Success (Just v)
             Nothing -> Failure [err]
-        Just _ -> Failure ["Option key " ++ quote k ++ " has wrong type"]
         Nothing -> Success Nothing
 
--- Takes a key, if it corresponds to a text value has it then a "Success" is returned, otherwise a "Failure".
-requireText :: Text -> Schema POptionPair Text
-requireText k = Schema $ \o ->
-    case lookup k o of
-        Just (PText t) -> Success t
-        Just _ -> Failure ["Option key " ++ quote k ++ " has wrong type"]
-        Nothing -> Failure ["Missing key " ++ quote k]
-
--- Takes a key, if it corresponds to a text value has it and the given function returns "Just" then a "Success" is returned, otherwise a
+-- Takes a key, if it corresponds to a value in the options and the given function returns "Just" then a "Success" is returned, otherwise a
 -- "Failure".
-requireTextWith :: Text -> (Text -> Maybe b) -> String -> Schema POptionPair b
-requireTextWith k vf err = Schema $ \o ->
+getRequiredWith :: Text -> (POptionValue -> Maybe a) -> String -> Schema a
+getRequiredWith k vf err = Schema $ \o ->
     case lookup k o of
-        Just (PText t) -> validate [err] vf t
-        Just _ -> Failure ["Option key " ++ quote k ++ " has wrong type"]
+        Just ov -> case vf ov of
+            Just v -> Success v
+            Nothing -> Failure [err]
         Nothing -> Failure ["Missing key " ++ quote k]
 
-tryTextWith :: Text -> (Text -> Maybe b) -> String -> Schema POptionPair (Maybe b)
-tryTextWith k vf err = Schema $ \o ->
-    case lookup k o of
-        Just (PText t) -> case vf t of
-            Just v -> Success (Just v)
-            Nothing -> Failure [err]
-        Just _ -> Failure ["Option key " ++ quote k ++ " has wrong type"]
-        Nothing -> Success Nothing
+asText :: POptionValue -> Maybe Text
+asText (PText t) = Just t
+asText _ = Nothing
+
+asNumber :: POptionValue -> Maybe Double
+asNumber (PNumber n) = Just n
+asNumber _ = Nothing
+
+
+--------------------
+-- COMBINATOR FUNCTIONS
+--------------------
+{-
+Combinator types:
+- Require: The key must be present.
+- Try: The key may be present, if not "Nothing" is returned.
+- With: They only accept the value associated with the key if the given function returns "Just".
+-}
+requireText :: Text -> Schema Text
+requireText k = getRequiredWith k asText ("Expected text key for key " ++ quote k)
+
+tryText :: Text -> Schema (Maybe Text)
+tryText k = getMaybeWith k asText (failType k)
+
+requireTextWith :: Text -> (Text -> Maybe a) -> String -> Schema a
+requireTextWith k vf err = getRequiredWith k (asText >=> vf) err
+
+tryTextWith :: Text -> (Text -> Maybe a) -> String -> Schema (Maybe a)
+tryTextWith k vf err = getMaybeWith k (asText >=> vf) err
+
+
+requireNumber :: Text -> Schema Double
+requireNumber k = getRequiredWith k asNumber ("Expected number key for key " ++ quote k)
+
+requireNumberWith :: Text -> (Double -> Maybe a) -> String -> Schema a
+requireNumberWith k vf err = getRequiredWith k (asNumber >=> vf) err
+
+tryNumberWith :: Text -> (Double -> Maybe a) -> String -> Schema (Maybe a)
+tryNumberWith k vf err = getMaybeWith k (asNumber >=> vf) err
+
 
 -- Ensures only valid keys are present, fails if an element not in the given key list is in the options.
-ensureValidKeys :: String -> [Text] -> Schema POptionPair b -> Schema POptionPair b
+ensureValidKeys :: String -> [Text] -> Schema a -> Schema a
 ensureValidKeys err keys s = Schema $ \o ->
-    let invalidKey = filter (\e -> notElem e keys) (map fst o) in
-    if null invalidKey
+    let invalidKey = filter (\e -> notElem e keys) (map fst o)
+    in if null invalidKey
         then (runSchema s o) -- If the key check succeeded the inner validation schema is run.
         else Failure ["Invalid keys: " ++ quoteList invalidKey ++ ". " ++ err]

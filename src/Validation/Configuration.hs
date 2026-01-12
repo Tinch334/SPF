@@ -99,66 +99,66 @@ withJustification j = emptyVConfig { cfgJustification = Just j }
 -- SCHEMA VALIDATION FUNCTIONS
 --------------------
 -- Generalized schemas.
-namedBeforeAndAfterSchema :: (Spacing -> b) -> Schema POptionPair b
+namedBeforeAndAfterSchema :: (Spacing -> b) -> Schema b
 namedBeforeAndAfterSchema c = c <$> (Spacing <$> (tuple <$>
-    (requireNumberInst "before" Pt) <*> (requireNumberInst "after" Pt)))
+    (Pt <$> requireNumber "before") <*> (Pt <$> requireNumber "after")))
 
-namedGlueSchema :: (Glue -> b) -> Schema POptionPair b
+namedGlueSchema :: (Glue -> b) -> Schema b
 namedGlueSchema c = c <$> (Glue <$> (tuple <$> 
-    requireNumberWith "stretch" (validatePositiveInst Pt) "Stretch must be positive"
-    <*> requireNumberWith "shrink"  (validatePositiveInst Pt) "Shrink must be positive"))
+    requireNumberWith "stretch" (validateNumInst (> 0) Pt) "Stretch must be positive"
+    <*> requireNumberWith "shrink"  (validateNumInst (> 0) Pt) "Shrink must be positive"))
 
-namedFontSizeSchema :: (Pt -> b) -> Schema POptionPair b
-namedFontSizeSchema c = c <$> requireNumberWith "size" (validatePositiveInst Pt) "Font size must be positive"
+namedFontSizeSchema :: (Pt -> b) -> Schema b
+namedFontSizeSchema c = c <$> requireNumberWith "size" (validateNumInst (> 0) Pt) "Font size must be positive"
 
 -- Option specific schemas.
-namedSizeSchema :: Schema POptionPair VConfig
+namedSizeSchema :: Schema VConfig
 namedSizeSchema = withPageSize <$>
   requireTextWith "size" validateSize ("Unknown page size. " ++ configErrorString PSize)
 
-customSizeSchema :: Schema POptionPair VConfig
+customSizeSchema :: Schema VConfig
 customSizeSchema = withPageSize <$> (SizeCustom <$> 
-    requireNumberWith "width" (validatePositiveInst Pt) ("Page width must be positive. " ++ configErrorString PSize)
-    <*> requireNumberWith "height" (validatePositiveInst Pt) ("Page height must be positive. " ++ configErrorString PSize))
+    requireNumberWith "width" (validateNumInst (> 0) Pt) ("Page width must be positive. " ++ configErrorString PSize)
+    <*> requireNumberWith "height" (validateNumInst (> 0) Pt) ("Page height must be positive. " ++ configErrorString PSize))
 
-namedPagenumberingSchema :: Schema POptionPair VConfig
+namedPagenumberingSchema :: Schema VConfig
 namedPagenumberingSchema = withPageNumbering <$>
   requireTextWith "numbering" validateNumbering ("Unknown page numbering type. " ++ configErrorString PPagenumbering)
 
 -- concrete spacing schemas built from the generic helper
-titleSpacingSchema :: Schema POptionPair VConfig
+titleSpacingSchema :: Schema VConfig
 titleSpacingSchema = namedBeforeAndAfterSchema withTitleSpacing
 
-paragraphSpacingSchema :: Schema POptionPair VConfig
+paragraphSpacingSchema :: Schema VConfig
 paragraphSpacingSchema = namedBeforeAndAfterSchema withParagraphSpacing
 
-listSpacingSchema :: Schema POptionPair VConfig
+listSpacingSchema :: Schema VConfig
 listSpacingSchema = namedBeforeAndAfterSchema withListSpacing
 
-tableSpacingSchema :: Schema POptionPair VConfig
+tableSpacingSchema :: Schema VConfig
 tableSpacingSchema = namedBeforeAndAfterSchema withTableSpacing
 
-figureSpacingSchema :: Schema POptionPair VConfig
+figureSpacingSchema :: Schema VConfig
 figureSpacingSchema = namedBeforeAndAfterSchema withFigureSpacing
 
 -- glue
-spacingGlueSchema :: Schema POptionPair VConfig
+spacingGlueSchema :: Schema VConfig
 spacingGlueSchema = namedGlueSchema withSpacingGlue
 
-textGlueSchema :: Schema POptionPair VConfig
+textGlueSchema :: Schema VConfig
 textGlueSchema = namedGlueSchema withTextGlue
 
 -- font and sizes
-namedFontSchema :: Schema POptionPair VConfig
+namedFontSchema :: Schema VConfig
 namedFontSchema = withFont <$> requireTextWith "font" validateFont ("Unknown font type. " ++ configErrorString PFont)
 
-parSizeSchema :: Schema POptionPair VConfig
+parSizeSchema :: Schema VConfig
 parSizeSchema = namedFontSizeSchema withParSize
 
-titleSizeSchema :: Schema POptionPair VConfig
+titleSizeSchema :: Schema VConfig
 titleSizeSchema = namedFontSizeSchema withTitleSize
 
-namedJustifySchema :: Schema POptionPair VConfig
+namedJustifySchema :: Schema VConfig
 namedJustifySchema = withJustification <$>
   requireTextWith "justification" validateJustification ("Unknown text justification. " ++ configErrorString PJustification)
 
@@ -224,7 +224,7 @@ validateConfig PParsize (POptionMap m) = runSchema
 validateConfig PParsize POptionNone = noArgumentFail "Paragraph font size requires arguments. " PParsize
 
 validateConfig PTitlesize (POptionMap m) = runSchema
-    (ensureValidKeys (configErrorString PTitlesize) ["size"] (titleSpacingSchema))
+    (ensureValidKeys (configErrorString PTitlesize) ["size"] (titleSizeSchema))
     m
 validateConfig PTitlesize POptionNone = noArgumentFail "Title font size requires arguments. " PTitlesize
 

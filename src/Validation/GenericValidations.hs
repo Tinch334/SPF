@@ -15,8 +15,8 @@ import qualified Data.Text as T
 -- GENERAL VALIDATION FUNCTIONS
 --------------------
 -- Takes a number, returns it if it's positive, otherwise Nothing.
-validatePositiveInst :: (Num a, Ord a) => (a -> b) -> a -> Maybe b
-validatePositiveInst i n = if n > 0 then Just (i n) else Nothing
+validateNumInst :: (Num a, Ord a) => (a -> Bool) -> (a -> b) -> a -> Maybe b
+validateNumInst vf i n = if vf n then Just (i n) else Nothing
 
 -- Page size validation.
 validateSize :: Text -> Maybe PageSize
