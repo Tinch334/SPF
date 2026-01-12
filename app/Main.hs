@@ -5,12 +5,14 @@ module Main (main) where
 import Lib
 import qualified Parser as P
 import qualified Common as C
+import qualified Validation.Commands as VC
 
 import System.FilePath
 import System.IO.Error
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import qualified Data.Validation as V
 
 import Options.Applicative
 import qualified Options.Applicative.Simple as OPS
@@ -55,19 +57,27 @@ main :: IO ()
 main = do
     -- No commands used, second argument can be discarded.
     (opts, ()) <- OPS.simpleOptions "0.1.2.0" "SPF" "A simple document preparation system, using a DSL inspired in LaTeX" optionParser empty
+    let ve = verbose opts
 
     strOrErr <- tryIOError $ TIO.readFile (inFile opts)
     case strOrErr of
         Left _ -> putStr $ "File " ++ (C.quote $ T.pack (inFile opts)) ++ " could not be accessed!\n"
         Right contents -> case M.runParser P.parseLanguage (inFile opts) contents of
             Left e -> putStr (M.errorBundlePretty e)
-            Right p -> if verbose opts
-                then do 
-                    putStrLn "Parsed file: "
-                    print p
-                    putStr "\n\n"
-                else print "File parsed"
+            Right p -> (printCnt ve p "Parsed file:" "File parsed") >> case traverse VC.validateCommand p of
+                V.Success vp -> printCnt ve vp "Validated file:" "File validated"
+                V.Failure errs -> putStrLn "File contains invalid elements: " >> print errs
 
+
+-- Prints contents based on the verbose flag, the first string is used in the verbose case.
+printCnt :: Show a => Bool -> a -> String -> String -> IO ()
+printCnt v c sv snv = if v
+    then do
+        putStrLn sv
+        print c
+        putStr "\n"
+    else
+        putStrLn snv
 
 -- Determines the output filename, based on if it was provided as an argument.
 getOutFilename :: FilePath -> Maybe FilePath -> FilePath

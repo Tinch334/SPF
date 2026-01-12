@@ -1,24 +1,28 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Validation.Commands where
+module Validation.Commands (validateCommand) where
 
+import Validation.Configuration
+import Validation.GenericValidations
+import Validation.Schema
 import Common
+
 import Control.Applicative
 import Control.Monad
+
 import qualified Data.List as L
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Validation
+import GHC.Float (double2Int)
+
 import Datatypes.ParseTokens
 import Datatypes.ValidatedTokens
-import GHC.Float (double2Int)
-import Validation.Configuration
-import Validation.GenericValidations
-import Validation.Schema
 
 --------------------
 -- AUXILIARY FUNCTIONS
 --------------------
+-- Converts parsed text into validated text, no actual validation is required, just conversion.
 convertText :: [PText] -> [VText]
 convertText tLst = map cnvInner tLst
   where
@@ -29,6 +33,7 @@ convertText tLst = map cnvInner tLst
     cnvInner (PVerbatim t) = VText {text = t, style = Verbatim}
     cnvInner (PQuoted t) = VText {text = t, style = Quoted}
 
+-- This function is not in "GenericValidations" since it's not used by configuration options.
 validateListStyle :: Text -> Maybe ListStyle
 validateListStyle s = case T.toLower s of
   "bullet" -> Just ListBullet
@@ -66,6 +71,7 @@ namedFontWithSize c t (POptionMap o) =
     ) o
 namedFontWithSize c t POptionNone = Success $ c (convertText t) Nothing Nothing
 
+-- Figure validation.
 namedFigure :: String -> POption -> Validation [String] VComm
 namedFigure p (POptionMap o) =
   runSchema
@@ -79,6 +85,7 @@ namedFigure p (POptionMap o) =
     ) o
 namedFigure p POptionNone = Success $ VFigure p Nothing Nothing
 
+-- Table validation.
 validateTable :: [[[PText]]] -> Int -> Validation [String] [[[VText]]]
 validateTable c rLen =
   let cLen = map length c
@@ -86,6 +93,7 @@ validateTable c rLen =
         then Success $ map (\r -> map convertText r) c
         else Failure ["Rows of different length in table"]
 
+-- Table row validation.
 namedTable :: [[[PText]]] -> POption -> Validation [String] VComm
 namedTable cnt (POptionMap o) =
   let columnCount = runSchema (ensureValidKeys "Expected one numeric value (columns)" ["columns"] (requireNumberWith "columns" (validateNumInst (> 0) (\d -> TableColumns (double2Int d))) "Column number must be positive")) o
@@ -94,6 +102,7 @@ namedTable cnt (POptionMap o) =
         Failure e -> Failure e
 namedTable c POptionNone = Failure ["Expected one numeric value (columns)"]
 
+-- Validates a list.
 namedList :: [[PText]] -> POption -> Validation [String] VComm
 namedList lst (POptionMap o) =
   runSchema
@@ -106,6 +115,7 @@ namedList lst (POptionMap o) =
     ) o
 namedList lst POptionNone = Success $ VList (map convertText lst) Nothing
 
+-- Paragraph validation.
 namedParagraph :: [PText] -> POption -> Validation [String] VComm
 namedParagraph txt (POptionMap o) =
   runSchema
@@ -121,6 +131,9 @@ namedParagraph txt (POptionMap o) =
 namedParagraph txt POptionNone = Success $ VParagraph (convertText txt) Nothing Nothing Nothing
 
 
+--------------------
+-- COMMAND VALIDATION
+--------------------
 validateCommand :: PCommOpt -> Validation [String] VComm
 validateCommand (PCommOpt (PConfig cfg) opts) = VConfigComm <$> validateConfig cfg opts
 validateCommand (PCommOpt (PTitle text) opts) = namedFontWithSize VTitle text opts

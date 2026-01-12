@@ -1,6 +1,16 @@
-{-# LANGUAGE GeneralisedNewtypeDeriving #-} -- For generic Functor and Applicative instances.
-
-module Validation.Schema where
+module Validation.Schema
+    ( Schema(..)
+    , runSchema
+    , choiceSchema
+    , requireText
+    , tryText
+    , requireTextWith
+    , tryTextWith
+    , requireNumber
+    , requireNumberWith
+    , tryNumberWith
+    , ensureValidKeys
+    ) where
 
 import Control.Applicative
 import Control.Monad
