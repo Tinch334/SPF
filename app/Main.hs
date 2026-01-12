@@ -1,7 +1,8 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main (main) where
 
 
--- Imports
 import Lib
 import qualified Parser as P
 import qualified Common as C
@@ -13,6 +14,7 @@ import System.IO.Error
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import qualified Data.Validation as V
+import qualified Text.Colour as TC
 
 import Options.Applicative
 import qualified Options.Applicative.Simple as OPS
@@ -20,7 +22,6 @@ import qualified Options.Applicative.Simple as OPS
 import qualified Text.Megaparsec as M
 
 
--- Data structures
 data Options = Options
     {   verbose :: Bool
     ,   inFile  :: FilePath
@@ -58,14 +59,17 @@ optionParser =
 -- AUXILIARY FUNCTIONS
 --------------------
 -- Prints contents based on the verbose flag, the first string is used in the verbose case.
-printCnt :: Show a => Bool -> a -> String -> String -> IO ()
+printCnt :: Show a => Bool -> [a] -> String -> String -> IO ()
 printCnt v c sv snv = if v
-    then do
-        putStrLn sv
-        print c
-        putStr "\n"
-    else
-        putStrLn snv
+    then putStrLn sv <* mapM print c *> putStrLn ""
+    else putStrLn snv
+
+printColourText :: TC.Colour -> TC.Colour -> T.Text -> IO ()
+printColourText fg bg t = let ct = TC.fore fg (TC.back bg $ TC.chunk t) in
+    TC.putChunksUtf8With TC.With8Colours [ct]
+
+printError :: String -> IO ()
+printError e = printColourText TC.red TC.black "ERROR" *> putStrLn (" - " ++ e)
 
 -- Determines the output filename, based on if it was provided as an argument.
 getOutFilename :: FilePath -> Maybe FilePath -> FilePath
@@ -84,9 +88,9 @@ main = do
 
     strOrErr <- tryIOError $ TIO.readFile (inFile opts)
     case strOrErr of
-        Left _ -> putStr $ "ERROR - File " ++ (C.quote $ T.pack (inFile opts)) ++ " could not be accessed!\n"
+        Left _ -> printError $ "File " ++ (C.quote $ T.pack (inFile opts)) ++ " could not be accessed!\n"
         Right contents -> case M.runParser P.parseLanguage (inFile opts) contents of
-            Left e -> putStrLn "ERROR - File could not be parsed:" >> putStr (M.errorBundlePretty e)
-            Right p -> (printCnt ve p "Parsed file:" "File parsed") >> case traverse VC.validateCommand p of
-                V.Success vp -> printCnt ve vp "Validated file:" "File validated"
-                V.Failure errs -> putStrLn "ERROR - File contains invalid elements:" <* mapM putStrLn errs
+            Left e -> printError "File could not be parsed:" >> putStr (M.errorBundlePretty e)
+            Right p -> (printCnt ve p "Parsed file contents:" "File parsed") >> case traverse VC.validateCommand p of
+                V.Success vp -> printCnt ve vp "Validated file contents:" "File validated"
+                V.Failure errs -> printError "File contains invalid elements:" <* mapM putStrLn errs
