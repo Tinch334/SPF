@@ -28,7 +28,9 @@ data Options = Options
     }
 
 
--- Argument parser.
+--------------------
+-- ARGUMENT PARSER FUNCTIONS
+--------------------
 verboseParser :: Parser Bool
 verboseParser = switch ( long "verbose"
     <> short 'v'
@@ -52,23 +54,9 @@ optionParser =
     <*> outFileParser
 
 
--- Main body.
-main :: IO ()
-main = do
-    -- No commands used, second argument can be discarded.
-    (opts, ()) <- OPS.simpleOptions "0.1.2.0" "SPF" "A simple document preparation system, using a DSL inspired in LaTeX" optionParser empty
-    let ve = verbose opts
-
-    strOrErr <- tryIOError $ TIO.readFile (inFile opts)
-    case strOrErr of
-        Left _ -> putStr $ "File " ++ (C.quote $ T.pack (inFile opts)) ++ " could not be accessed!\n"
-        Right contents -> case M.runParser P.parseLanguage (inFile opts) contents of
-            Left e -> putStr (M.errorBundlePretty e)
-            Right p -> (printCnt ve p "Parsed file:" "File parsed") >> case traverse VC.validateCommand p of
-                V.Success vp -> printCnt ve vp "Validated file:" "File validated"
-                V.Failure errs -> putStrLn "File contains invalid elements: " >> print errs
-
-
+--------------------
+-- AUXILIARY FUNCTIONS
+--------------------
 -- Prints contents based on the verbose flag, the first string is used in the verbose case.
 printCnt :: Show a => Bool -> a -> String -> String -> IO ()
 printCnt v c sv snv = if v
@@ -83,3 +71,22 @@ printCnt v c sv snv = if v
 getOutFilename :: FilePath -> Maybe FilePath -> FilePath
 getOutFilename _ (Just outPath) = outPath
 getOutFilename inPath Nothing = addExtension (dropExtension inPath) C.outputExtension
+
+
+--------------------
+-- MAIN FUNCTION
+--------------------
+main :: IO ()
+main = do
+    -- No commands used, second argument can be discarded.
+    (opts, ()) <- OPS.simpleOptions "0.1.2.0" "SPF" "A simple document preparation system, using a DSL inspired in LaTeX" optionParser empty
+    let ve = verbose opts
+
+    strOrErr <- tryIOError $ TIO.readFile (inFile opts)
+    case strOrErr of
+        Left _ -> putStr $ "ERROR - File " ++ (C.quote $ T.pack (inFile opts)) ++ " could not be accessed!\n"
+        Right contents -> case M.runParser P.parseLanguage (inFile opts) contents of
+            Left e -> putStrLn "ERROR - File could not be parsed:" >> putStr (M.errorBundlePretty e)
+            Right p -> (printCnt ve p "Parsed file:" "File parsed") >> case traverse VC.validateCommand p of
+                V.Success vp -> printCnt ve vp "Validated file:" "File validated"
+                V.Failure errs -> putStrLn "ERROR - File contains invalid elements:" <* mapM putStrLn errs
