@@ -26,6 +26,7 @@ source-repository head
 library
   exposed-modules:
       Common
+      Datatypes.Located
       Datatypes.ParseTokens
       Datatypes.ValidatedTokens
       Lib
@@ -50,6 +51,7 @@ library
     , optparse-applicative
     , optparse-simple
     , random
+    , safe-coloured-text
     , text
     , validation
     , vector
@@ -73,6 +75,7 @@ executable SPF-exe
     , optparse-applicative
     , optparse-simple
     , random
+    , safe-coloured-text
     , text
     , validation
     , vector
@@ -97,6 +100,7 @@ test-suite SPF-test
     , optparse-applicative
     , optparse-simple
     , random
+    , safe-coloured-text
     , text
     , validation
     , vector

@@ -1,5 +1,6 @@
 module Datatypes.ParseTokens where
 
+import Datatypes.Located (Located(..))
 import Data.Text (Text)
 
 
@@ -17,7 +18,7 @@ data POption    = POptionMap     [POptionPair]
                 | POptionNone
                 deriving (Show, Eq, Ord)
 
-type PLang = [PCommOpt]
+type PLocatedLang = [Located PCommOpt]
 data PCommOpt = PCommOpt PComm POption
    deriving (Show, Eq, Ord)
 data PComm  = PConfig      PConfigOption

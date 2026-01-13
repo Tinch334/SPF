@@ -3,6 +3,7 @@
 module Parser (parseLanguage) where
 
 import Datatypes.ParseTokens
+import Datatypes.Located (Located(..))
 import Common
 
 import Control.Applicative
@@ -48,7 +49,7 @@ mkErrStr b t a = b ++ (T.unpack t) ++ a
 instance ShowErrorComponent CustomError where
     showErrorComponent (UnknownCommand c) = "Unknown command: " ++ quote c
     showErrorComponent (UnknownText t) = "Unknown text type: " ++ quote t
-    showErrorComponent (InvalidOptions o) = "Invalid format for options, encountered " ++ T.unpack o
+    showErrorComponent (InvalidOptions o) = "Invalid format for options, encountered: " ++ T.unpack o
     showErrorComponent (OtherError t) = "Error during parsing: " ++ quote t
         
 
@@ -82,13 +83,13 @@ symbol = L.symbol sc
 --------------------
 -- GENERAL PARSING FUNCTIONS
 --------------------
-parseLanguage :: Parser PLang
+parseLanguage :: Parser PLocatedLang
 parseLanguage = do
     cfg <- sepEndBy (parseCommandOption preDocumentCommandTable) sc
     doc <- parseDocument
     return (cfg ++ doc)
 
-parseDocument :: Parser PLang
+parseDocument :: Parser PLocatedLang
 parseDocument = sepEndBy1 documentOptions sc where
     documentOptions = choice 
         [ lexeme (parseCommandOption (beginEndCommandTable ++ documentCommandTable))
@@ -142,8 +143,11 @@ beginEndSpecMake n p f = CommandSpec n $ do
         Just l -> return (PCommOpt (f b) l)
 
 -- Parses a command and it's options.
-parseCommandOption :: [CommandSpec] -> Parser PCommOpt
-parseCommandOption lst = label "command" $ (choice (map (try . (\(CommandSpec n p) -> p <?> T.unpack n)) lst)) <|> try unknown where
+parseCommandOption :: [CommandSpec] -> Parser (Located PCommOpt)
+parseCommandOption lst = do
+    pos <- getSourcePos
+    comm <- label "command" $ (choice (map (try . (\(CommandSpec n p) -> p <?> T.unpack n)) lst)) <|> try unknown
+    return (Located pos comm) where
     -- Runs after all other commands are tried, detects invalid commands.
     unknown = do
         commandBackslash
@@ -178,11 +182,12 @@ beginEndCommandTable =
 -- TEXT PARSING FUNCTIONS
 --------------------
 -- Parses standalone blocks of text without commands, note that text modes are not commands.
-parseParagraph :: Parser PCommOpt
+parseParagraph :: Parser (Located PCommOpt)
 parseParagraph = label "paragraph" $ do
+        pos <- getSourcePos
         t <- parsePText
         void (optional eol)
-        return (PCommOpt (PParagraph t) POptionNone)
+        return $ Located pos (PCommOpt (PParagraph t) POptionNone)
 
 parsePText :: Parser [PText]
 parsePText = Text.Megaparsec.some (choice [parseSpecialPText, PNormal <$> parseRawTextParagraph])
@@ -282,10 +287,13 @@ parseOptionList = label "option" $ sepBy1 (lexeme parseOptionMap) (symbol ",")
 parseOptionMap :: Parser POptionPair
 parseOptionMap = label "option pair" $ do
     k <- lexeme $ Text.Megaparsec.some letterChar
-    --lookAhead (symbol ":") <?> "':' after key in map style options"
-    void (symbol ":") <?> "':' after key in map style options"
-    v <- lexeme parseOptionValue
-    return $ (T.pack k, v)
+    -- Check for ":" if not present throw error.
+    colon <- optional (symbol ":")
+    case colon of
+        Just _ -> do
+            v <- lexeme parseOptionValue
+            return $ (T.pack k, v)
+        Nothing -> invalidOptions $ T.pack ("Missing value for key " ++ quote (T.pack k))
 
 -- Parses an option in value form., note that both integers and floats are returned as numbers, the parsing separation is simply
 -- because there's not a single parser for integers and floats.

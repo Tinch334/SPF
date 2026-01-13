@@ -5,6 +5,9 @@ module Validation.Commands (validateCommand) where
 import Validation.Configuration
 import Validation.GenericValidations
 import Validation.Schema
+import Datatypes.Located
+import Datatypes.ParseTokens
+import Datatypes.ValidatedTokens
 import Common
 
 import Control.Applicative
@@ -15,9 +18,10 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Validation
 import GHC.Float (double2Int)
+import Text.Megaparsec (SourcePos)
 
-import Datatypes.ParseTokens
-import Datatypes.ValidatedTokens
+type CommandValidationType = Validation [String] VComm
+
 
 --------------------
 -- AUXILIARY FUNCTIONS
@@ -42,6 +46,11 @@ validateListStyle s = case T.toLower s of
   "number" -> Just ListNumber
   _ -> Nothing
 
+withPos :: SourcePos -> CommandValidationType -> Validation [LocatedError] VComm
+withPos p v = case v of
+  Failure errs -> Failure (map (at p) errs)
+  Success s -> Success s
+
 --------------------
 -- SCHEMA VALIDATION FUNCTIONS
 --------------------
@@ -59,7 +68,7 @@ namedFontNameSchema =
 -- COMMAND VALIDATION FUNCTIONS
 --------------------
 -- Validates options for text, with options for font type and size.
--- namedFontWithSize :: ([VText] -> Maybe Font -> Maybe Pt -> VComm) [PText] -> POption -> Validation [String] VComm
+-- namedFontWithSize :: ([VText] -> Maybe Font -> Maybe Pt -> VComm) [PText] -> POption -> CommandValidationType
 namedFontWithSize c t (POptionMap o) =
   runSchema
     ( ensureValidKeys
@@ -72,7 +81,7 @@ namedFontWithSize c t (POptionMap o) =
 namedFontWithSize c t POptionNone = Success $ c (convertText t) Nothing Nothing
 
 -- Figure validation.
-namedFigure :: String -> POption -> Validation [String] VComm
+namedFigure :: String -> POption -> CommandValidationType
 namedFigure p (POptionMap o) =
   runSchema
     ( ensureValidKeys
@@ -94,7 +103,7 @@ validateTable c rLen =
         else Failure ["Rows of different length in table"]
 
 -- Table row validation.
-namedTable :: [[[PText]]] -> POption -> Validation [String] VComm
+namedTable :: [[[PText]]] -> POption -> CommandValidationType
 namedTable cnt (POptionMap o) =
   let columnCount = runSchema (ensureValidKeys "Expected one numeric value (columns)" ["columns"] (requireNumberWith "columns" (validateNumInst (> 0) (\d -> TableColumns (double2Int d))) "Column number must be positive")) o
     in case columnCount of
@@ -103,7 +112,7 @@ namedTable cnt (POptionMap o) =
 namedTable c POptionNone = Failure ["Expected one numeric value (columns)"]
 
 -- Validates a list.
-namedList :: [[PText]] -> POption -> Validation [String] VComm
+namedList :: [[PText]] -> POption -> CommandValidationType
 namedList lst (POptionMap o) =
   runSchema
     ( ensureValidKeys
@@ -116,7 +125,7 @@ namedList lst (POptionMap o) =
 namedList lst POptionNone = Success $ VList (map convertText lst) Nothing
 
 -- Paragraph validation.
-namedParagraph :: [PText] -> POption -> Validation [String] VComm
+namedParagraph :: [PText] -> POption -> CommandValidationType
 namedParagraph txt (POptionMap o) =
   runSchema
     ( ensureValidKeys
@@ -134,18 +143,20 @@ namedParagraph txt POptionNone = Success $ VParagraph (convertText txt) Nothing 
 --------------------
 -- COMMAND VALIDATION
 --------------------
-validateCommand :: PCommOpt -> Validation [String] VComm
-validateCommand (PCommOpt (PConfig cfg) opts) = VConfigComm <$> validateConfig cfg opts
-validateCommand (PCommOpt (PTitle text) opts) = namedFontWithSize VTitle text opts
-validateCommand (PCommOpt (PAuthor text) opts) = namedFontWithSize VAuthor text opts
-validateCommand (PCommOpt (PDate text) opts) = namedFontWithSize VDate text opts
-validateCommand (PCommOpt (PSection text) opts) = namedFontWithSize VSection text opts
-validateCommand (PCommOpt (PSubsection text) opts) = namedFontWithSize VSubsection text opts
-validateCommand (PCommOpt (PFigure path) opts) = namedFigure path opts
-validateCommand (PCommOpt (PTable rows) opts) = namedTable rows opts
-validateCommand (PCommOpt (PList lst) opts) = namedList lst opts
-validateCommand (PCommOpt (PParagraph txt) opts) = namedParagraph txt opts
-validateCommand (PCommOpt PNewpage POptionNone) = Success VNewpage
-validateCommand (PCommOpt PNewpage _) = Failure ["The command " ++ quote "newpage" ++ " doesn't accept any options"]
-validateCommand (PCommOpt PHLine POptionNone) = Success VHLine
-validateCommand (PCommOpt PHLine _) = Failure ["The command " ++ quote "hline" ++ " doesn't accept any options"]
+validateCommand :: Located PCommOpt -> Validation [LocatedError] VComm
+validateCommand (Located pos comm) =
+  withPos pos $ case comm of
+    PCommOpt (PConfig cfg) opts       -> VConfigComm <$> validateConfig cfg opts
+    PCommOpt (PTitle text) opts       -> namedFontWithSize VTitle text opts
+    PCommOpt (PAuthor text) opts      -> namedFontWithSize VAuthor text opts
+    PCommOpt (PDate text) opts        -> namedFontWithSize VDate text opts
+    PCommOpt (PSection text) opts     -> namedFontWithSize VSection text opts 
+    PCommOpt (PSubsection text) opts  -> namedFontWithSize VSubsection text opts
+    PCommOpt (PFigure path) opts      -> namedFigure path opts
+    PCommOpt (PTable rows) opts       -> namedTable rows opts
+    PCommOpt (PList lst) opts         -> namedList lst opts
+    PCommOpt (PParagraph txt) opts    -> namedParagraph txt opts
+    PCommOpt PNewpage POptionNone     -> Success VNewpage
+    PCommOpt PNewpage _               -> Failure ["The command " ++ quote "newpage" ++ " doesn't accept any options"]
+    PCommOpt PHLine POptionNone       -> Success VHLine
+    PCommOpt PHLine _                 -> Failure ["The command " ++ quote "hline" ++ " doesn't accept any options"]

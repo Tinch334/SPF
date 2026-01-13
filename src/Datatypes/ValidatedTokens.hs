@@ -1,7 +1,9 @@
 module Datatypes.ValidatedTokens where
 
+import Datatypes.Located (Located(..))
+
 import Data.Text (Text)
-import GHC.Generics (Generic)
+
 
 -- Standard size units.
 newtype Pt = Pt Double
@@ -11,9 +13,9 @@ newtype PageWidth = PageWidth Double
 newtype FontSize = FontSize Pt
     deriving (Show, Eq, Ord)
 
--- Language definition
-type VLang = [VComm]
--- The maybe in the options indicates that they are optional. If parsed they are added, with Just, otherwise Nothing is used.
+-- Language definition.
+type VLocatedLang = [Located VComm]
+-- The maybe in the options indicates that they are optional. If found they are added with "Just", otherwise "Nothing" is used.
 -- The Nothing's are then replaced with the default values for those arguments.
 data VComm  = VConfigComm   VConfig
             | VTitle        [VText] (Maybe Font) (Maybe FontSize)
@@ -30,7 +32,7 @@ data VComm  = VConfigComm   VConfig
             deriving (Show, Eq, Ord)
 
 
--- Options for configuration.
+-- Options for configuration commands.
 data VConfig = VConfig
     { cfgPageSize           :: Maybe PageSize
     , cfgPageNumbering      :: Maybe PageNumbering
@@ -51,20 +53,20 @@ data VConfig = VConfig
 -- Empty config for easy instantiation.
 emptyVConfig :: VConfig
 emptyVConfig = VConfig
-    { cfgPageSize      = Nothing
-    , cfgPageNumbering = Nothing
-    , cfgTitleSpacing  = Nothing
-    , cfgParagraphSpacing = Nothing
-    , cfgListSpacing   = Nothing
-    , cfgTableSpacing  = Nothing
-    , cfgFigureSpacing = Nothing
-    , cfgSpacingGlue   = Nothing
-    , cfgTextGlue      = Nothing
-    , cfgParIndent     = Nothing
-    , cfgFont          = Nothing
-    , cfgParSize       = Nothing
-    , cfgTitleSize     = Nothing
-    , cfgJustification = Nothing
+    { cfgPageSize           = Nothing
+    , cfgPageNumbering      = Nothing
+    , cfgTitleSpacing       = Nothing
+    , cfgParagraphSpacing   = Nothing
+    , cfgListSpacing        = Nothing
+    , cfgTableSpacing       = Nothing
+    , cfgFigureSpacing      = Nothing
+    , cfgSpacingGlue        = Nothing
+    , cfgTextGlue           = Nothing
+    , cfgParIndent          = Nothing
+    , cfgFont               = Nothing
+    , cfgParSize            = Nothing
+    , cfgTitleSize          = Nothing
+    , cfgJustification      = Nothing
     }
 
 -- General data types, meant for reusability, to avoid repetition.

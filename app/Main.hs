@@ -7,6 +7,7 @@ import Lib
 import qualified Parser as P
 import qualified Common as C
 import qualified Validation.Commands as VC
+import qualified Datatypes.Located as L
 
 import System.FilePath
 import System.IO.Error
@@ -64,12 +65,38 @@ printCnt v c sv snv = if v
     then putStrLn sv <* mapM print c *> putStrLn ""
     else putStrLn snv
 
+-- Print text in the given foreground and background colours.
 printColourText :: TC.Colour -> TC.Colour -> T.Text -> IO ()
 printColourText fg bg t = let ct = TC.fore fg (TC.back bg $ TC.chunk t) in
     TC.putChunksUtf8With TC.With8Colours [ct]
 
+-- Print the text "ERROR" in red
 printError :: String -> IO ()
 printError e = printColourText TC.red TC.black "ERROR" *> putStrLn (" - " ++ e)
+
+-- Prints a located error nicely.
+printLocatedError :: T.Text -> L.LocatedError -> IO ()
+printLocatedError fileContents (L.LocatedError pos err) = let
+    numStr = show (M.unPos $ M.sourceLine pos)
+    numStrLen = length numStr
+    linePos = M.unPos $ M.sourceLine pos
+    -- Gets line with the error.
+    cleanLine = T.strip $ (T.lines fileContents) !! (linePos - 1)
+    in do
+        putStrLn $ M.sourceName pos ++ ":" ++ show linePos
+        putStrLn $ (replicate (numStrLen + 1) ' ') ++ "|"
+        putStrLn $ numStr ++ " | " ++ (T.unpack cleanLine)
+        putStrLn $ (replicate (numStrLen + 1) ' ') ++ "|"
+        putStrLn err
+
+{-
+examples/document.spf:13:6:
+   |
+13 | \lmao
+   |      ^
+Unknown command: "lmao"
+Unknown text type: "lmao"
+-}
 
 -- Determines the output filename, based on if it was provided as an argument.
 getOutFilename :: FilePath -> Maybe FilePath -> FilePath
@@ -93,4 +120,4 @@ main = do
             Left e -> printError "File could not be parsed:" >> putStr (M.errorBundlePretty e)
             Right p -> (printCnt ve p "Parsed file contents:" "File parsed") >> case traverse VC.validateCommand p of
                 V.Success vp -> printCnt ve vp "Validated file contents:" "File validated"
-                V.Failure errs -> printError "File contains invalid elements:" <* mapM putStrLn errs
+                V.Failure errs -> printError "File contains invalid elements:" <* mapM (printLocatedError contents) errs
