@@ -240,19 +240,21 @@ singleNewline = try $ parseNewline *> notFollowedBy parseNewline where
 -- Parses configuration options.
 parseConfig :: Parser PConfigOption
 parseConfig = label "config option" $ choice
-    [ PSize              <$ string "size"
-    , PPagenumbering     <$ string "pagenumbering"
-    , PTitlespacing      <$ string "titlespacing"
-    , PParagraphspacing  <$ string "paragraphspacing"
-    , PListspacing       <$ string "listspacing"
-    , PTablespacing      <$ string "tablespacing"
-    , PFigurespacing     <$ string "figurespacing"
-    , PSpacingglue       <$ string "spacingglue"
-    , PTextglue          <$ string "textglue"
-    , PFont              <$ string "font"
-    , PParsize           <$ string "parsize"
-    , PTitlesize         <$ string "titlesize"
-    , PJustification     <$ string "justification" ]
+    [ PSize             <$ string "size"
+    , PPagenumbering    <$ string "pagenumbering"
+    , PTitlespacing     <$ string "titlespacing"
+    , PParagraphspacing <$ string "paragraphspacing"
+    , PListspacing      <$ string "listspacing"
+    , PTablespacing     <$ string "tablespacing"
+    , PFigurespacing    <$ string "figurespacing"
+    , PSpacingglue      <$ string "spacingglue"
+    , PTextglue         <$ string "textglue"
+    , PFont             <$ string "font"
+    , PParsize          <$ string "parsize"
+    , PTitlesize        <$ string "titlesize"
+    , PSubtitlesize     <$ string "subtitlesize"
+    , PJustification    <$ string "justification"
+    , PListstyle        <$ string "style" ]
 
 -- Parses a filepath, doesn't check that it's valid. Follows POSIX standard "Fully portable filenames".
 parseFilepath :: Parser FilePath

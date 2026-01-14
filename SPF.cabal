@@ -26,6 +26,8 @@ source-repository head
 library
   exposed-modules:
       Common
+      Completion.Commands
+      Completion.Options
       Datatypes.Located
       Datatypes.ParseTokens
       Datatypes.ValidatedTokens
@@ -46,6 +48,7 @@ library
     , array
     , base >=4.7 && <5
     , filepath
+    , ghc-internal
     , megaparsec >=9.0
     , network-uri
     , optparse-applicative
@@ -70,6 +73,7 @@ executable SPF-exe
     , array
     , base >=4.7 && <5
     , filepath
+    , ghc-internal
     , megaparsec >=9.0
     , network-uri
     , optparse-applicative
@@ -95,6 +99,7 @@ test-suite SPF-test
     , array
     , base >=4.7 && <5
     , filepath
+    , ghc-internal
     , megaparsec >=9.0
     , network-uri
     , optparse-applicative

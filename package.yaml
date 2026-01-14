@@ -32,6 +32,7 @@ dependencies:
 - optparse-simple
 - validation
 - safe-coloured-text
+- ghc-internal
 
 
 ghc-options:

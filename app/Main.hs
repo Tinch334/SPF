@@ -8,9 +8,12 @@ import qualified Parser as P
 import qualified Common as C
 import qualified Validation.Commands as VC
 import qualified Datatypes.Located as L
+import qualified Completion.Options as CO
+import qualified Completion.Commands as CC
 
 import System.FilePath
 import System.IO.Error
+import GHC.Internal.IO.Exception as IIE
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
@@ -80,7 +83,7 @@ printLocatedError fileContents (L.LocatedError pos err) = let
     numStr = show (M.unPos $ M.sourceLine pos)
     numStrLen = length numStr
     linePos = M.unPos $ M.sourceLine pos
-    -- Gets line with the error.
+    -- Gets line with the error and cleans it.
     cleanLine = T.strip $ (T.lines fileContents) !! (linePos - 1)
     in do
         putStrLn $ M.sourceName pos ++ ":" ++ show linePos
@@ -89,20 +92,16 @@ printLocatedError fileContents (L.LocatedError pos err) = let
         putStrLn $ (replicate (numStrLen + 1) ' ') ++ "|"
         putStrLn err
 
-{-
-examples/document.spf:13:6:
-   |
-13 | \lmao
-   |      ^
-Unknown command: "lmao"
-Unknown text type: "lmao"
--}
+-- Haskell definition of "show" for "IO error" does not follow the style of the rest of the program.
+showIOError :: IOError -> String
+showIOError e = let reason = "\nReason: " ++ show (IIE.ioe_type e) in case IIE.ioe_filename e of
+    Nothing -> "An IO error occurredc" ++ reason
+    Just f -> "The file " ++ C.quote (T.pack f) ++ " could not be accessed" ++ reason
 
 -- Determines the output filename, based on if it was provided as an argument.
 getOutFilename :: FilePath -> Maybe FilePath -> FilePath
 getOutFilename _ (Just outPath) = outPath
 getOutFilename inPath Nothing = addExtension (dropExtension inPath) C.outputExtension
-
 
 --------------------
 -- MAIN FUNCTION
@@ -115,9 +114,16 @@ main = do
 
     strOrErr <- tryIOError $ TIO.readFile (inFile opts)
     case strOrErr of
-        Left _ -> printError $ "File " ++ (C.quote $ T.pack (inFile opts)) ++ " could not be accessed!\n"
+        Left e -> printError $ showIOError e
         Right contents -> case M.runParser P.parseLanguage (inFile opts) contents of
             Left e -> printError "File could not be parsed:" >> putStr (M.errorBundlePretty e)
             Right p -> (printCnt ve p "Parsed file contents:" "File parsed") >> case traverse VC.validateCommand p of
-                V.Success vp -> printCnt ve vp "Validated file contents:" "File validated"
+                V.Success vp -> do
+                    printCnt ve vp "Validated file contents:" "File validated"
+
+                    -- Completion cannot fail, since it's just checking for "Nothing's" in validated tokens.
+                    let mo = CO.mergeOpts vp
+                    let cc = CC.completeCommands mo vp
+                    printCnt ve cc "File completion results:" "File completed"
+
                 V.Failure errs -> printError "File contains invalid elements:" <* mapM (printLocatedError contents) errs

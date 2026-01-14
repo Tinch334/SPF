@@ -21,6 +21,7 @@ import GHC.Float (double2Int)
 import Text.Megaparsec (SourcePos)
 
 type CommandValidationType = Validation [String] VComm
+type LocatedCommandValidationType = Validation [LocatedError] (Located VComm)
 
 
 --------------------
@@ -37,19 +38,10 @@ convertText tLst = map cnvInner tLst
     cnvInner (PVerbatim t) = VText {text = t, style = Verbatim}
     cnvInner (PQuoted t) = VText {text = t, style = Quoted}
 
--- This function is not in "GenericValidations" since it's not used by configuration options.
-validateListStyle :: Text -> Maybe ListStyle
-validateListStyle s = case T.toLower s of
-  "bullet" -> Just ListBullet
-  "square" -> Just ListSquare
-  "arrow" -> Just ListArrow
-  "number" -> Just ListNumber
-  _ -> Nothing
-
-withPos :: SourcePos -> CommandValidationType -> Validation [LocatedError] VComm
+withPos :: SourcePos -> CommandValidationType -> LocatedCommandValidationType
 withPos p v = case v of
   Failure errs -> Failure (map (at p) errs)
-  Success s -> Success s
+  Success s -> Success (Located p s) -- Return position for further error reporting.
 
 --------------------
 -- SCHEMA VALIDATION FUNCTIONS
@@ -88,11 +80,11 @@ namedFigure p (POptionMap o) =
         ("Expected some of fields " ++ quoteList ["width", "caption"])
         ["width", "caption"]
         ( VFigure p
-            <$> tryNumberWith "width" (validateNumInst (\n -> n > 0 && n <= 1) PageWidth) "Figure width must be between 0 and 1"
+            <$> requireNumberWith "width" (validateNumInst (\n -> n > 0 && n <= 1) PageWidth) "Figure width must be between 0 and 1"
             <*> ((fmap Caption) <$> tryText "caption")
         )
     ) o
-namedFigure p POptionNone = Success $ VFigure p Nothing Nothing
+namedFigure p POptionNone = Failure ["Expected one numeric value (width)"]
 
 -- Table validation.
 validateTable :: [[[PText]]] -> Int -> Validation [String] [[[VText]]]
@@ -143,7 +135,7 @@ namedParagraph txt POptionNone = Success $ VParagraph (convertText txt) Nothing 
 --------------------
 -- COMMAND VALIDATION
 --------------------
-validateCommand :: Located PCommOpt -> Validation [LocatedError] VComm
+validateCommand :: Located PCommOpt -> LocatedCommandValidationType
 validateCommand (Located pos comm) =
   withPos pos $ case comm of
     PCommOpt (PConfig cfg) opts       -> VConfigComm <$> validateConfig cfg opts

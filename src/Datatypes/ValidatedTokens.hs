@@ -23,7 +23,7 @@ data VComm  = VConfigComm   VConfig
             | VDate         [VText] (Maybe Font) (Maybe FontSize)
             | VSection      [VText] (Maybe Font) (Maybe FontSize)
             | VSubsection   [VText] (Maybe Font) (Maybe FontSize)
-            | VFigure       FilePath (Maybe PageWidth) (Maybe Caption)
+            | VFigure       FilePath PageWidth (Maybe Caption)
             | VTable        [[[VText]]] TableColumns
             | VList         [[VText]] (Maybe ListStyle)
             | VParagraph    [VText] (Maybe Font) (Maybe FontSize) (Maybe Justification)
@@ -45,9 +45,11 @@ data VConfig = VConfig
     , cfgTextGlue           :: Maybe Glue
     , cfgParIndent          :: Maybe Pt
     , cfgFont               :: Maybe Font
-    , cfgParSize            :: Maybe Pt
-    , cfgTitleSize          :: Maybe Pt
+    , cfgParSize            :: Maybe FontSize
+    , cfgTitleSize          :: Maybe FontSize
+    , cfgSubtitleSize          :: Maybe FontSize
     , cfgJustification      :: Maybe Justification
+    , cfgListStyle          :: Maybe ListStyle
     } deriving (Show, Eq, Ord)
 
 -- Empty config for easy instantiation.
@@ -66,7 +68,30 @@ emptyVConfig = VConfig
     , cfgFont               = Nothing
     , cfgParSize            = Nothing
     , cfgTitleSize          = Nothing
+    , cfgSubtitleSize       = Nothing
     , cfgJustification      = Nothing
+    , cfgListStyle          = Nothing
+    }
+
+-- Default configuration values for commands, determined by hand, to make the document aesthetically pleasant.
+defaultVConfig :: VConfig
+defaultVConfig = VConfig
+    { cfgPageSize           = Just $ SizeA4
+    , cfgPageNumbering      = Just $ NumberingArabic
+    , cfgTitleSpacing       = Just $ Spacing (Pt 5) (Pt 5)
+    , cfgParagraphSpacing   = Just $ Spacing (Pt 3) (Pt 3)
+    , cfgListSpacing        = Just $ Spacing (Pt 5) (Pt 5)
+    , cfgTableSpacing       = Just $ Spacing (Pt 4) (Pt 4)
+    , cfgFigureSpacing      = Just $ Spacing (Pt 4) (Pt 4)
+    , cfgSpacingGlue        = Just $ Glue (Pt 2) (Pt 2)
+    , cfgTextGlue           = Just $ Glue (Pt 2) (Pt 2)
+    , cfgParIndent          = Just $ Pt 6
+    , cfgFont               = Just $ Helvetica
+    , cfgParSize            = Just $ FontSize (Pt 12)
+    , cfgTitleSize          = Just $ FontSize (Pt 18)
+    , cfgSubtitleSize       = Just $ FontSize (Pt 16)
+    , cfgJustification      = Just $ JustifyLeft
+    , cfgListStyle          = Just $ ListBullet
     }
 
 -- General data types, meant for reusability, to avoid repetition.
@@ -79,10 +104,10 @@ data PageSize   = SizeA4
 data PageNumbering = NumberingArabic | NumberingRoman | NumberingNone
     deriving (Show, Eq, Ord)
 
-newtype Spacing = Spacing { unSpacing :: (Pt, Pt) }   -- before, after
+data Spacing = Spacing Pt Pt
     deriving (Show, Eq, Ord)
 
-newtype Glue = Glue { unGlue :: (Pt, Pt) }            -- stretch, shrink
+data Glue = Glue Pt Pt
     deriving (Show, Eq, Ord)
 
 data Font = Helvetica | Courier | Times

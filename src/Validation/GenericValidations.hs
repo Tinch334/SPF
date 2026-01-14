@@ -50,3 +50,12 @@ validateJustification t = case T.toLower t of
     "center" -> Just JustifyCenter
     "full" -> Just JustifyFull
     _ -> Nothing
+
+-- List style validation.
+validateListStyle :: Text -> Maybe ListStyle
+validateListStyle s = case T.toLower s of
+  "bullet" -> Just ListBullet
+  "square" -> Just ListSquare
+  "arrow" -> Just ListArrow
+  "number" -> Just ListNumber
+  _ -> Nothing

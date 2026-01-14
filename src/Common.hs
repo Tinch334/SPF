@@ -13,9 +13,10 @@ quote t = "\"" ++ (T.unpack t) ++ "\""
 quoteList :: [T.Text] -> String
 quoteList l = L.intercalate ", " (map quote l)
 
--- Useful for creating tuples in a monadic context.
-tuple :: a -> b -> (a, b)
-tuple a b = (a, b)
+-- Filters a list and applies the given function to all non filtered elements.
+filterMap :: (a -> Bool) -> (a -> b) -> [a] -> [b]
+filterMap _ _ [] = []
+filterMap f m (x:xs) = if f x then (m x):(filterMap f m xs) else filterMap f m xs
 
 --------------------
 -- CONSTANTS

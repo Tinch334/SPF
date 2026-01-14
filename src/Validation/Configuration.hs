@@ -47,8 +47,12 @@ configErrorString PParsize =
     "Expected a numeric value (size: pt)"
 configErrorString PTitlesize =
     "Expected a numeric value (size: pt)"
+configErrorString PSubtitlesize =
+    "Expected a numeric value (size: pt)"
 configErrorString PJustification = 
     "Expected field " ++ quote "justification" ++ " to be one of " ++ quoteList ["left", "right", "centred", "full"]
+configErrorString PListstyle = 
+    "Expected field " ++ quote "style" ++ " to be one of " ++ quoteList ["bullet", "square", "arrow", "number"]
 
 noArgumentFail :: String -> PConfigOption -> Validation [String] VConfig
 noArgumentFail err opt = Failure [err ++ configErrorString opt]
@@ -86,30 +90,36 @@ withTextGlue g = emptyVConfig { cfgTextGlue = Just g }
 withFont :: Font -> VConfig
 withFont f = emptyVConfig { cfgFont = Just f }
 
-withParSize :: Pt -> VConfig
+withParSize :: FontSize -> VConfig
 withParSize s = emptyVConfig { cfgParSize = Just s }
 
-withTitleSize :: Pt -> VConfig
+withTitleSize :: FontSize -> VConfig
 withTitleSize s = emptyVConfig { cfgTitleSize = Just s }
+
+withSubtitleSize :: FontSize -> VConfig
+withSubtitleSize s = emptyVConfig {cfgSubtitleSize = Just s}
 
 withJustification :: Justification -> VConfig
 withJustification j = emptyVConfig { cfgJustification = Just j }
+
+withListStyle :: ListStyle -> VConfig
+withListStyle s = emptyVConfig { cfgListStyle = Just s }
 
 --------------------
 -- SCHEMA VALIDATION FUNCTIONS
 --------------------
 -- Generalized schemas.
 namedBeforeAndAfterSchema :: (Spacing -> b) -> Schema b
-namedBeforeAndAfterSchema c = c <$> (Spacing <$> (tuple <$>
-    (Pt <$> requireNumber "before") <*> (Pt <$> requireNumber "after")))
+namedBeforeAndAfterSchema c = c <$> (Spacing <$>
+    (Pt <$> requireNumber "before") <*> (Pt <$> requireNumber "after"))
 
 namedGlueSchema :: (Glue -> b) -> Schema b
-namedGlueSchema c = c <$> (Glue <$> (tuple <$> 
+namedGlueSchema c = c <$> (Glue <$> 
     requireNumberWith "stretch" (validateNumInst (> 0) Pt) "Stretch must be positive"
-    <*> requireNumberWith "shrink"  (validateNumInst (> 0) Pt) "Shrink must be positive"))
+    <*> requireNumberWith "shrink"  (validateNumInst (> 0) Pt) "Shrink must be positive")
 
-namedFontSizeSchema :: (Pt -> b) -> Schema b
-namedFontSizeSchema c = c <$> requireNumberWith "size" (validateNumInst (> 0) Pt) "Font size must be positive"
+namedFontSizeSchema :: (FontSize -> b) -> Schema b
+namedFontSizeSchema c = c <$> (FontSize <$> requireNumberWith "size" (validateNumInst (> 0) Pt) "Font size must be positive")
 
 -- Option specific schemas.
 namedSizeSchema :: Schema VConfig
@@ -149,8 +159,8 @@ textGlueSchema :: Schema VConfig
 textGlueSchema = namedGlueSchema withTextGlue
 
 -- font and sizes
-namedFontSchema :: Schema VConfig
-namedFontSchema = withFont <$> requireTextWith "font" validateFont ("Unknown font type. " ++ configErrorString PFont)
+fontSchema :: Schema VConfig
+fontSchema = withFont <$> requireTextWith "font" validateFont ("Unknown font type. " ++ configErrorString PFont)
 
 parSizeSchema :: Schema VConfig
 parSizeSchema = namedFontSizeSchema withParSize
@@ -158,9 +168,16 @@ parSizeSchema = namedFontSizeSchema withParSize
 titleSizeSchema :: Schema VConfig
 titleSizeSchema = namedFontSizeSchema withTitleSize
 
-namedJustifySchema :: Schema VConfig
-namedJustifySchema = withJustification <$>
-  requireTextWith "justification" validateJustification ("Unknown text justification. " ++ configErrorString PJustification)
+subtitleSizeSchema :: Schema VConfig
+subtitleSizeSchema = namedFontSizeSchema withSubtitleSize
+
+justifySchema :: Schema VConfig
+justifySchema = withJustification <$>
+    requireTextWith "justification" validateJustification ("Unknown text justification. " ++ configErrorString PJustification)
+
+listStyleSchema :: Schema VConfig
+listStyleSchema = withListStyle <$>
+    requireTextWith "style" validateListStyle ("Unknown text justification. " ++ configErrorString PJustification)
 
 --------------------
 -- CONFIGURATION VALIDATION
@@ -214,21 +231,31 @@ validateConfig PTextglue (POptionMap m) = runSchema
 validateConfig PTextglue POptionNone = noArgumentFail "Paragraph glue requires arguments. " PTextglue
 
 validateConfig PFont (POptionMap m) = runSchema
-    (ensureValidKeys (configErrorString PFont) ["font"] namedFontSchema)
+    (ensureValidKeys (configErrorString PFont) ["font"] fontSchema)
     m
 validateConfig PFont POptionNone = noArgumentFail "Font type requires arguments. " PFont
 
 validateConfig PParsize (POptionMap m) = runSchema
-    (ensureValidKeys (configErrorString PParsize) ["size"] (parSizeSchema))
+    (ensureValidKeys (configErrorString PParsize) ["size"] parSizeSchema)
     m
 validateConfig PParsize POptionNone = noArgumentFail "Paragraph font size requires arguments. " PParsize
 
 validateConfig PTitlesize (POptionMap m) = runSchema
-    (ensureValidKeys (configErrorString PTitlesize) ["size"] (titleSizeSchema))
+    (ensureValidKeys (configErrorString PTitlesize) ["size"] titleSizeSchema)
     m
 validateConfig PTitlesize POptionNone = noArgumentFail "Title font size requires arguments. " PTitlesize
 
+validateConfig PSubtitlesize (POptionMap m) = runSchema
+    (ensureValidKeys (configErrorString PSubtitlesize) ["size"] subtitleSizeSchema)
+    m
+validateConfig PSubtitlesize POptionNone = noArgumentFail "Subtitle font size requires arguments. " PTitlesize
+
 validateConfig PJustification (POptionMap m) = runSchema
-    (ensureValidKeys (configErrorString PJustification) ["justification"] namedJustifySchema)
+    (ensureValidKeys (configErrorString PJustification) ["justification"] justifySchema)
     m
 validateConfig PJustification POptionNone = noArgumentFail "Text justification requires arguments" PJustification
+
+validateConfig PListstyle (POptionMap m) = runSchema
+    (ensureValidKeys (configErrorString PJustification) ["style"] listStyleSchema)
+    m
+validateConfig PJustification POptionNone = noArgumentFail "List style requires arguments" PJustification
