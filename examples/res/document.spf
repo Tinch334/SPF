@@ -1,0 +1,20 @@
+\config{paragraphspacing}[before: 3, after: 5]
+
+
+
+
+\author{A great author}  [  size : 10   ,  font: Times]
+
+\section{Chapter 1}
+\subsection{A second chapter 1}
+
+Lorem ipsum dolor          sit amet. 
+Mauris bibendum mauris eu dolor semper, ac aliquam quam commodo.
+
+Donec eleifend eros velit, et sodales urna feugiat ut. Suspendisse potenti.
+
+\figure{Example1.png}[width: 0.5]
+\figure{Example2.png}[width: 0.5]
+\figure{Example3.png}[width: 0.5]
+\figure{Example4.png}[width: 0.5]
+\figure{Example5.png}[width: 0.5]

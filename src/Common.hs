@@ -7,6 +7,7 @@ import qualified Data.List as L
 --------------------
 -- AUXILIARY FUNCTIONS
 --------------------
+-- For these functions ad-hoc polymorphism isn't used; Because overloaded strings are used so would type annotations.
 quote :: T.Text -> String
 quote t = "\"" ++ (T.unpack t) ++ "\""
 

@@ -17,7 +17,10 @@ import qualified Data.List as L
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Validation
+
 import GHC.Float (double2Int)
+import System.FilePath (isValid)
+
 import Text.Megaparsec (SourcePos)
 
 type CommandValidationType = Validation [String] VComm
@@ -75,15 +78,17 @@ namedFontWithSize c t POptionNone = Success $ c (convertText t) Nothing Nothing
 -- Figure validation.
 namedFigure :: String -> POption -> CommandValidationType
 namedFigure p (POptionMap o) =
-  runSchema
-    ( ensureValidKeys
+  if isValid p
+    then runSchema
+      ( ensureValidKeys
         ("Expected some of fields " ++ quoteList ["width", "caption"])
         ["width", "caption"]
         ( VFigure p
             <$> requireNumberWith "width" (validateNumInst (\n -> n > 0 && n <= 1) PageWidth) "Figure width must be between 0 and 1"
             <*> ((fmap Caption) <$> tryText "caption")
         )
-    ) o
+      ) o
+    else Failure ["Invalid filepath " ++ quote (T.pack p)]
 namedFigure p POptionNone = Failure ["Expected one numeric value (width)"]
 
 -- Table validation.

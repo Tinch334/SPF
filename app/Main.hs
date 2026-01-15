@@ -10,6 +10,7 @@ import qualified Validation.Commands as VC
 import qualified Datatypes.Located as L
 import qualified Completion.Options as CO
 import qualified Completion.Commands as CC
+import qualified Resources as R
 
 import System.FilePath
 import System.IO.Error
@@ -19,11 +20,14 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import qualified Data.Validation as V
 import qualified Text.Colour as TC
+import Data.Map (Map)
+import qualified Data.Map as M
+import Data.ByteString (ByteString)
 
 import Options.Applicative
 import qualified Options.Applicative.Simple as OPS
 
-import qualified Text.Megaparsec as M
+import qualified Text.Megaparsec as MP
 
 
 data Options = Options
@@ -65,7 +69,15 @@ optionParser =
 -- Prints contents based on the verbose flag, the first string is used in the verbose case.
 printCnt :: Show a => Bool -> [a] -> String -> String -> IO ()
 printCnt v c sv snv = if v
-    then putStrLn sv <* mapM print c *> putStrLn ""
+    then putStrLn sv >> mapM_ print c >> putStrLn ""
+    else putStrLn snv
+
+printResourceMap :: Bool -> Map FilePath ByteString  -> String -> String -> IO ()
+printResourceMap v m sv snv = if v
+    then do
+        putStrLn sv
+        mapM_ (putStrLn . C.quote . T.pack) (M.keys m)
+        putStrLn ""
     else putStrLn snv
 
 -- Print text in the given foreground and background colours.
@@ -80,13 +92,13 @@ printError e = printColourText TC.red TC.black "ERROR" *> putStrLn (" - " ++ e)
 -- Prints a located error nicely.
 printLocatedError :: T.Text -> L.LocatedError -> IO ()
 printLocatedError fileContents (L.LocatedError pos err) = let
-    numStr = show (M.unPos $ M.sourceLine pos)
+    numStr = show (MP.unPos $ MP.sourceLine pos)
     numStrLen = length numStr
-    linePos = M.unPos $ M.sourceLine pos
+    linePos = MP.unPos $ MP.sourceLine pos
     -- Gets line with the error and cleans it.
     cleanLine = T.strip $ (T.lines fileContents) !! (linePos - 1)
     in do
-        putStrLn $ M.sourceName pos ++ ":" ++ show linePos
+        putStrLn $ MP.sourceName pos ++ ":" ++ show linePos
         putStrLn $ (replicate (numStrLen + 1) ' ') ++ "|"
         putStrLn $ numStr ++ " | " ++ (T.unpack cleanLine)
         putStrLn $ (replicate (numStrLen + 1) ' ') ++ "|"
@@ -115,8 +127,8 @@ main = do
     strOrErr <- tryIOError $ TIO.readFile (inFile opts)
     case strOrErr of
         Left e -> printError $ showIOError e
-        Right contents -> case M.runParser P.parseLanguage (inFile opts) contents of
-            Left e -> printError "File could not be parsed:" >> putStr (M.errorBundlePretty e)
+        Right contents -> case MP.runParser P.parseLanguage (inFile opts) contents of
+            Left e -> printError "File could not be parsed:" >> putStr (MP.errorBundlePretty e)
             Right p -> (printCnt ve p "Parsed file contents:" "File parsed") >> case traverse VC.validateCommand p of
                 V.Success vp -> do
                     printCnt ve vp "Validated file contents:" "File validated"
@@ -126,4 +138,9 @@ main = do
                     let cc = CC.completeCommands mo vp
                     printCnt ve cc "File completion results:" "File completed"
 
-                V.Failure errs -> printError "File contains invalid elements:" <* mapM (printLocatedError contents) errs
+                    resOrErr <- R.loadResources cc (inFile opts)
+                    case resOrErr of
+                        V.Success rm -> printResourceMap ve rm "Loaded resources:" "Resources loaded"
+                        V.Failure errs -> printError "Some resources could not be loaded:" >> mapM_ (printLocatedError contents) errs
+
+                V.Failure errs -> printError "File contains invalid elements:" >> mapM_ (printLocatedError contents) errs
