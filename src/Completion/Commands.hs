@@ -2,7 +2,7 @@ module Completion.Commands (completeCommands) where
 
 import Datatypes.ValidatedTokens
 import Datatypes.Located
-import Common
+import Common (filterMap)
 
 import Control.Applicative
 import Control.Monad

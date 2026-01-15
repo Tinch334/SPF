@@ -95,7 +95,7 @@ printLocatedError fileContents (L.LocatedError pos err) = let
 -- Haskell definition of "show" for "IO error" does not follow the style of the rest of the program.
 showIOError :: IOError -> String
 showIOError e = let reason = "\nReason: " ++ show (IIE.ioe_type e) in case IIE.ioe_filename e of
-    Nothing -> "An IO error occurredc" ++ reason
+    Nothing -> "An IO error occurred" ++ reason
     Just f -> "The file " ++ C.quote (T.pack f) ++ " could not be accessed" ++ reason
 
 -- Determines the output filename, based on if it was provided as an argument.

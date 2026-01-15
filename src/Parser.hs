@@ -49,7 +49,7 @@ mkErrStr b t a = b ++ (T.unpack t) ++ a
 instance ShowErrorComponent CustomError where
     showErrorComponent (UnknownCommand c) = "Unknown command: " ++ quote c
     showErrorComponent (UnknownText t) = "Unknown text type: " ++ quote t
-    showErrorComponent (InvalidOptions o) = "Invalid format for options, encountered: " ++ T.unpack o
+    showErrorComponent (InvalidOptions o) = "Invalid format for options: " ++ T.unpack o
     showErrorComponent (OtherError t) = "Error during parsing: " ++ quote t
         
 

@@ -34,6 +34,7 @@ library
       Lib
       Parser
       Penrose
+      Resources
       Validation.Commands
       Validation.Configuration
       Validation.GenericValidations
@@ -45,8 +46,11 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
       HPDF ==1.7
+    , JuicyPixels
     , array
     , base >=4.7 && <5
+    , bytestring
+    , containers
     , filepath
     , ghc-internal
     , megaparsec >=9.0
@@ -69,9 +73,12 @@ executable SPF-exe
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HPDF ==1.7
+    , JuicyPixels
     , SPF
     , array
     , base >=4.7 && <5
+    , bytestring
+    , containers
     , filepath
     , ghc-internal
     , megaparsec >=9.0
@@ -95,9 +102,12 @@ test-suite SPF-test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HPDF ==1.7
+    , JuicyPixels
     , SPF
     , array
     , base >=4.7 && <5
+    , bytestring
+    , containers
     , filepath
     , ghc-internal
     , megaparsec >=9.0
