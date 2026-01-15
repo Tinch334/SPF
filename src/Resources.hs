@@ -51,7 +51,8 @@ loadResource (Located pos rp) = case takeExtension rp of
     e | elem e [".png", ".bmp", ".jpg", ".jpeg"] -> do
         res <- readImage rp
         case res of
-            Left err -> return $ Failure [at pos err]
+            -- The default error does not follow the style of the rest of the program.
+            Left _ -> return $ Failure [at pos $ "The file " ++ quote (T.pack rp) ++ " could not be accessed"]
             Right img -> return $ Success (rp, toStrict $ imageToPng img) -- "imageToPng" returns lazy a ByteString.
     e -> return $ Failure [at pos $ "The file extension " ++ quote (T.pack e) ++ " is invalid"]
 

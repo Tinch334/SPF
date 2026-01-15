@@ -251,15 +251,16 @@ parseConfig = label "config option" $ choice
     , PTextglue         <$ string "textglue"
     , PFont             <$ string "font"
     , PParsize          <$ string "parsize"
-    , PTitlesize        <$ string "titlesize"
-    , PSubtitlesize     <$ string "subtitlesize"
+    , PTitleSize        <$ string "titlesize"
+    , PSectionSize      <$ string "sectionsize"
+    , PSubsectionSize   <$ string "subsectionsize"
     , PJustification    <$ string "justification"
     , PListstyle        <$ string "style" ]
 
--- Parses a filepath, doesn't check that it's valid. Follows POSIX standard "Fully portable filenames".
+-- Parses a filepath, doesn't check that it's valid. Follows POSIX standard "Fully portable filenames", adding spaces.
 parseFilepath :: Parser FilePath
 parseFilepath = label "filepath" $ do
-    t <- takeWhile1P (Just "filepath char") (\c -> DC.isAlphaNum c || elem c ("/\\-_." :: String))
+    t <- takeWhile1P (Just "filepath char") (\c -> DC.isAlphaNum c || elem c ("/\\-_. " :: String))
     return (T.unpack t)
 
 -- The elements in a table row are separated by "|". A line ending is denoted by a "\\", that is two "\" characters.

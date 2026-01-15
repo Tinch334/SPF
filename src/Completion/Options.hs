@@ -10,24 +10,26 @@ import Common (filterMap)
 mergeOpts :: [Located VComm] -> VConfig
 mergeOpts opts = foldl merge defaultVConfig $ filterMap isConfigComm (\(Located _ op) -> op) opts
 
+-- The second configuration is prioritized, to preserve user configurations if possible.
 merge :: VConfig -> VComm -> VConfig
 merge op1 (VConfigComm op2) = VConfig
-    { cfgPageSize         = cfgPageSize op1         <|> cfgPageSize op2
-    , cfgPageNumbering    = cfgPageNumbering op1    <|> cfgPageNumbering op2
-    , cfgTitleSpacing     = cfgTitleSpacing op1     <|> cfgTitleSpacing op2
-    , cfgParagraphSpacing = cfgParagraphSpacing op1 <|> cfgParagraphSpacing op2
-    , cfgListSpacing      = cfgListSpacing op1      <|> cfgListSpacing op2
-    , cfgTableSpacing     = cfgTableSpacing op1     <|> cfgTableSpacing op2
-    , cfgFigureSpacing    = cfgFigureSpacing op1    <|> cfgFigureSpacing op2
-    , cfgSpacingGlue      = cfgSpacingGlue op1      <|> cfgSpacingGlue op2
-    , cfgTextGlue         = cfgTextGlue op1         <|> cfgTextGlue op2
-    , cfgParIndent        = cfgParIndent op1        <|> cfgParIndent op2
-    , cfgFont             = cfgFont op1             <|> cfgFont op2
-    , cfgParSize          = cfgParSize op1          <|> cfgParSize op2
-    , cfgTitleSize        = cfgTitleSize op1        <|> cfgTitleSize op2
-    , cfgSubtitleSize     = cfgSubtitleSize op1     <|> cfgSubtitleSize op2
-    , cfgJustification    = cfgJustification op1    <|> cfgJustification op2
-    , cfgListStyle        = cfgListStyle op1        <|> cfgListStyle op2
+    { cfgPageSize         = cfgPageSize op2         <|> cfgPageSize op1
+    , cfgPageNumbering    = cfgPageNumbering op2    <|> cfgPageNumbering op1
+    , cfgTitleSpacing     = cfgTitleSpacing op2     <|> cfgTitleSpacing op1
+    , cfgParagraphSpacing = cfgParagraphSpacing op2 <|> cfgParagraphSpacing op1
+    , cfgListSpacing      = cfgListSpacing op2      <|> cfgListSpacing op1
+    , cfgTableSpacing     = cfgTableSpacing op2     <|> cfgTableSpacing op1
+    , cfgFigureSpacing    = cfgFigureSpacing op2    <|> cfgFigureSpacing op1
+    , cfgSpacingGlue      = cfgSpacingGlue op2      <|> cfgSpacingGlue op1
+    , cfgTextGlue         = cfgTextGlue op2         <|> cfgTextGlue op1
+    , cfgParIndent        = cfgParIndent op2        <|> cfgParIndent op1
+    , cfgFont             = cfgFont op2             <|> cfgFont op1
+    , cfgParSize          = cfgParSize op2          <|> cfgParSize op1
+    , cfgTitleSize        = cfgTitleSize op2        <|> cfgTitleSize op1
+    , cfgSectionSize      = cfgSectionSize op2      <|> cfgSectionSize op1
+    , cfgSubsectionSize   = cfgSubsectionSize op2   <|> cfgSubsectionSize op1
+    , cfgJustification    = cfgJustification op2    <|> cfgJustification op1
+    , cfgListStyle        = cfgListStyle op2        <|> cfgListStyle op1
     }
 
 isConfigComm :: Located VComm -> Bool

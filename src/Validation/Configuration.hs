@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralisedNewtypeDeriving #-}
 
 module Validation.Configuration (validateConfig) where
 
@@ -45,9 +44,11 @@ configErrorString PFont =
     "Expected field " ++ quote "font" ++ " to be one of " ++ quoteList ["helvetica", "courier", "times"] ++ "."
 configErrorString PParsize =
     "Expected a numeric value (size: pt)"
-configErrorString PTitlesize =
+configErrorString PTitleSize =
     "Expected a numeric value (size: pt)"
-configErrorString PSubtitlesize =
+configErrorString PSectionSize =
+    "Expected a numeric value (size: pt)"
+configErrorString PSubsectionSize =
     "Expected a numeric value (size: pt)"
 configErrorString PJustification = 
     "Expected field " ++ quote "justification" ++ " to be one of " ++ quoteList ["left", "right", "centred", "full"]
@@ -94,10 +95,10 @@ withParSize :: FontSize -> VConfig
 withParSize s = emptyVConfig { cfgParSize = Just s }
 
 withTitleSize :: FontSize -> VConfig
-withTitleSize s = emptyVConfig { cfgTitleSize = Just s }
+withTitleSize s = emptyVConfig { cfgSectionSize = Just s }
 
 withSubtitleSize :: FontSize -> VConfig
-withSubtitleSize s = emptyVConfig {cfgSubtitleSize = Just s}
+withSubtitleSize s = emptyVConfig {cfgSubsectionSize = Just s}
 
 withJustification :: Justification -> VConfig
 withJustification j = emptyVConfig { cfgJustification = Just j }
@@ -168,8 +169,11 @@ parSizeSchema = namedFontSizeSchema withParSize
 titleSizeSchema :: Schema VConfig
 titleSizeSchema = namedFontSizeSchema withTitleSize
 
-subtitleSizeSchema :: Schema VConfig
-subtitleSizeSchema = namedFontSizeSchema withSubtitleSize
+sectionSizeSchema :: Schema VConfig
+sectionSizeSchema = namedFontSizeSchema withTitleSize
+
+subsectionSizeSchema :: Schema VConfig
+subsectionSizeSchema = namedFontSizeSchema withSubtitleSize
 
 justifySchema :: Schema VConfig
 justifySchema = withJustification <$>
@@ -221,12 +225,12 @@ validateConfig PFigurespacing (POptionMap m) = runSchema
 validateConfig PFigurespacing POptionNone = noArgumentFail "Figure spacing requires arguments. " PFigurespacing
 
 validateConfig PSpacingglue (POptionMap m) = runSchema
-    (ensureValidKeys (configErrorString PSpacingglue) ["stretchability", "shrinkability"] (spacingGlueSchema))
+    (ensureValidKeys (configErrorString PSpacingglue) ["stretch", "shrink"] (spacingGlueSchema))
     m
 validateConfig PSpacingglue POptionNone = noArgumentFail "Spacing glue requires arguments. " PSpacingglue
 
 validateConfig PTextglue (POptionMap m) = runSchema
-    (ensureValidKeys (configErrorString PTextglue) ["stretchability", "shrinkability"] (textGlueSchema))
+    (ensureValidKeys (configErrorString PTextglue) ["stretch", "shrink"] (textGlueSchema))
     m
 validateConfig PTextglue POptionNone = noArgumentFail "Paragraph glue requires arguments. " PTextglue
 
@@ -240,15 +244,20 @@ validateConfig PParsize (POptionMap m) = runSchema
     m
 validateConfig PParsize POptionNone = noArgumentFail "Paragraph font size requires arguments. " PParsize
 
-validateConfig PTitlesize (POptionMap m) = runSchema
-    (ensureValidKeys (configErrorString PTitlesize) ["size"] titleSizeSchema)
+validateConfig PTitleSize (POptionMap m) = runSchema
+    (ensureValidKeys (configErrorString PTitleSize) ["size"] titleSizeSchema)
     m
-validateConfig PTitlesize POptionNone = noArgumentFail "Title font size requires arguments. " PTitlesize
+validateConfig PTitleSize POptionNone = noArgumentFail "Title font size requires arguments. " PSectionSize
 
-validateConfig PSubtitlesize (POptionMap m) = runSchema
-    (ensureValidKeys (configErrorString PSubtitlesize) ["size"] subtitleSizeSchema)
+validateConfig PSectionSize (POptionMap m) = runSchema
+    (ensureValidKeys (configErrorString PSectionSize) ["size"] sectionSizeSchema)
     m
-validateConfig PSubtitlesize POptionNone = noArgumentFail "Subtitle font size requires arguments. " PTitlesize
+validateConfig PSectionSize POptionNone = noArgumentFail "Title font size requires arguments. " PSectionSize
+
+validateConfig PSubsectionSize (POptionMap m) = runSchema
+    (ensureValidKeys (configErrorString PSubsectionSize) ["size"] subsectionSizeSchema)
+    m
+validateConfig PSubsectionSize POptionNone = noArgumentFail "Subtitle font size requires arguments. " PSectionSize
 
 validateConfig PJustification (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PJustification) ["justification"] justifySchema)

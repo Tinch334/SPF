@@ -58,8 +58,9 @@ data PConfigOption  = PSize
                     | PTextglue
                     | PFont
                     | PParsize
-                    | PTitlesize
-                    | PSubtitlesize
+                    | PTitleSize
+                    | PSectionSize
+                    | PSubsectionSize
                     | PJustification
                     | PListstyle
                     deriving (Show, Eq, Ord)

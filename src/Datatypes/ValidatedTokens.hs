@@ -47,7 +47,8 @@ data VConfig = VConfig
     , cfgFont               :: Maybe Font
     , cfgParSize            :: Maybe FontSize
     , cfgTitleSize          :: Maybe FontSize
-    , cfgSubtitleSize          :: Maybe FontSize
+    , cfgSectionSize        :: Maybe FontSize
+    , cfgSubsectionSize     :: Maybe FontSize
     , cfgJustification      :: Maybe Justification
     , cfgListStyle          :: Maybe ListStyle
     } deriving (Show, Eq, Ord)
@@ -68,7 +69,8 @@ emptyVConfig = VConfig
     , cfgFont               = Nothing
     , cfgParSize            = Nothing
     , cfgTitleSize          = Nothing
-    , cfgSubtitleSize       = Nothing
+    , cfgSectionSize        = Nothing
+    , cfgSubsectionSize     = Nothing
     , cfgJustification      = Nothing
     , cfgListStyle          = Nothing
     }
@@ -89,7 +91,8 @@ defaultVConfig = VConfig
     , cfgFont               = Just $ Helvetica
     , cfgParSize            = Just $ FontSize (Pt 12)
     , cfgTitleSize          = Just $ FontSize (Pt 18)
-    , cfgSubtitleSize       = Just $ FontSize (Pt 16)
+    , cfgSectionSize        = Just $ FontSize (Pt 16)
+    , cfgSubsectionSize     = Just $ FontSize (Pt 14)
     , cfgJustification      = Just $ JustifyLeft
     , cfgListStyle          = Just $ ListBullet
     }
