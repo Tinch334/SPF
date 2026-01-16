@@ -36,6 +36,8 @@ dependencies:
 - containers
 - JuicyPixels
 - bytestring
+- async
+- directory
 
 
 ghc-options:

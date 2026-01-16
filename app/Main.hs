@@ -1,35 +1,33 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module Main (main) where
 
 
 import Lib
-import qualified Parser as P
-import qualified Common as C
-import qualified Validation.Commands as VC
-import qualified Datatypes.Located as L
-import qualified Completion.Options as CO
-import qualified Completion.Commands as CC
-import qualified Resources as R
-import qualified Typesetting.Typesetting as TS
-import qualified Fonts as F
 
-import System.FilePath
-import System.IO.Error
+import qualified Common                     as C
+import qualified Completion.Options         as CO
+import qualified Datatypes.Located          as L
+import qualified Fonts                      as F
+import qualified Parser                     as P
+import qualified Resources                  as R
+import qualified Typesetting.Typesetting    as TS
+import qualified Validation.Commands        as VC
+
+import System.IO.Error (IOError, tryIOError)
+import System.FilePath (addExtension, dropExtension)
 import GHC.Internal.IO.Exception as IIE
 
-import qualified Data.Text as T
-import qualified Data.Text.IO as TIO
-import qualified Data.Validation as V
-import qualified Text.Colour as TC
-import Data.Map (Map)
-import qualified Data.Map as M
-import Data.ByteString (ByteString)
-
-import Options.Applicative
+import           Data.Map             (Map)
+import qualified Data.Map             as M
+import qualified Data.Text            as T
+import qualified Data.Text.IO         as TIO
+import qualified Data.Validation      as V
+import qualified Text.Colour          as TC
+import qualified Text.Megaparsec      as MP
+import           Options.Applicative
 import qualified Options.Applicative.Simple as OPS
-
-import qualified Text.Megaparsec as MP
 
 
 data Options = Options
@@ -69,10 +67,12 @@ optionParser =
 -- AUXILIARY FUNCTIONS
 --------------------
 -- Prints contents based on the verbose flag, the first string is used in the verbose case.
-printCnt :: Show a => Bool -> [a] -> String -> String -> IO ()
-printCnt v c sv snv = if v
-    then putStrLn sv >> mapM_ print c >> putStrLn ""
-    else putStrLn snv
+logStep :: Show a => Bool -> [a] -> String -> String -> IO ()
+logStep True items header _ = do
+    putStrLn header
+    mapM_ print items
+    putStrLn ""
+logStep False _ _ msg = putStrLn msg
 
 -- Prints the keys of maps with "String" keys.
 printMapKeys :: Bool -> Map String b -> String -> String -> IO ()
@@ -94,18 +94,22 @@ printError e = printColourText TC.red TC.black "ERROR" *> putStrLn (" - " ++ e)
 
 -- Prints a located error nicely.
 printLocatedError :: T.Text -> L.LocatedError -> IO ()
-printLocatedError fileContents (L.LocatedError pos err) = let
-    numStr = show (MP.unPos $ MP.sourceLine pos)
-    numStrLen = length numStr
-    linePos = MP.unPos $ MP.sourceLine pos
-    -- Gets line with the error and cleans it.
-    cleanLine = T.strip $ (T.lines fileContents) !! (linePos - 1)
-    in do
-        putStrLn $ MP.sourceName pos ++ ":" ++ show linePos
-        putStrLn $ (replicate (numStrLen + 1) ' ') ++ "|"
-        putStrLn $ numStr ++ " | " ++ (T.unpack cleanLine)
-        putStrLn $ (replicate (numStrLen + 1) ' ') ++ "|"
-        putStrLn err
+printLocatedError fileContents (L.LocatedError pos err) = do
+    let lineIdx = MP.unPos (MP.sourceLine pos)
+        allLines = T.lines fileContents
+        lineStr = show lineIdx
+        padding = replicate (length lineStr + 1) ' '
+    
+    putStrLn $ MP.sourceName pos ++ ":" ++ lineStr
+    putStrLn $ padding ++ "|"
+    -- Line shouldn't be out of range, check just in case.
+    case drop (lineIdx - 1) allLines of
+        (line:_) -> putStrLn $ lineStr ++ " | " ++ T.unpack (T.strip line)
+        _        -> putStrLn $ lineStr ++ " | [Line out of range]"
+    putStrLn $ padding ++ "|"
+    putStrLn err
+
+    
 
 -- Haskell definition of "show" for "IO error" does not follow the style of the rest of the program.
 showIOError :: IOError -> String
@@ -113,10 +117,6 @@ showIOError e = let reason = "\nReason: " ++ show (IIE.ioe_type e) in case IIE.i
     Nothing -> "An IO error occurred" ++ reason
     Just f -> "The file " ++ C.quote (T.pack f) ++ " could not be accessed" ++ reason
 
--- Determines the output filename, based on if it was provided as an argument.
-getOutFilename :: FilePath -> Maybe FilePath -> FilePath
-getOutFilename _ (Just outPath) = outPath
-getOutFilename inPath Nothing = addExtension (dropExtension inPath) C.outputExtension
 
 --------------------
 -- MAIN FUNCTION
@@ -125,34 +125,52 @@ main :: IO ()
 main = do
     -- No commands used, second argument can be discarded.
     (opts, ()) <- OPS.simpleOptions "0.1.2.0" "SPF" "A simple document preparation system, using a DSL inspired in LaTeX" optionParser empty
-    let ve = verbose opts
-    let inputFile = inFile opts
+    
+    runCompiler opts
 
-    strOrErr <- tryIOError $ TIO.readFile inputFile
-    case strOrErr of
-        Left e -> printError $ showIOError e
-        Right contents -> case MP.runParser P.parseLanguage inputFile contents of
-            Left e -> printError "File could not be parsed:" >> putStr (MP.errorBundlePretty e)
-            Right p -> (printCnt ve p "Parsed file contents:" "File parsed") >> case traverse VC.validateCommand p of
-                V.Success vp -> do
-                    printCnt ve vp "Validated file contents:" "File validated"
+runCompiler :: Options -> IO ()
+runCompiler Options{..} = do
+    -- Read file.
+    contentRes <- tryIOError $ TIO.readFile inFile
+    case contentRes of
+        Left err -> printError $ showIOError err
+        Right contents -> processContents contents 
+        where
 
-                    resOrErr <- R.loadResources vp inputFile
-                    case resOrErr of
-                        V.Success rm -> printMapKeys ve rm "Loaded resources:" "Resources loaded"
-                        V.Failure errs -> printError "Some resources could not be loaded:" >> mapM_ (printLocatedError contents) errs
+    -- Parse file.
+    processContents contents = 
+        case MP.runParser P.parseLanguage inFile contents of
+            Left err -> do
+                printError "File could not be parsed:"
+                putStr (MP.errorBundlePretty err)
+            Right parsed -> do
+                logStep verbose parsed "Parsed contents:" "File parsed"
+                validateAndRender contents parsed
 
-                    fontsOrErr <- F.loadFonts
-                    case fontsOrErr of
-                        V.Success fontsM -> do
-                            printMapKeys ve fontsM "Loaded fonts:" "Fonts loaded"
-                            -- Option merging cannot fail, since it's just checking for "Nothing's" in validated tokens.
-                            let mo = CO.mergeOpts vp
+    -- Validate file.
+    validateAndRender contents parsed =
+        case traverse VC.validateCommand parsed of
+            V.Failure errs -> do
+                printError "File contains invalid elements:"
+                mapM_ (printLocatedError contents) errs
+            V.Success vParsed -> do
+                logStep verbose vParsed "Validated contents:" "File validated"
+                loadAssets contents vParsed
 
-                            TS.typesetDocument vp mo $ C.completePath inputFile (getOutFilename inputFile (outFile opts))
-                            -- Command completion now done during typesetting.
-                            --let cc = CC.completeCommands mo vp
+    -- Load resources and fonts.
+    loadAssets contents vParsed = do
+        resR <- R.loadResources vParsed inFile
 
-                        V.Failure errs -> printError "Some fonts could not be loaded:" >> mapM_ putStrLn errs
+        case resR of
+            V.Failure errs -> do
+                printError "Some resources could not be loaded:"
+                mapM_ (printLocatedError contents) errs
+            V.Success resources -> do
+                fonts <- F.loadFonts
 
-                V.Failure errs -> printError "File contains invalid elements:" >> mapM_ (printLocatedError contents) errs
+                let outPath = maybe (addExtension (dropExtension inFile) C.outputExtension) id outFile -- Get output filepath.
+                    completePath = C.completePath inFile outPath
+                    mergedOpts = CO.mergeOpts vParsed
+
+                TS.typesetDocument vParsed mergedOpts completePath
+                putStrLn $ "Compilation succeeded, result in " ++ (C.quote $ T.pack completePath)

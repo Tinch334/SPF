@@ -36,7 +36,7 @@ data VComm  = VConfigComm   VConfig
 data VConfig = VConfig
     { cfgPageSize           :: Maybe PageSize
     , cfgPageNumbering      :: Maybe PageNumbering
-    , cfgSectionSpacing       :: Maybe Spacing
+    , cfgSectionSpacing     :: Maybe Spacing
     , cfgParagraphSpacing   :: Maybe Spacing
     , cfgListSpacing        :: Maybe Spacing
     , cfgTableSpacing       :: Maybe Spacing

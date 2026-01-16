@@ -50,9 +50,11 @@ library
       HPDF ==1.7
     , JuicyPixels
     , array
+    , async
     , base >=4.7 && <5
     , bytestring
     , containers
+    , directory
     , filepath
     , ghc-internal
     , megaparsec >=9.0
@@ -78,9 +80,11 @@ executable SPF-exe
     , JuicyPixels
     , SPF
     , array
+    , async
     , base >=4.7 && <5
     , bytestring
     , containers
+    , directory
     , filepath
     , ghc-internal
     , megaparsec >=9.0
@@ -107,9 +111,11 @@ test-suite SPF-test
     , JuicyPixels
     , SPF
     , array
+    , async
     , base >=4.7 && <5
     , bytestring
     , containers
+    , directory
     , filepath
     , ghc-internal
     , megaparsec >=9.0
