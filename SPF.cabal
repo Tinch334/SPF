@@ -31,10 +31,12 @@ library
       Datatypes.Located
       Datatypes.ParseTokens
       Datatypes.ValidatedTokens
+      Fonts
       Lib
       Parser
       Penrose
       Resources
+      Typesetting.Typesetting
       Validation.Commands
       Validation.Configuration
       Validation.GenericValidations

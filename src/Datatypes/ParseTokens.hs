@@ -49,7 +49,7 @@ data PText  = PNormal      Text
 
 data PConfigOption  = PSize
                     | PPagenumbering
-                    | PTitlespacing
+                    | PSectionspacing
                     | PParagraphspacing
                     | PListspacing
                     | PTablespacing

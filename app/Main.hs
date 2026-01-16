@@ -11,6 +11,8 @@ import qualified Datatypes.Located as L
 import qualified Completion.Options as CO
 import qualified Completion.Commands as CC
 import qualified Resources as R
+import qualified Typesetting.Typesetting as TS
+import qualified Fonts as F
 
 import System.FilePath
 import System.IO.Error
@@ -72,8 +74,9 @@ printCnt v c sv snv = if v
     then putStrLn sv >> mapM_ print c >> putStrLn ""
     else putStrLn snv
 
-printResourceMap :: Bool -> Map FilePath ByteString  -> String -> String -> IO ()
-printResourceMap v m sv snv = if v
+-- Prints the keys of maps with "String" keys.
+printMapKeys :: Bool -> Map String b -> String -> String -> IO ()
+printMapKeys v m sv snv = if v
     then do
         putStrLn sv
         mapM_ (putStrLn . C.quote . T.pack) (M.keys m)
@@ -123,24 +126,33 @@ main = do
     -- No commands used, second argument can be discarded.
     (opts, ()) <- OPS.simpleOptions "0.1.2.0" "SPF" "A simple document preparation system, using a DSL inspired in LaTeX" optionParser empty
     let ve = verbose opts
+    let inputFile = inFile opts
 
-    strOrErr <- tryIOError $ TIO.readFile (inFile opts)
+    strOrErr <- tryIOError $ TIO.readFile inputFile
     case strOrErr of
         Left e -> printError $ showIOError e
-        Right contents -> case MP.runParser P.parseLanguage (inFile opts) contents of
+        Right contents -> case MP.runParser P.parseLanguage inputFile contents of
             Left e -> printError "File could not be parsed:" >> putStr (MP.errorBundlePretty e)
             Right p -> (printCnt ve p "Parsed file contents:" "File parsed") >> case traverse VC.validateCommand p of
                 V.Success vp -> do
                     printCnt ve vp "Validated file contents:" "File validated"
 
-                    -- Completion cannot fail, since it's just checking for "Nothing's" in validated tokens.
-                    let mo = CO.mergeOpts vp
-                    let cc = CC.completeCommands mo vp
-                    printCnt ve cc "File completion results:" "File completed"
-
-                    resOrErr <- R.loadResources cc (inFile opts)
+                    resOrErr <- R.loadResources vp inputFile
                     case resOrErr of
-                        V.Success rm -> printResourceMap ve rm "Loaded resources:" "Resources loaded"
+                        V.Success rm -> printMapKeys ve rm "Loaded resources:" "Resources loaded"
                         V.Failure errs -> printError "Some resources could not be loaded:" >> mapM_ (printLocatedError contents) errs
+
+                    fontsOrErr <- F.loadFonts
+                    case fontsOrErr of
+                        V.Success fontsM -> do
+                            printMapKeys ve fontsM "Loaded fonts:" "Fonts loaded"
+                            -- Option merging cannot fail, since it's just checking for "Nothing's" in validated tokens.
+                            let mo = CO.mergeOpts vp
+
+                            TS.typesetDocument vp mo $ C.completePath inputFile (getOutFilename inputFile (outFile opts))
+                            -- Command completion now done during typesetting.
+                            --let cc = CC.completeCommands mo vp
+
+                        V.Failure errs -> printError "Some fonts could not be loaded:" >> mapM_ putStrLn errs
 
                 V.Failure errs -> printError "File contains invalid elements:" >> mapM_ (printLocatedError contents) errs

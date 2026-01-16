@@ -15,7 +15,7 @@ merge :: VConfig -> VComm -> VConfig
 merge op1 (VConfigComm op2) = VConfig
     { cfgPageSize         = cfgPageSize op2         <|> cfgPageSize op1
     , cfgPageNumbering    = cfgPageNumbering op2    <|> cfgPageNumbering op1
-    , cfgTitleSpacing     = cfgTitleSpacing op2     <|> cfgTitleSpacing op1
+    , cfgSectionSpacing   = cfgSectionSpacing op2   <|> cfgSectionSpacing op1
     , cfgParagraphSpacing = cfgParagraphSpacing op2 <|> cfgParagraphSpacing op1
     , cfgListSpacing      = cfgListSpacing op2      <|> cfgListSpacing op1
     , cfgTableSpacing     = cfgTableSpacing op2     <|> cfgTableSpacing op1

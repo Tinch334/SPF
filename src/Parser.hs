@@ -12,7 +12,7 @@ import Control.Monad
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Char as DC
-import Data.Either
+import GHC.Float (int2Double)
 
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -242,7 +242,7 @@ parseConfig :: Parser PConfigOption
 parseConfig = label "config option" $ choice
     [ PSize             <$ string "size"
     , PPagenumbering    <$ string "pagenumbering"
-    , PTitlespacing     <$ string "titlespacing"
+    , PSectionspacing     <$ string "sectionspacing"
     , PParagraphspacing <$ string "paragraphspacing"
     , PListspacing      <$ string "listspacing"
     , PTablespacing     <$ string "tablespacing"
@@ -303,7 +303,7 @@ parseOptionMap = label "option pair" $ do
 parseOptionValue :: Parser POptionValue
 parseOptionValue = label "option value" $ choice
     [ try $ PNumber <$> L.float -- Goes first otherwise a float might be interpreted as a decimal number and committed, leaving a ".".
-    , PNumber . fromIntegral <$> L.decimal
+    , PNumber . int2Double <$> L.decimal -- The function "fromIntegral" is not used since it performs silent truncation.
     , do
         t <- Text.Megaparsec.some letterChar
         notFollowedBy (symbol ":") -- Avoids situations where there's a value and colon followed by nothing, for example "key:".

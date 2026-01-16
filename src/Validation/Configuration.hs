@@ -26,7 +26,7 @@ configErrorString PSize =
     "Expected one of: " ++ quoteList ["a4", "a3", "legal"] ++ " or two numeric values (width: pt, height: pt)."
 configErrorString PPagenumbering =
     "Expected field " ++ quote "numbering" ++ " to be one of " ++ quoteList ["arabic", "roman", "none"] ++ ""
-configErrorString PTitlespacing =
+configErrorString PSectionspacing =
     "Expected two numeric values (before: pt, after: pt)"
 configErrorString PParagraphspacing =
     "Expected two numeric values (before: pt, after: pt)" 
@@ -68,7 +68,7 @@ withPageNumbering :: PageNumbering -> VConfig
 withPageNumbering p = emptyVConfig { cfgPageNumbering = Just p }
 
 withTitleSpacing :: Spacing -> VConfig
-withTitleSpacing s = emptyVConfig { cfgTitleSpacing = Just s }
+withTitleSpacing s = emptyVConfig { cfgSectionSpacing = Just s }
 
 withParagraphSpacing :: Spacing -> VConfig
 withParagraphSpacing s = emptyVConfig { cfgParagraphSpacing = Just s }
@@ -199,10 +199,10 @@ validateConfig PPagenumbering (POptionMap m) = runSchema
     m
 validateConfig PPagenumbering POptionNone = noArgumentFail "Invalid form for page numbering. " PPagenumbering
 
-validateConfig PTitlespacing (POptionMap m) = runSchema
-    (ensureValidKeys (configErrorString PTitlespacing) ["before", "after"] (titleSpacingSchema))
+validateConfig PSectionspacing (POptionMap m) = runSchema
+    (ensureValidKeys (configErrorString PSectionspacing) ["before", "after"] (titleSpacingSchema))
     m
-validateConfig PTitlespacing POptionNone = noArgumentFail "Title spacing requires arguments. " PTitlespacing
+validateConfig PSectionspacing POptionNone = noArgumentFail "Title spacing requires arguments. " PSectionspacing
 
 validateConfig PParagraphspacing (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PParagraphspacing) ["before", "after"] (paragraphSpacingSchema))

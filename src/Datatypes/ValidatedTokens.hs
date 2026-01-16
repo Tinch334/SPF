@@ -36,7 +36,7 @@ data VComm  = VConfigComm   VConfig
 data VConfig = VConfig
     { cfgPageSize           :: Maybe PageSize
     , cfgPageNumbering      :: Maybe PageNumbering
-    , cfgTitleSpacing       :: Maybe Spacing
+    , cfgSectionSpacing       :: Maybe Spacing
     , cfgParagraphSpacing   :: Maybe Spacing
     , cfgListSpacing        :: Maybe Spacing
     , cfgTableSpacing       :: Maybe Spacing
@@ -58,7 +58,7 @@ emptyVConfig :: VConfig
 emptyVConfig = VConfig
     { cfgPageSize           = Nothing
     , cfgPageNumbering      = Nothing
-    , cfgTitleSpacing       = Nothing
+    , cfgSectionSpacing       = Nothing
     , cfgParagraphSpacing   = Nothing
     , cfgListSpacing        = Nothing
     , cfgTableSpacing       = Nothing
@@ -80,7 +80,7 @@ defaultVConfig :: VConfig
 defaultVConfig = VConfig
     { cfgPageSize           = Just $ SizeA4
     , cfgPageNumbering      = Just $ NumberingArabic
-    , cfgTitleSpacing       = Just $ Spacing (Pt 5) (Pt 5)
+    , cfgSectionSpacing     = Just $ Spacing (Pt 5) (Pt 5)
     , cfgParagraphSpacing   = Just $ Spacing (Pt 3) (Pt 3)
     , cfgListSpacing        = Just $ Spacing (Pt 5) (Pt 5)
     , cfgTableSpacing       = Just $ Spacing (Pt 4) (Pt 4)
