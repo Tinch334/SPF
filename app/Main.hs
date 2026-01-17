@@ -67,10 +67,10 @@ optionParser =
 -- AUXILIARY FUNCTIONS
 --------------------
 -- Prints contents based on the verbose flag, the first string is used in the verbose case.
-logStep :: Show a => Bool -> [a] -> String -> String -> IO ()
+logStep :: Show a => Bool -> a -> String -> String -> IO ()
 logStep True items header _ = do
     putStrLn header
-    mapM_ print items
+    print items
     putStrLn ""
 logStep False _ _ msg = putStrLn msg
 
@@ -124,10 +124,11 @@ showIOError e = let reason = "\nReason: " ++ show (IIE.ioe_type e) in case IIE.i
 main :: IO ()
 main = do
     -- No commands used, second argument can be discarded.
-    (opts, ()) <- OPS.simpleOptions "0.1.2.0" "SPF" "A simple document preparation system, using a DSL inspired in LaTeX" optionParser empty
-    
-    runCompiler opts
+    (opts, ()) <- OPS.simpleOptions "0.1.2.0" "SPF" "A simple document preparation system, using a DSL inspired in LaTeX" optionParser empty 
+    print "lOL"
+    --runCompiler opts
 
+{-
 runCompiler :: Options -> IO ()
 runCompiler Options{..} = do
     -- Read file.
@@ -144,17 +145,17 @@ runCompiler Options{..} = do
                 printError "File could not be parsed:"
                 putStr (MP.errorBundlePretty err)
             Right parsed -> do
-                logStep verbose parsed "Parsed contents:" "File parsed"
+                logStep verbose parsed "Parsed contents\n===============" "File parsed"
                 validateAndRender contents parsed
 
     -- Validate file.
     validateAndRender contents parsed =
-        case traverse VC.validateCommand parsed of
+        case VC.validateCommand parsed of
             V.Failure errs -> do
                 printError "File contains invalid elements:"
                 mapM_ (printLocatedError contents) errs
             V.Success vParsed -> do
-                logStep verbose vParsed "Validated contents:" "File validated"
+                logStep verbose vParsed "Validated contents\n===============" "File validated"
                 loadAssets contents vParsed
 
     -- Load resources and fonts.
@@ -166,6 +167,7 @@ runCompiler Options{..} = do
                 printError "Some resources could not be loaded:"
                 mapM_ (printLocatedError contents) errs
             V.Success resources -> do
+
                 fonts <- F.loadFonts
 
                 let outPath = maybe (addExtension (dropExtension inFile) C.outputExtension) id outFile -- Get output filepath.
@@ -174,3 +176,5 @@ runCompiler Options{..} = do
 
                 TS.typesetDocument vParsed mergedOpts completePath
                 putStrLn $ "Compilation succeeded, result in " ++ (C.quote $ T.pack completePath)
+
+-}

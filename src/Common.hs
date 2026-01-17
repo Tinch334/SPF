@@ -29,6 +29,7 @@ completePath sp rp = if SF.isAbsolute rp
     then rp
     else let (dir, _) = SF.splitFileName sp in dir SF.</> rp
 
+
 --------------------
 -- CONSTANTS
 --------------------

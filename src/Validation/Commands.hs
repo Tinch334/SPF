@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Validation.Commands (validateCommand) where
+module Validation.Commands (validateCommands) where
 
 import Validation.Configuration
 import Validation.GenericValidations
@@ -138,12 +138,46 @@ namedParagraph txt POptionNone = Success $ VParagraph (convertText txt) Nothing 
 
 
 --------------------
+-- CONFIGURATION MERGING
+--------------------
+-- Receives a list of commands and returns a single "VConfig" with the merged options of all configuration commands.
+mergeOpts :: [Located VComm] -> VConfig
+mergeOpts opts = foldl merge defaultVConfig $ filterMap isConfigComm (\(Located _ op) -> op) opts
+
+-- The second configuration is prioritized, to preserve user configurations if possible.
+merge :: VConfig -> VComm -> VConfig
+merge op1 (VConfigComm op2) = VConfig
+    { cfgPageSize         = cfgPageSize op2         <|> cfgPageSize op1
+    , cfgPageNumbering    = cfgPageNumbering op2    <|> cfgPageNumbering op1
+    , cfgSectionSpacing   = cfgSectionSpacing op2   <|> cfgSectionSpacing op1
+    , cfgParagraphSpacing = cfgParagraphSpacing op2 <|> cfgParagraphSpacing op1
+    , cfgListSpacing      = cfgListSpacing op2      <|> cfgListSpacing op1
+    , cfgTableSpacing     = cfgTableSpacing op2     <|> cfgTableSpacing op1
+    , cfgFigureSpacing    = cfgFigureSpacing op2    <|> cfgFigureSpacing op1
+    , cfgSpacingGlue      = cfgSpacingGlue op2      <|> cfgSpacingGlue op1
+    , cfgTextGlue         = cfgTextGlue op2         <|> cfgTextGlue op1
+    , cfgParIndent        = cfgParIndent op2        <|> cfgParIndent op1
+    , cfgFont             = cfgFont op2             <|> cfgFont op1
+    , cfgParSize          = cfgParSize op2          <|> cfgParSize op1
+    , cfgTitleSize        = cfgTitleSize op2        <|> cfgTitleSize op1
+    , cfgSectionSize      = cfgSectionSize op2      <|> cfgSectionSize op1
+    , cfgSubsectionSize   = cfgSubsectionSize op2   <|> cfgSubsectionSize op1
+    , cfgJustification    = cfgJustification op2    <|> cfgJustification op1
+    , cfgListStyle        = cfgListStyle op2        <|> cfgListStyle op1
+    }
+
+
+--------------------
 -- COMMAND VALIDATION
 --------------------
+validateCommands :: ParsedDocument -> Validation [LocatedError] ValidatedDocument
+validateCommands (ParsedDocument cfg meta cnt) = let
+    ValidatedDocument
+      <$> traverse validateConfig cfg <*> validMeta <*> withPos pos $ traverse valdiateCommand cnt
+
 validateCommand :: Located PCommOpt -> LocatedCommandValidationType
 validateCommand (Located pos comm) =
   withPos pos $ case comm of
-    PCommOpt (PConfig cfg) opts       -> VConfigComm <$> validateConfig cfg opts
     PCommOpt (PTitle text) opts       -> namedFontWithSize VTitle text opts
     PCommOpt (PAuthor text) opts      -> namedFontWithSize VAuthor text opts
     PCommOpt (PDate text) opts        -> namedFontWithSize VDate text opts
@@ -157,3 +191,4 @@ validateCommand (Located pos comm) =
     PCommOpt PNewpage _               -> Failure ["The command " ++ quote "newpage" ++ " doesn't accept any options"]
     PCommOpt PHLine POptionNone       -> Success VHLine
     PCommOpt PHLine _                 -> Failure ["The command " ++ quote "hline" ++ " doesn't accept any options"]
+    _                                 -> error "INTERNAL: Attempt to validate unknown command"

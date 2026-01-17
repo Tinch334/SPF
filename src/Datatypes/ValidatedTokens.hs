@@ -5,6 +5,37 @@ import Datatypes.Located (Located(..))
 import Data.Text (Text)
 
 
+--------------------
+-- TOP LEVEL STRUCTURE DEFINITIONS
+--------------------
+data ValidatedDocument = ValidatedDocument
+    { vConfig   :: VConfig
+    , vMetadata :: ValidatedMetadata
+    , vContent  :: [Located VComm]
+    } deriving (Eq)
+
+data ValidatedMetadata = ValidatedMetadata
+    { vmTitle  :: Maybe (Located VComm)
+    , vmAuthor :: Maybe (Located VComm)
+    , vmDate   :: Maybe (Located VComm)
+    } deriving (Eq)
+
+instance Show ValidatedDocument where
+    show (ValidatedDocument cfg meta cnt) = 
+        "\nConfiguration\n-------------\n" ++ show cfg ++
+        "\nMetadata\n--------\n" ++ show meta ++ 
+        "\nDocument\n--------\n" ++ concatMap (\e -> show e <> "\n") cnt
+
+instance Show ValidatedMetadata where
+    show (ValidatedMetadata t a d) = let padding = replicate 4 ' ' in
+        "Title: " ++ maybe "None" show t ++ "\n" ++
+        "Author: " ++ maybe "None" show a ++ "\n" ++
+        "Date: " ++ maybe "None" show d ++ "\n"
+
+
+--------------------
+-- DATATYPE DEFINITIONS
+--------------------
 -- Standard size units.
 newtype Pt = Pt Double
     deriving (Show, Eq, Ord)
@@ -17,8 +48,7 @@ newtype FontSize = FontSize Pt
 type VLocatedLang = [Located VComm]
 -- The maybe in the options indicates that they are optional. If found they are added with "Just", otherwise "Nothing" is used.
 -- The Nothing's are then replaced with the default values for those arguments.
-data VComm  = VConfigComm   VConfig
-            | VTitle        [VText] (Maybe Font) (Maybe FontSize)
+data VComm  = VTitle        [VText] (Maybe Font) (Maybe FontSize)
             | VAuthor       [VText] (Maybe Font) (Maybe FontSize)
             | VDate         [VText] (Maybe Font) (Maybe FontSize)
             | VSection      [VText] (Maybe Font) (Maybe FontSize)

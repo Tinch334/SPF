@@ -12,6 +12,7 @@ import Control.Monad
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Char as DC
+import Data.Maybe (isNothing)
 import GHC.Float (int2Double)
 
 import Text.Megaparsec
@@ -25,7 +26,8 @@ import qualified Text.Megaparsec.Char.Lexer as L
 data CustomError    = UnknownCommand Text   -- Thrown when encountering \command, where command is invalid.
                     | UnknownText Text      -- Thrown when encountering \text-type, where text-type is invalid.
                     | InvalidOptions Text   -- Thrown when a set of options has an invalid format.
-                    | OtherError Text       -- Generic constructor for other types of errors.
+                    | InvalidConfig Text    -- Thrown when configuration is incorrect.
+                    | InvalidMetadata Text  -- Thrown when metadata is incorrect.
                     deriving (Eq, Ord, Show)
 
 -- To allow for easy error throwing.
@@ -38,8 +40,11 @@ unknownText = customFailure . UnknownText
 invalidOptions :: Text -> Parser a
 invalidOptions = customFailure . InvalidOptions
 
-otherError :: Text -> Parser a
-otherError = customFailure . OtherError
+invalidConfig :: Text -> Parser a
+invalidConfig = customFailure . InvalidConfig
+
+invalidMetadata :: Text -> Parser a
+invalidMetadata = customFailure . InvalidMetadata
 
 -- Make error labelling easier.
 mkErrStr :: String -> Text -> String -> String
@@ -50,7 +55,8 @@ instance ShowErrorComponent CustomError where
     showErrorComponent (UnknownCommand c) = "Unknown command: " ++ quote c
     showErrorComponent (UnknownText t) = "Unknown text type: " ++ quote t
     showErrorComponent (InvalidOptions o) = "Invalid format for options: " ++ T.unpack o
-    showErrorComponent (OtherError t) = "Error during parsing: " ++ quote t
+    showErrorComponent (InvalidConfig c) = "Invalid format for configuration command: " ++ T.unpack c
+    showErrorComponent (InvalidMetadata m) = "Found invalid metadata: " ++ quote m
         
 
 --------------------
@@ -58,13 +64,6 @@ instance ShowErrorComponent CustomError where
 --------------------
 -- Parser for Text using custom errors.
 type Parser = Parsec CustomError Text
-
--- Characters that have special meanings and should not be considered as regular characters for parsing.
-specialCharacters :: [Char]
-specialCharacters = ['\\', '{', '}']
-
-newlineCharacters :: [Char]
-newlineCharacters = ['\n', '\r', '\036']
 
 sc :: Parser ()
 sc = L.space
@@ -79,118 +78,140 @@ lexeme = L.lexeme sc
 symbol :: Text -> Parser Text
 symbol = L.symbol sc
 
+-- Brace wrapper.
+braces :: Parser a -> Parser a
+braces = between (char '{') (char '}')
+
+-- Bracket wrapper.
+brackets :: Parser a -> Parser a
+brackets = between (char '[') (char ']')
+
+-- Avoid having to manually get position for commands
+withPos :: Parser a -> Parser (Located a)
+withPos p = Located <$> getSourcePos <*> p
+
 
 --------------------
 -- GENERAL PARSING FUNCTIONS
 --------------------
-parseLanguage :: Parser PLocatedLang
+-- Parse the language and store the results in the appropriate structure.
+parseLanguage :: Parser ParsedDocument
 parseLanguage = do
-    cfg <- sepEndBy (parseCommandOption preDocumentCommandTable) sc
+    -- Retaining the configuration tokens and parsing them normally is done to reduce function definitions and duplicated code.
+    cfg <- sepEndBy (withPos parseConfigCommand) sc
+    meta <- parseMeta
     doc <- parseDocument
-    return (cfg ++ doc)
+
+    return $ ParsedDocument
+        { pdConfig = cfg
+        , pdMetadata = meta
+        , pdContent = doc
+        }
+
+-- Parse metadata commands, ensuring at most one of each kind is present.
+parseMeta :: Parser DocumentMetadata
+parseMeta = DocumentMetadata
+    <$> meta "title"  PTitle
+    <*> meta "author" PAuthor
+    <*> meta "date"   PDate where
+        meta n c = optional $ withPos $ do
+            void (string $ "\\" <> n)
+            arg <- braces parsePText
+            op <- optional $ lexeme parseOptions
+            case op of
+                Just _ -> invalidMetadata "Options are not allowed in document metadata" -- Check for options.
+                Nothing -> return (c arg)
 
 parseDocument :: Parser PLocatedLang
 parseDocument = sepEndBy1 documentOptions sc where
-    documentOptions = choice 
-        [ lexeme (parseCommandOption (beginEndCommandTable ++ documentCommandTable))
-        , lexeme parseParagraph ]
-    
+    documentOptions = lexeme $ withPos (parseCommand documentCommandTable <|> parseParagraph)
 
 --------------------
 -- COMAMND PARSING FUNCTIONS
 --------------------
 -- In order to streamline the command parser we use a spec for each command.
 data CommandSpec = CommandSpec
-    Text                -- Name of the command, without backslash.
-    (Parser PCommOpt)   -- The parser for the command's argument.
+    { cmdName   :: Text             -- Name of the command, without backslash.
+    , cmdParser :: Parser PCommOpt  -- The parser for the command.
+    }
 
-commandBackslash :: Parser ()
-commandBackslash = void (char '\\') <?> "backslash before command"
+parseBackslash :: Parser ()
+parseBackslash = void (char '\\') <?> "backslash before command"
 
--- Creates a CommandSpec, this is then used to parse the commands.
-simpleSpecMake :: Text -> Parser a -> (a -> PComm) -> CommandSpec
-simpleSpecMake n p f = CommandSpec n $ do
-    commandBackslash
-    void (string n) <?> T.unpack n
-    arg <- between (char '{') (char '}') p <?> mkErrStr "" n " argument"
-    void sc
+-- Helper for a command with an argument "\comm{arg}[opts].
+mkSimpleCommand :: Text -> Parser a -> (a -> PComm) -> CommandSpec
+mkSimpleCommand n p c = CommandSpec n $ do
+    void (string $ "\\" <> n) <?> "\\" ++ T.unpack n
+    arg <- braces p <?> mkErrStr "" n " argument"
     op <- lexeme $ optional parseOptions
-    case op of
-        Nothing -> return (PCommOpt (f arg) POptionNone)
-        Just l -> return (PCommOpt (f arg) l)
 
-simpleNoArgSpecMake :: Text -> PComm -> CommandSpec
-simpleNoArgSpecMake n f = CommandSpec n $ do
-    commandBackslash
-    void (string n) <?> T.unpack n
-    void sc
+    case op of
+        Nothing -> return (PCommOpt (c arg) POptionNone)
+        Just l -> return (PCommOpt (c arg) l)
+
+-- Helper for a command with no argument "\comm[opts].
+mkNoArgCommand :: Text -> PComm -> CommandSpec
+mkNoArgCommand n c = CommandSpec n $ do
+    void (string $ "\\" <> n) <?> "\\" ++ T.unpack n
     op <- lexeme $ optional parseOptions
-    case op of
-        Nothing -> return (PCommOpt f POptionNone)
-        Just l -> return (PCommOpt f l)
 
-beginEndSpecMake :: Text -> Parser a -> (a -> PComm) -> CommandSpec
-beginEndSpecMake n p f = CommandSpec n $ do
+    case op of
+        Nothing -> return (PCommOpt c POptionNone)
+        Just l -> return (PCommOpt c l)
+
+mkBeginEndCommand :: Text -> Parser a -> (a -> PComm) -> CommandSpec
+mkBeginEndCommand n p c = CommandSpec n $ do
     void (string "\\begin") <?> "\\begin"
-    void (between (char '{') (char '}') (string n)) <?> mkErrStr "" n " for begin"
-    void sc -- There can be space between the closing brace and the opening bracket.
+    braces (string n) <?> mkErrStr "" n " for begin"
+
     op <- lexeme $ optional parseOptions
-    b <- p <?> mkErrStr "" n " argument"
+    b <- p <?> mkErrStr "" n " content"
+    void (string "\\end" >> braces (string n)) <?> "\\end"
+
     void (string "\\end") <?> "\\end"
-    void (between (char '{') (char '}') (string n)) <?> mkErrStr "" n " for end"
+    braces (string n) <?> mkErrStr "" n " for end"
+
     case op of
-        Nothing -> return (PCommOpt (f b) POptionNone)
-        Just l -> return (PCommOpt (f b) l)
+        Nothing -> return (PCommOpt (c b) POptionNone)
+        Just l -> return (PCommOpt (c b) l)
 
 -- Parses a command and it's options.
-parseCommandOption :: [CommandSpec] -> Parser (Located PCommOpt)
-parseCommandOption lst = do
-    pos <- getSourcePos
-    comm <- label "command" $ (choice (map (try . (\(CommandSpec n p) -> p <?> T.unpack n)) lst)) <|> try unknown
-    return (Located pos comm) where
-    -- Runs after all other commands are tried, detects invalid commands.
-    unknown = do
-        commandBackslash
-        c <- Text.Megaparsec.some letterChar
-        unknownCommand (T.pack c)
+parseCommand :: [CommandSpec] -> Parser PCommOpt
+parseCommand lst = do
+    label "command" $ choice [try (cmdParser l <?> T.unpack (cmdName l)) | l <- lst] <|> try unknown where
+        -- Runs after all other commands are tried, detects invalid commands.
+        unknown = do
+            void (char '\\')
+            c <- Text.Megaparsec.some letterChar
+            unknownCommand (T.pack c)
 
--- Configuration commands are currently the only commands accepted before the document.
-preDocumentCommandTable :: [CommandSpec]
-preDocumentCommandTable =
-    [ simpleSpecMake    "config"     parseConfig    PConfig ]
 
 -- Commands accepted in the document.
 documentCommandTable :: [CommandSpec]
 documentCommandTable =
-    [ simpleSpecMake        "title"         parsePText      PTitle          -- Commands with arguments.
-    , simpleSpecMake        "author"        parsePText      PAuthor
-    , simpleSpecMake        "date"          parsePText      PDate
-    , simpleSpecMake        "section"       parsePText      PSection
-    , simpleSpecMake        "subsection"    parsePText      PSubsection
-    , simpleSpecMake        "figure"        parseFilepath   PFigure
-    , simpleNoArgSpecMake   "newpage"       PNewpage                        -- Commands with no arguments.
-    , simpleNoArgSpecMake   "hline"         PHLine ]
-
-beginEndCommandTable :: [CommandSpec]
-beginEndCommandTable =
-    [ beginEndSpecMake  "paragraph"     parsePText  PParagraph
-    , beginEndSpecMake  "table"         parseTable      PTable
-    , beginEndSpecMake  "list"          parseList       PList ]
+    [ mkSimpleCommand       "section"       parsePText      PSection        -- Commands with arguments.
+    , mkSimpleCommand       "subsection"    parsePText      PSubsection
+    , mkSimpleCommand       "figure"        parseFilepath   PFigure
+    , mkBeginEndCommand     "paragraph"     parsePText      PParagraph
+    , mkBeginEndCommand     "table"         parseTable      PTable
+    , mkBeginEndCommand     "list"          parseList       PList
+    , mkNoArgCommand        "newpage"       PNewpage                        -- Commands with no arguments.
+    , mkNoArgCommand        "hline"         PHLine
+    ]
 
 
 --------------------
 -- TEXT PARSING FUNCTIONS
 --------------------
 -- Parses standalone blocks of text without commands, note that text modes are not commands.
-parseParagraph :: Parser (Located PCommOpt)
+parseParagraph :: Parser PCommOpt
 parseParagraph = label "paragraph" $ do
-        pos <- getSourcePos
         t <- parsePText
         void (optional eol)
-        return $ Located pos (PCommOpt (PParagraph t) POptionNone)
+        return $ PCommOpt (PParagraph t) POptionNone
 
 parsePText :: Parser [PText]
-parsePText = Text.Megaparsec.some (choice [parseSpecialPText, PNormal <$> parseRawTextParagraph])
+parsePText = Text.Megaparsec.some (choice [parseSpecialText, PNormal <$> parseRawText])
 
 -- Similar idea to CommandSpec, simplified to the valid text types. In this case a quantifier isn't necessary, because all constructors take
 -- a string as their argument.
@@ -208,11 +229,11 @@ textTypesTable =
 textTypeToParser :: TextType -> Parser PText
 textTypeToParser (TextType n c) = do
     void (string n) <?> mkErrStr "" n " command"
-    t <- between (char '{') (char '}') parseRawTextParagraph <?> mkErrStr "" n " argument"
+    t <- braces parseRawText <?> mkErrStr "" n " argument"
     return (c t)
 
-parseSpecialPText :: Parser PText
-parseSpecialPText = do
+parseSpecialText :: Parser PText
+parseSpecialText = do
     void (char '\\') <?> "escape for special text"
     choice (map (try . textTypeToParser) textTypesTable) <|> unknown where
         unknown = do
@@ -220,13 +241,13 @@ parseSpecialPText = do
             unknownText (T.pack c)
 
 -- Parsing raw text is done one character at a time, this parser stops after hitting an empty line. Follows LaTeX style paragraph separation.
-parseRawTextParagraph :: Parser Text
-parseRawTextParagraph = label "raw paragraph" $ do
+parseRawText :: Parser Text
+parseRawText = label "raw paragraph" $ do
     l <- sepEndBy1 parseRawTextLine singleNewline
     return (foldl mappend "" l) -- Additional spaces are not trimmed, this is done later depending on the type of text.
 
 parseRawTextLine :: Parser Text
-parseRawTextLine = takeWhile1P (Just "raw line") (\c -> notElem c (specialCharacters ++ newlineCharacters))
+parseRawTextLine = takeWhile1P (Just "raw line") (\c -> notElem c (['\\', '{', '}'] ++ ['\n', '\r', '\036']))
 
 -- Succeeds when a single newline is present.
 singleNewline :: Parser ()
@@ -237,12 +258,25 @@ singleNewline = try $ parseNewline *> notFollowedBy parseNewline where
         , string "\n"
         , string "\r" ]
 
+--------------------
+-- CONFIGURATION PARSING FUNCTIONS
+--------------------
+parseConfigCommand :: Parser PConfig
+parseConfigCommand = label "configuration command" $ do
+    void (string "\\config") <?> "\\config"
+    arg <- braces parseConfigArg <?> "config argument"
+    maybeOp <- lexeme $ optional parseOptions
+    case maybeOp of
+        Just op -> return $ PConfig arg (POptionMap op)
+        Nothing -> invalidConfig "Expected options for configuration"
+
+
 -- Parses configuration options.
 parseConfig :: Parser PConfigOption
 parseConfig = label "config option" $ choice
     [ PSize             <$ string "size"
     , PPagenumbering    <$ string "pagenumbering"
-    , PSectionspacing     <$ string "sectionspacing"
+    , PSectionspacing   <$ string "sectionspacing"
     , PParagraphspacing <$ string "paragraphspacing"
     , PListspacing      <$ string "listspacing"
     , PTablespacing     <$ string "tablespacing"

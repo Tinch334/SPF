@@ -183,6 +183,7 @@ listStyleSchema :: Schema VConfig
 listStyleSchema = withListStyle <$>
     requireTextWith "style" validateListStyle ("Unknown text justification. " ++ configErrorString PJustification)
 
+
 --------------------
 -- CONFIGURATION VALIDATION
 --------------------

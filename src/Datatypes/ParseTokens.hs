@@ -5,6 +5,40 @@ import Data.Text (Text)
 
 
 --------------------
+-- TOP LEVEL STRUCTURE DEFINITIONS
+--------------------
+-- These structures are used for easier document processing, and to avoid later searches of a list of tokens, which would be inefficient.
+data ParsedDocument = ParsedDocument
+    { pdConfig      :: [Located PConfig] -- List for configurations.
+    , pdMetadata    :: DocumentMetadata        -- Stores the Title/Author/Date.
+    , pdContent     :: [Located PCommOpt]      -- The body of the document.
+    } deriving (Eq)
+
+
+data DocumentMetadata = DocumentMetadata
+    { mdTitle   :: Maybe (Located PMeta) 
+    , mdAuthor  :: Maybe (Located PMeta)
+    , mdDate    :: Maybe (Located PMeta)
+    } deriving (Eq)
+
+emptyMetadata :: DocumentMetadata
+emptyMetadata = DocumentMetadata Nothing Nothing Nothing
+
+-- Make verbose output more legible.
+instance Show ParsedDocument where
+    show (ParsedDocument cfg meta cnt) = 
+        "\nConfiguration\n-------------\n" ++ concatMap (\e -> show e ++ "\n") cfg ++
+        "\nMetadata\n--------\n" ++ show meta ++ 
+        "\nDocument\n--------\n" ++ concatMap (\e -> show e ++ "\n") cnt
+
+instance Show DocumentMetadata where
+    show (DocumentMetadata t a d) = let padding = replicate 4 ' ' in
+       "Title: " ++ maybe "None" show t ++ "\n" ++
+       "Author: " ++ maybe "None" show a ++ "\n" ++
+       "Date: " ++ maybe "None" show d ++ "\n"
+
+
+--------------------
 -- DATATYPE DEFINITIONS
 --------------------
 data POptionValue   = PNumber  Double
@@ -16,16 +50,32 @@ type POptionPair = (Text, POptionValue)
 -- A separate option datatype is used for more modular parsing.
 data POption    = POptionMap     [POptionPair]
                 | POptionNone
-                deriving (Show, Eq, Ord)
+                deriving (Eq, Ord)
 
-type PLocatedLang = [Located PCommOpt]
-data PCommOpt = PCommOpt PComm POption
-   deriving (Show, Eq, Ord)
-data PComm  = PConfig      PConfigOption
-            | PTitle       [PText]
+instance Show POption where
+    show (POptionMap m) = show m
+    show POptionNone = "-"
+
+
+-- Different data definitions are used to reduce ambiguity and avoid representing incorrect information and. For example a metadata field with
+-- a command.
+data PConfig = PConfig PConfigArg POption
+    deriving (Show, Eq, Ord)
+
+data PMetaOpt = PMetaOpt PMeta POption
+data PMeta  = PTitle       [PText]
             | PAuthor      [PText]
             | PDate        [PText]
-            | PSection     [PText]
+            deriving (Show, Eq, Ord)
+
+
+data PCommOpt = PCommOpt PComm POption
+   deriving (Eq, Ord)
+
+instance Show PCommOpt where
+    show (PCommOpt comm opts) = show comm ++ "\n" ++ replicate 4 ' ' ++ show opts
+
+data PComm  = PSection     [PText]
             | PSubsection  [PText]
             | PFigure      FilePath
             -- The \begin and \end tags can be detected during parsing, an removed in favour of a singular tag. The "document" tag is not
@@ -47,20 +97,20 @@ data PText  = PNormal      Text
             | PQuoted      Text
             deriving (Show, Eq, Ord)
 
-data PConfigOption  = PSize
-                    | PPagenumbering
-                    | PSectionspacing
-                    | PParagraphspacing
-                    | PListspacing
-                    | PTablespacing
-                    | PFigurespacing
-                    | PSpacingglue
-                    | PTextglue
-                    | PFont
-                    | PParsize
-                    | PTitleSize
-                    | PSectionSize
-                    | PSubsectionSize
-                    | PJustification
-                    | PListstyle
-                    deriving (Show, Eq, Ord)
+data PConfigArg = PSize
+                | PPagenumbering
+                | PSectionspacing
+                | PParagraphspacing
+                | PListspacing
+                | PTablespacing
+                | PFigurespacing
+                | PSpacingglue
+                | PTextglue
+                | PFont
+                | PParsize
+                | PTitleSize
+                | PSectionSize
+                | PSubsectionSize
+                | PJustification
+                | PListstyle
+                deriving (Show, Eq, Ord)

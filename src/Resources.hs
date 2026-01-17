@@ -34,7 +34,7 @@ loadResources :: [Located VComm] -> FilePath -> IO (Validation [LocatedError] (M
 loadResources comms sFilepath = do
     let uniqueRes = nub $ mapMaybe getResource comms -- Get all unique resources with their location.
     let absoluteRes = Prelude.map (\(Located p rp) -> Located p $ completePath sFilepath rp) uniqueRes
-    -- Load resources.
+    -- Load resources concurrently.
     validRes <- mapConcurrently loadResource absoluteRes
 
     return $ M.fromList <$> sequenceA validRes
@@ -56,7 +56,7 @@ loadResource (Located pos rp) = do
         where
             handleFile ext =
                 case ext of
-                -- If the image is in one of this formats we can load the bytes directly, avoiding unnecessary processing.
+                -- If the image is in one of these formats we can load the bytes directly, avoiding unnecessary processing.
                 e | Prelude.elem e [".png", ".jpg", ".jpeg"] -> do
                     bytes <- BS.readFile rp
                     return $ Success (rp, bytes)

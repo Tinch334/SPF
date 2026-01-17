@@ -3,10 +3,10 @@
 
 
 
-\author{A great author}  [  size : 10   ,  font: Times, lol:lmao]
+\author{A great author}
 
 \section{Chapter 1}
-\subsection{A second chapter 1}
+\subsection{A second chapter 1}[size: 15]
 
 Lorem ipsum dolor          sit amet. 
 Mauris bibendum mauris eu dolor semper, ac aliquam quam commodo.
