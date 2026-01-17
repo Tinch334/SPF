@@ -2,9 +2,12 @@ module Datatypes.Located
     ( Located(..)
     , LocatedError(..)
     , at
+    , withPos
     ) where
 
 import Text.Megaparsec (SourcePos)
+import Data.Validation (Validation(..))
+
 
 -- To generate more informative errors during the validation stage, otherwise there is no way to show where in the file the error comes from.
 data Located a = Located SourcePos a
@@ -21,3 +24,8 @@ data LocatedError = LocatedError SourcePos String
 
 at :: SourcePos -> String -> LocatedError
 at p s = LocatedError p s
+
+-- Generates a located error if the given validation fails.
+withPos p v = case v of
+  Failure errs -> Failure (map (at p) errs)
+  Success s -> Success (Located p s) -- Return position for further error reporting.

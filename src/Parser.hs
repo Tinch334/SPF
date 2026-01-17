@@ -26,8 +26,6 @@ import qualified Text.Megaparsec.Char.Lexer as L
 data CustomError    = UnknownCommand Text   -- Thrown when encountering \command, where command is invalid.
                     | UnknownText Text      -- Thrown when encountering \text-type, where text-type is invalid.
                     | InvalidOptions Text   -- Thrown when a set of options has an invalid format.
-                    | InvalidConfig Text    -- Thrown when configuration is incorrect.
-                    | InvalidMetadata Text  -- Thrown when metadata is incorrect.
                     deriving (Eq, Ord, Show)
 
 -- To allow for easy error throwing.
@@ -40,12 +38,6 @@ unknownText = customFailure . UnknownText
 invalidOptions :: Text -> Parser a
 invalidOptions = customFailure . InvalidOptions
 
-invalidConfig :: Text -> Parser a
-invalidConfig = customFailure . InvalidConfig
-
-invalidMetadata :: Text -> Parser a
-invalidMetadata = customFailure . InvalidMetadata
-
 -- Make error labelling easier.
 mkErrStr :: String -> Text -> String -> String
 mkErrStr b t a = b ++ (T.unpack t) ++ a
@@ -55,8 +47,6 @@ instance ShowErrorComponent CustomError where
     showErrorComponent (UnknownCommand c) = "Unknown command: " ++ quote c
     showErrorComponent (UnknownText t) = "Unknown text type: " ++ quote t
     showErrorComponent (InvalidOptions o) = "Invalid format for options: " ++ T.unpack o
-    showErrorComponent (InvalidConfig c) = "Invalid format for configuration command: " ++ T.unpack c
-    showErrorComponent (InvalidMetadata m) = "Found invalid metadata: " ++ quote m
         
 
 --------------------
@@ -117,10 +107,10 @@ parseMeta = DocumentMetadata
         meta n c = optional $ withPos $ do
             void (string $ "\\" <> n)
             arg <- braces parsePText
-            op <- optional $ lexeme parseOptions
-            case op of
-                Just _ -> invalidMetadata "Options are not allowed in document metadata" -- Check for options.
-                Nothing -> return (c arg)
+            maybeOp <- optional $ lexeme parseOptions
+            case maybeOp of
+                Just op -> return $ PMetaOpt (c arg) op
+                Nothing -> return $ PMetaOpt (c arg) POptionNone
 
 parseDocument :: Parser [Located PCommOpt]
 parseDocument = sepEndBy1 documentOptions sc where
@@ -268,7 +258,7 @@ parseConfigCommand = label "configuration command" $ do
     maybeOp <- lexeme $ optional parseOptions
     case maybeOp of
         Just op -> return $ PConfig arg op
-        Nothing -> invalidConfig "Expected options for configuration"
+        Nothing -> return $ PConfig arg POptionNone
 
 
 -- Parses configuration arguments.

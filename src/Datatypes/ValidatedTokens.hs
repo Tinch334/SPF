@@ -14,10 +14,11 @@ data ValidatedDocument = ValidatedDocument
     , vContent  :: [Located VComm]
     } deriving (Eq)
 
+-- Once the metadata has been validated location data is no longer needed.
 data ValidatedMetadata = ValidatedMetadata
-    { vmTitle  :: Maybe (Located VComm)
-    , vmAuthor :: Maybe (Located VComm)
-    , vmDate   :: Maybe (Located VComm)
+    { vmTitle  :: Maybe VMeta
+    , vmAuthor :: Maybe VMeta
+    , vmDate   :: Maybe VMeta
     } deriving (Eq)
 
 instance Show ValidatedDocument where
@@ -44,14 +45,16 @@ newtype PageWidth = PageWidth Double
 newtype FontSize = FontSize Pt
     deriving (Show, Eq, Ord)
 
--- Language definition.
-type VLocatedLang = [Located VComm]
+-- Metadata data, whilst there are options they cannot be specified by the user, this is because the values are drawn directly from the
+-- configuration when typesetting.
+data VMeta  = VTitle       [VText] (Maybe Font) (Maybe FontSize)
+            | VAuthor      [VText] (Maybe Font) (Maybe FontSize)
+            | VDate        [VText] (Maybe Font) (Maybe FontSize)
+            deriving (Show, Eq, Ord)
+
 -- The maybe in the options indicates that they are optional. If found they are added with "Just", otherwise "Nothing" is used.
 -- The Nothing's are then replaced with the default values for those arguments.
-data VComm  = VTitle        [VText] (Maybe Font) (Maybe FontSize)
-            | VAuthor       [VText] (Maybe Font) (Maybe FontSize)
-            | VDate         [VText] (Maybe Font) (Maybe FontSize)
-            | VSection      [VText] (Maybe Font) (Maybe FontSize)
+data VComm  = VSection      [VText] (Maybe Font) (Maybe FontSize)
             | VSubsection   [VText] (Maybe Font) (Maybe FontSize)
             | VFigure       FilePath PageWidth (Maybe Caption)
             | VTable        [[[VText]]] TableColumns

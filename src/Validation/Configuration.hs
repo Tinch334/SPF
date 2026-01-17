@@ -4,6 +4,7 @@ module Validation.Configuration (validateConfig) where
 
 import Datatypes.ParseTokens
 import Datatypes.ValidatedTokens
+import Datatypes.Located
 import Validation.Schema
 import Validation.GenericValidations
 import Common
@@ -21,7 +22,7 @@ import qualified Data.List as L
 --------------------
 -- AUXILIARY FUNCTIONS
 --------------------
-configErrorString :: PConfigOption -> String
+configErrorString :: PConfigArg -> String
 configErrorString PSize =
     "Expected one of: " ++ quoteList ["a4", "a3", "legal"] ++ " or two numeric values (width: pt, height: pt)."
 configErrorString PPagenumbering =
@@ -55,7 +56,7 @@ configErrorString PJustification =
 configErrorString PListstyle = 
     "Expected field " ++ quote "style" ++ " to be one of " ++ quoteList ["bullet", "square", "arrow", "number"]
 
-noArgumentFail :: String -> PConfigOption -> Validation [String] VConfig
+noArgumentFail :: String -> PConfigArg -> Validation [String] VConfig
 noArgumentFail err opt = Failure [err ++ configErrorString opt]
 
 --------------------
@@ -119,8 +120,8 @@ namedGlueSchema c = c <$> (Glue <$>
     requireNumberWith "stretch" (validateNumInst (> 0) Pt) "Stretch must be positive"
     <*> requireNumberWith "shrink"  (validateNumInst (> 0) Pt) "Shrink must be positive")
 
-namedFontSizeSchema :: (FontSize -> b) -> Schema b
-namedFontSizeSchema c = c <$> (FontSize <$> requireNumberWith "size" (validateNumInst (> 0) Pt) "Font size must be positive")
+namedFontsizeSchema :: (FontSize -> b) -> Schema b
+namedFontsizeSchema c = c <$> (FontSize <$> requireNumberWith "size" (validateNumInst (> 0) Pt) "Font size must be positive")
 
 -- Option specific schemas.
 namedSizeSchema :: Schema VConfig
@@ -164,16 +165,16 @@ fontSchema :: Schema VConfig
 fontSchema = withFont <$> requireTextWith "font" validateFont ("Unknown font type. " ++ configErrorString PFont)
 
 parSizeSchema :: Schema VConfig
-parSizeSchema = namedFontSizeSchema withParSize
+parSizeSchema = namedFontsizeSchema withParSize
 
 titleSizeSchema :: Schema VConfig
-titleSizeSchema = namedFontSizeSchema withTitleSize
+titleSizeSchema = namedFontsizeSchema withTitleSize
 
 sectionSizeSchema :: Schema VConfig
-sectionSizeSchema = namedFontSizeSchema withTitleSize
+sectionSizeSchema = namedFontsizeSchema withTitleSize
 
 subsectionSizeSchema :: Schema VConfig
-subsectionSizeSchema = namedFontSizeSchema withSubtitleSize
+subsectionSizeSchema = namedFontsizeSchema withSubtitleSize
 
 justifySchema :: Schema VConfig
 justifySchema = withJustification <$>
@@ -187,85 +188,89 @@ listStyleSchema = withListStyle <$>
 --------------------
 -- CONFIGURATION VALIDATION
 --------------------
-validateConfig :: PConfigOption -> POption -> Validation [String] VConfig
-validateConfig PSize (POptionMap m) = runSchema
+validateConfig :: Located PConfig -> Validation [LocatedError] (Located VConfig)
+validateConfig (Located pos (PConfig arg opt)) = withPos pos $ vc arg opt
+
+-- Internal validation function
+vc :: PConfigArg -> POption -> Validation [String] VConfig
+vc PSize (POptionMap m) = runSchema
     (choiceSchema
         [ ensureValidKeys (configErrorString PSize) ["size"] namedSizeSchema
         , ensureValidKeys (configErrorString PSize)  ["width", "height"] customSizeSchema ])
     m
-validateConfig PSize POptionNone = noArgumentFail "Invalid form for page size. " PSize
+vc PSize POptionNone = noArgumentFail "Invalid form for page size. " PSize
 
-validateConfig PPagenumbering (POptionMap m) = runSchema
+vc PPagenumbering (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PPagenumbering) ["numbering"] namedPagenumberingSchema)
     m
-validateConfig PPagenumbering POptionNone = noArgumentFail "Invalid form for page numbering. " PPagenumbering
+vc PPagenumbering POptionNone = noArgumentFail "Invalid form for page numbering. " PPagenumbering
 
-validateConfig PSectionspacing (POptionMap m) = runSchema
+vc PSectionspacing (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PSectionspacing) ["before", "after"] (titleSpacingSchema))
     m
-validateConfig PSectionspacing POptionNone = noArgumentFail "Title spacing requires arguments. " PSectionspacing
+vc PSectionspacing POptionNone = noArgumentFail "Title spacing requires arguments. " PSectionspacing
 
-validateConfig PParagraphspacing (POptionMap m) = runSchema
+vc PParagraphspacing (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PParagraphspacing) ["before", "after"] (paragraphSpacingSchema))
     m
-validateConfig PParagraphspacing POptionNone = noArgumentFail "Paragraph spacing requires arguments. " PParagraphspacing
+vc PParagraphspacing POptionNone = noArgumentFail "Paragraph spacing requires arguments. " PParagraphspacing
 
-validateConfig PListspacing (POptionMap m) = runSchema
+vc PListspacing (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PListspacing) ["before", "after"] (listSpacingSchema))
     m
-validateConfig PListspacing POptionNone = noArgumentFail "List spacing requires arguments. " PListspacing
+vc PListspacing POptionNone = noArgumentFail "List spacing requires arguments. " PListspacing
 
-validateConfig PTablespacing (POptionMap m) = runSchema
+vc PTablespacing (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PTablespacing) ["before", "after"] (tableSpacingSchema))
     m
-validateConfig PTablespacing POptionNone = noArgumentFail "Table spacing requires arguments. " PTablespacing
+vc PTablespacing POptionNone = noArgumentFail "Table spacing requires arguments. " PTablespacing
 
-validateConfig PFigurespacing (POptionMap m) = runSchema
+vc PFigurespacing (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PFigurespacing) ["before", "after"] (figureSpacingSchema))
     m
-validateConfig PFigurespacing POptionNone = noArgumentFail "Figure spacing requires arguments. " PFigurespacing
+vc PFigurespacing POptionNone = noArgumentFail "Figure spacing requires arguments. " PFigurespacing
 
-validateConfig PSpacingglue (POptionMap m) = runSchema
+vc PSpacingglue (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PSpacingglue) ["stretch", "shrink"] (spacingGlueSchema))
     m
-validateConfig PSpacingglue POptionNone = noArgumentFail "Spacing glue requires arguments. " PSpacingglue
+vc PSpacingglue POptionNone = noArgumentFail "Spacing glue requires arguments. " PSpacingglue
 
-validateConfig PTextglue (POptionMap m) = runSchema
+vc PTextglue (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PTextglue) ["stretch", "shrink"] (textGlueSchema))
     m
-validateConfig PTextglue POptionNone = noArgumentFail "Paragraph glue requires arguments. " PTextglue
+vc PTextglue POptionNone = noArgumentFail "Paragraph glue requires arguments. " PTextglue
 
-validateConfig PFont (POptionMap m) = runSchema
+vc PFont (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PFont) ["font"] fontSchema)
     m
-validateConfig PFont POptionNone = noArgumentFail "Font type requires arguments. " PFont
+vc PFont POptionNone = noArgumentFail "Font type requires arguments. " PFont
 
-validateConfig PParsize (POptionMap m) = runSchema
+vc PParsize (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PParsize) ["size"] parSizeSchema)
     m
-validateConfig PParsize POptionNone = noArgumentFail "Paragraph font size requires arguments. " PParsize
+vc PParsize POptionNone = noArgumentFail "Paragraph font size requires arguments. " PParsize
 
-validateConfig PTitleSize (POptionMap m) = runSchema
+vc PTitleSize (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PTitleSize) ["size"] titleSizeSchema)
     m
-validateConfig PTitleSize POptionNone = noArgumentFail "Title font size requires arguments. " PSectionSize
+vc PTitleSize POptionNone = noArgumentFail "Title font size requires arguments. " PSectionSize
 
-validateConfig PSectionSize (POptionMap m) = runSchema
+vc PSectionSize (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PSectionSize) ["size"] sectionSizeSchema)
     m
-validateConfig PSectionSize POptionNone = noArgumentFail "Title font size requires arguments. " PSectionSize
+vc PSectionSize POptionNone = noArgumentFail "Title font size requires arguments. " PSectionSize
 
-validateConfig PSubsectionSize (POptionMap m) = runSchema
+vc PSubsectionSize (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PSubsectionSize) ["size"] subsectionSizeSchema)
     m
-validateConfig PSubsectionSize POptionNone = noArgumentFail "Subtitle font size requires arguments. " PSectionSize
+vc PSubsectionSize POptionNone = noArgumentFail "Subtitle font size requires arguments. " PSectionSize
 
-validateConfig PJustification (POptionMap m) = runSchema
+vc PJustification (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PJustification) ["justification"] justifySchema)
     m
-validateConfig PJustification POptionNone = noArgumentFail "Text justification requires arguments" PJustification
+vc PJustification POptionNone = noArgumentFail "Text justification requires arguments" PJustification
 
-validateConfig PListstyle (POptionMap m) = runSchema
+vc PListstyle (POptionMap m) = runSchema
     (ensureValidKeys (configErrorString PJustification) ["style"] listStyleSchema)
     m
-validateConfig PJustification POptionNone = noArgumentFail "List style requires arguments" PJustification
+vc PJustification POptionNone = noArgumentFail "List style requires arguments" PJustification

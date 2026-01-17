@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Validation.Commands (validateCommands) where
+module Validation.Commands (validateCommand) where
 
 import Validation.Configuration
 import Validation.GenericValidations
@@ -24,57 +24,11 @@ import System.FilePath (isValid)
 import Text.Megaparsec (SourcePos)
 
 type CommandValidationType = Validation [String] VComm
-type LocatedCommandValidationType = Validation [LocatedError] (Located VComm)
 
-
---------------------
--- AUXILIARY FUNCTIONS
---------------------
--- Converts parsed text into validated text, no actual validation is required, just conversion.
-convertText :: [PText] -> [VText]
-convertText tLst = map cnvInner tLst
-  where
-    cnvInner (PNormal t) = VText {text = t, style = Normal}
-    cnvInner (PBold t) = VText {text = t, style = Bold}
-    cnvInner (PItalic t) = VText {text = t, style = Italic}
-    cnvInner (PEmphasised t) = VText {text = t, style = Emphasised}
-    cnvInner (PVerbatim t) = VText {text = t, style = Verbatim}
-    cnvInner (PQuoted t) = VText {text = t, style = Quoted}
-
-withPos :: SourcePos -> CommandValidationType -> LocatedCommandValidationType
-withPos p v = case v of
-  Failure errs -> Failure (map (at p) errs)
-  Success s -> Success (Located p s) -- Return position for further error reporting.
-
---------------------
--- SCHEMA VALIDATION FUNCTIONS
---------------------
-namedFontSizeSchema :: Schema (Maybe Pt)
-namedFontSizeSchema = tryNumberWith "size" (validateNumInst (> 0) Pt) "Font size must be positive"
-
-namedFontNameSchema :: Schema (Maybe Font)
-namedFontNameSchema =
-  tryTextWith
-    "font"
-    validateFont
-    ("Expected field " ++ quote "font" ++ " to be one of " ++ quoteList ["helvetica", "courier", "times"] ++ ".")
 
 --------------------
 -- COMMAND VALIDATION FUNCTIONS
 --------------------
--- Validates options for text, with options for font type and size.
--- namedFontWithSize :: ([VText] -> Maybe Font -> Maybe Pt -> VComm) [PText] -> POption -> CommandValidationType
-namedFontWithSize c t (POptionMap o) =
-  runSchema
-    ( ensureValidKeys
-        ("Expected some of fields " ++ quoteList ["font", "size"])
-        ["font", "size"]
-        -- The double map is required to lift the font size inside the schema and the FontSize constructor, this is required because <*> expects
-        -- "f a" as it's second argument.
-        (c (convertText t) <$> namedFontNameSchema <*> ((fmap FontSize) <$> namedFontSizeSchema))
-    ) o
-namedFontWithSize c t POptionNone = Success $ c (convertText t) Nothing Nothing
-
 -- Figure validation.
 namedFigure :: String -> POption -> CommandValidationType
 namedFigure p (POptionMap o) =
@@ -138,49 +92,11 @@ namedParagraph txt POptionNone = Success $ VParagraph (convertText txt) Nothing 
 
 
 --------------------
--- CONFIGURATION MERGING
---------------------
--- Receives a list of commands and returns a single "VConfig" with the merged options of all configuration commands.
-mergeOpts :: [Located VComm] -> VConfig
-mergeOpts opts = foldl merge defaultVConfig $ filterMap isConfigComm (\(Located _ op) -> op) opts
-
--- The second configuration is prioritized, to preserve user configurations if possible.
-merge :: VConfig -> VComm -> VConfig
-merge op1 (VConfigComm op2) = VConfig
-    { cfgPageSize         = cfgPageSize op2         <|> cfgPageSize op1
-    , cfgPageNumbering    = cfgPageNumbering op2    <|> cfgPageNumbering op1
-    , cfgSectionSpacing   = cfgSectionSpacing op2   <|> cfgSectionSpacing op1
-    , cfgParagraphSpacing = cfgParagraphSpacing op2 <|> cfgParagraphSpacing op1
-    , cfgListSpacing      = cfgListSpacing op2      <|> cfgListSpacing op1
-    , cfgTableSpacing     = cfgTableSpacing op2     <|> cfgTableSpacing op1
-    , cfgFigureSpacing    = cfgFigureSpacing op2    <|> cfgFigureSpacing op1
-    , cfgSpacingGlue      = cfgSpacingGlue op2      <|> cfgSpacingGlue op1
-    , cfgTextGlue         = cfgTextGlue op2         <|> cfgTextGlue op1
-    , cfgParIndent        = cfgParIndent op2        <|> cfgParIndent op1
-    , cfgFont             = cfgFont op2             <|> cfgFont op1
-    , cfgParSize          = cfgParSize op2          <|> cfgParSize op1
-    , cfgTitleSize        = cfgTitleSize op2        <|> cfgTitleSize op1
-    , cfgSectionSize      = cfgSectionSize op2      <|> cfgSectionSize op1
-    , cfgSubsectionSize   = cfgSubsectionSize op2   <|> cfgSubsectionSize op1
-    , cfgJustification    = cfgJustification op2    <|> cfgJustification op1
-    , cfgListStyle        = cfgListStyle op2        <|> cfgListStyle op1
-    }
-
-
---------------------
 -- COMMAND VALIDATION
 --------------------
-validateCommands :: ParsedDocument -> Validation [LocatedError] ValidatedDocument
-validateCommands (ParsedDocument cfg meta cnt) = let
-    ValidatedDocument
-      <$> traverse validateConfig cfg <*> validMeta <*> withPos pos $ traverse valdiateCommand cnt
-
-validateCommand :: Located PCommOpt -> LocatedCommandValidationType
+validateCommand :: Located PCommOpt -> Validation [LocatedError] (Located VComm)
 validateCommand (Located pos comm) =
   withPos pos $ case comm of
-    PCommOpt (PTitle text) opts       -> namedFontWithSize VTitle text opts
-    PCommOpt (PAuthor text) opts      -> namedFontWithSize VAuthor text opts
-    PCommOpt (PDate text) opts        -> namedFontWithSize VDate text opts
     PCommOpt (PSection text) opts     -> namedFontWithSize VSection text opts 
     PCommOpt (PSubsection text) opts  -> namedFontWithSize VSubsection text opts
     PCommOpt (PFigure path) opts      -> namedFigure path opts

@@ -16,9 +16,9 @@ data ParsedDocument = ParsedDocument
 
 
 data DocumentMetadata = DocumentMetadata
-    { mdTitle   :: Maybe (Located PMeta) 
-    , mdAuthor  :: Maybe (Located PMeta)
-    , mdDate    :: Maybe (Located PMeta)
+    { mdTitle   :: Maybe (Located PMetaOpt) 
+    , mdAuthor  :: Maybe (Located PMetaOpt)
+    , mdDate    :: Maybe (Located PMetaOpt)
     } deriving (Eq)
 
 emptyMetadata :: DocumentMetadata
@@ -63,6 +63,7 @@ data PConfig = PConfig PConfigArg POption
     deriving (Show, Eq, Ord)
 
 data PMetaOpt = PMetaOpt PMeta POption
+    deriving (Show, Eq)
 data PMeta  = PTitle       [PText]
             | PAuthor      [PText]
             | PDate        [PText]

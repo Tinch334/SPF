@@ -7,7 +7,6 @@ module Main (main) where
 import Lib
 
 import qualified Common                     as C
-import qualified Completion.Options         as CO
 import qualified Datatypes.Located          as L
 import qualified Fonts                      as F
 import qualified Parser                     as P
