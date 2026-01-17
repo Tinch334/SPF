@@ -122,7 +122,7 @@ parseMeta = DocumentMetadata
                 Just _ -> invalidMetadata "Options are not allowed in document metadata" -- Check for options.
                 Nothing -> return (c arg)
 
-parseDocument :: Parser PLocatedLang
+parseDocument :: Parser [Located PCommOpt]
 parseDocument = sepEndBy1 documentOptions sc where
     documentOptions = lexeme $ withPos (parseCommand documentCommandTable <|> parseParagraph)
 
@@ -267,13 +267,13 @@ parseConfigCommand = label "configuration command" $ do
     arg <- braces parseConfigArg <?> "config argument"
     maybeOp <- lexeme $ optional parseOptions
     case maybeOp of
-        Just op -> return $ PConfig arg (POptionMap op)
+        Just op -> return $ PConfig arg op
         Nothing -> invalidConfig "Expected options for configuration"
 
 
--- Parses configuration options.
-parseConfig :: Parser PConfigOption
-parseConfig = label "config option" $ choice
+-- Parses configuration arguments.
+parseConfigArg :: Parser PConfigArg
+parseConfigArg = label "config option" $ choice
     [ PSize             <$ string "size"
     , PPagenumbering    <$ string "pagenumbering"
     , PSectionspacing   <$ string "sectionspacing"

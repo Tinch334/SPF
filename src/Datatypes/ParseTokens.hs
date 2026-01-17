@@ -32,7 +32,7 @@ instance Show ParsedDocument where
         "\nDocument\n--------\n" ++ concatMap (\e -> show e ++ "\n") cnt
 
 instance Show DocumentMetadata where
-    show (DocumentMetadata t a d) = let padding = replicate 4 ' ' in
+    show (DocumentMetadata t a d) =
        "Title: " ++ maybe "None" show t ++ "\n" ++
        "Author: " ++ maybe "None" show a ++ "\n" ++
        "Date: " ++ maybe "None" show d ++ "\n"
