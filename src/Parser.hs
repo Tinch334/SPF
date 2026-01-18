@@ -108,6 +108,7 @@ parseMeta = DocumentMetadata
             void (string $ "\\" <> n)
             arg <- braces parsePText
             maybeOp <- optional $ lexeme parseOptions
+            void sc -- There might be blank space between metadata definitions.
             case maybeOp of
                 Just op -> return $ PMetaOpt (c arg) op
                 Nothing -> return $ PMetaOpt (c arg) POptionNone

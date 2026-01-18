@@ -12,7 +12,7 @@ import qualified Fonts                      as F
 import qualified Parser                     as P
 import qualified Resources                  as R
 import qualified Typesetting.Typesetting    as TS
-import qualified Validation.Commands        as VC
+import qualified Validation.Document        as VD
 
 import System.IO.Error (IOError, tryIOError)
 import System.FilePath (addExtension, dropExtension)
@@ -124,10 +124,9 @@ main :: IO ()
 main = do
     -- No commands used, second argument can be discarded.
     (opts, ()) <- OPS.simpleOptions "0.1.2.0" "SPF" "A simple document preparation system, using a DSL inspired in LaTeX" optionParser empty 
-    print "lOL"
-    --runCompiler opts
+    runCompiler opts
 
-{-
+
 runCompiler :: Options -> IO ()
 runCompiler Options{..} = do
     -- Read file.
@@ -149,14 +148,14 @@ runCompiler Options{..} = do
 
     -- Validate file.
     validateAndRender contents parsed =
-        case VC.validateCommand parsed of
+        case VD.validateDocument parsed of
             V.Failure errs -> do
                 printError "File contains invalid elements:"
                 mapM_ (printLocatedError contents) errs
             V.Success vParsed -> do
                 logStep verbose vParsed "Validated contents\n===============" "File validated"
-                loadAssets contents vParsed
-
+                --loadAssets contents vParsed
+{-
     -- Load resources and fonts.
     loadAssets contents vParsed = do
         resR <- R.loadResources vParsed inFile

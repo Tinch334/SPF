@@ -1,7 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Validation.Schema
     ( Schema(..)
     , runSchema
     , choiceSchema
+    -- Primitives.
     , requireText
     , tryText
     , requireTextWith
@@ -10,7 +13,19 @@ module Validation.Schema
     , requireNumberWith
     , tryNumberWith
     , ensureValidKeys
+    -- Generic validators.
+    , validateNumInst
+    , validateSize
+    , validateNumbering
+    , validateFont
+    , validateJustification
+    , validateListStyle
     ) where
+
+
+import Datatypes.ParseTokens
+import Datatypes.ValidatedTokens
+import Common
 
 import Control.Applicative
 import Control.Monad
@@ -19,11 +34,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Validation
 
-import Datatypes.ParseTokens
-import Common
-
--- This data type is used to validate lists of options for commands. A newtype is used for generic Functor and Applicative instances. The
--- Applicative instance allows for sequential validations to be performed.
+-- This data type is used to validate lists of options for commands. The Applicative instance allows for sequential validations.
 newtype Schema a = Schema {
     runSchema :: [POptionPair] -> Validation [String] a
 }
@@ -35,6 +46,51 @@ instance Functor Schema where
 instance Applicative Schema where
     pure x = Schema (\_ -> Success x)
     (Schema f) <*> (Schema g) = Schema (\o -> f o <*> g o)
+
+
+--------------------
+-- VALUE VALIDATORS
+--------------------
+-- Takes a number, returns it if it satisfies given function returns true, otherwise Nothing.
+validateNumInst :: (Num a, Ord a) => (a -> Bool) -> (a -> b) -> a -> Maybe b
+validateNumInst vf i n = if vf n then Just (i n) else Nothing
+
+validateSize :: Text -> Maybe PageSize
+validateSize t = case T.toLower t of
+    "a4"    -> Just SizeA4
+    "a3"    -> Just SizeA3
+    "legal" -> Just SizeLegal
+    _       -> Nothing
+
+validateNumbering :: Text -> Maybe PageNumbering
+validateNumbering t = case T.toLower t of
+    "arabic" -> Just NumberingArabic
+    "roman"  -> Just NumberingRoman
+    "none"   -> Just NumberingNone
+    _        -> Nothing
+
+validateFont :: Text -> Maybe Font
+validateFont t = case T.toLower t of
+    "helvetica" -> Just Helvetica
+    "courier"   -> Just Courier
+    "times"     -> Just Times
+    _           -> Nothing
+
+validateJustification :: Text -> Maybe Justification
+validateJustification t = case T.toLower t of
+    "left"   -> Just JustifyLeft
+    "right"  -> Just JustifyRight
+    "center" -> Just JustifyCenter
+    "full"   -> Just JustifyFull
+    _        -> Nothing
+
+validateListStyle :: Text -> Maybe ListStyle
+validateListStyle s = case T.toLower s of
+  "bullet" -> Just ListBullet
+  "square" -> Just ListSquare
+  "arrow"  -> Just ListArrow
+  "number" -> Just ListNumber
+  _        -> Nothing
 
 
 --------------------

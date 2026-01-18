@@ -36,11 +36,8 @@ library
       Penrose
       Resources
       Typesetting.Typesetting
-      Validation.Commands
-      Validation.Configuration
       Validation.Document
-      Validation.GenericValidations
-      Validation.Metadata
+      Validation.Rules
       Validation.Schema
   other-modules:
       Paths_SPF
