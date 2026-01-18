@@ -12,7 +12,8 @@ import qualified Data.Text as T
 import Data.Validation
 
 type LVComm = Located VComm
-
+completeCommands = "hi"
+{-
 -- Receives a list of commands and returns all non configuration commands with their options completed.
 completeCommands :: VConfig -> [LVComm] -> [LVComm]
 completeCommands cfg comms = filterMap isNotConfigComm (complete cfg) comms--map (complete cfg) (filter isNotConfigComm comms)
@@ -30,7 +31,4 @@ complete cfg (Located pos comm) = Located pos $ cInner comm where
     cInner (VList l s) = VList l (s <|> cfgListStyle cfg)
     cInner (VParagraph t f s j) = VParagraph t (f <|> cfgFont cfg) (s <|> cfgParSize cfg) (j <|> cfgJustification cfg)
     cInner c = c -- Handles commands with no options.
-
-isNotConfigComm :: LVComm -> Bool
-isNotConfigComm (Located _ (VConfigComm _)) = False
-isNotConfigComm _ = True
+-}

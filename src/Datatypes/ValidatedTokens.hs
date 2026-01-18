@@ -5,6 +5,38 @@ import Datatypes.Located (Located(..))
 import Data.Text (Text)
 
 
+--------------------
+-- TOP LEVEL STRUCTURE DEFINITIONS
+--------------------
+data ValidatedDocument = ValidatedDocument
+    { vConfig   :: VConfig
+    , vMetadata :: ValidatedMetadata
+    , vContent  :: [Located VComm]
+    } deriving (Eq)
+
+-- Once the metadata has been validated location data is no longer needed.
+data ValidatedMetadata = ValidatedMetadata
+    { vmTitle  :: Maybe VMeta
+    , vmAuthor :: Maybe VMeta
+    , vmDate   :: Maybe VMeta
+    } deriving (Eq)
+
+instance Show ValidatedDocument where
+    show (ValidatedDocument cfg meta cnt) = 
+        "\nConfiguration\n-------------\n" ++ show cfg ++
+        "\nMetadata\n--------\n" ++ show meta ++ 
+        "\nDocument\n--------\n" ++ concatMap (\e -> show e <> "\n") cnt
+
+instance Show ValidatedMetadata where
+    show (ValidatedMetadata t a d) = let padding = replicate 4 ' ' in
+        "Title: " ++ maybe "None" show t ++ "\n" ++
+        "Author: " ++ maybe "None" show a ++ "\n" ++
+        "Date: " ++ maybe "None" show d ++ "\n"
+
+
+--------------------
+-- DATATYPE DEFINITIONS
+--------------------
 -- Standard size units.
 newtype Pt = Pt Double
     deriving (Show, Eq, Ord)
@@ -13,15 +45,16 @@ newtype PageWidth = PageWidth Double
 newtype FontSize = FontSize Pt
     deriving (Show, Eq, Ord)
 
--- Language definition.
-type VLocatedLang = [Located VComm]
+-- Metadata data, whilst there are options they cannot be specified by the user, this is because the values are drawn directly from the
+-- configuration when typesetting.
+data VMeta  = VTitle       [VText] (Maybe Font) (Maybe FontSize)
+            | VAuthor      [VText] (Maybe Font) (Maybe FontSize)
+            | VDate        [VText] (Maybe Font) (Maybe FontSize)
+            deriving (Show, Eq, Ord)
+
 -- The maybe in the options indicates that they are optional. If found they are added with "Just", otherwise "Nothing" is used.
 -- The Nothing's are then replaced with the default values for those arguments.
-data VComm  = VConfigComm   VConfig
-            | VTitle        [VText] (Maybe Font) (Maybe FontSize)
-            | VAuthor       [VText] (Maybe Font) (Maybe FontSize)
-            | VDate         [VText] (Maybe Font) (Maybe FontSize)
-            | VSection      [VText] (Maybe Font) (Maybe FontSize)
+data VComm  = VSection      [VText] (Maybe Font) (Maybe FontSize)
             | VSubsection   [VText] (Maybe Font) (Maybe FontSize)
             | VFigure       FilePath PageWidth (Maybe Caption)
             | VTable        [[[VText]]] TableColumns

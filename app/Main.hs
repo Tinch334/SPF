@@ -7,13 +7,12 @@ module Main (main) where
 import Lib
 
 import qualified Common                     as C
-import qualified Completion.Options         as CO
 import qualified Datatypes.Located          as L
 import qualified Fonts                      as F
 import qualified Parser                     as P
 import qualified Resources                  as R
 import qualified Typesetting.Typesetting    as TS
-import qualified Validation.Commands        as VC
+import qualified Validation.Document        as VD
 
 import System.IO.Error (IOError, tryIOError)
 import System.FilePath (addExtension, dropExtension)
@@ -67,10 +66,10 @@ optionParser =
 -- AUXILIARY FUNCTIONS
 --------------------
 -- Prints contents based on the verbose flag, the first string is used in the verbose case.
-logStep :: Show a => Bool -> [a] -> String -> String -> IO ()
+logStep :: Show a => Bool -> a -> String -> String -> IO ()
 logStep True items header _ = do
     putStrLn header
-    mapM_ print items
+    print items
     putStrLn ""
 logStep False _ _ msg = putStrLn msg
 
@@ -124,9 +123,9 @@ showIOError e = let reason = "\nReason: " ++ show (IIE.ioe_type e) in case IIE.i
 main :: IO ()
 main = do
     -- No commands used, second argument can be discarded.
-    (opts, ()) <- OPS.simpleOptions "0.1.2.0" "SPF" "A simple document preparation system, using a DSL inspired in LaTeX" optionParser empty
-    
+    (opts, ()) <- OPS.simpleOptions "0.1.2.0" "SPF" "A simple document preparation system, using a DSL inspired in LaTeX" optionParser empty 
     runCompiler opts
+
 
 runCompiler :: Options -> IO ()
 runCompiler Options{..} = do
@@ -144,19 +143,19 @@ runCompiler Options{..} = do
                 printError "File could not be parsed:"
                 putStr (MP.errorBundlePretty err)
             Right parsed -> do
-                logStep verbose parsed "Parsed contents:" "File parsed"
+                logStep verbose parsed "Parsed contents\n===============" "File parsed"
                 validateAndRender contents parsed
 
     -- Validate file.
     validateAndRender contents parsed =
-        case traverse VC.validateCommand parsed of
+        case VD.validateDocument parsed of
             V.Failure errs -> do
                 printError "File contains invalid elements:"
                 mapM_ (printLocatedError contents) errs
             V.Success vParsed -> do
-                logStep verbose vParsed "Validated contents:" "File validated"
-                loadAssets contents vParsed
-
+                logStep verbose vParsed "Validated contents\n===============" "File validated"
+                --loadAssets contents vParsed
+{-
     -- Load resources and fonts.
     loadAssets contents vParsed = do
         resR <- R.loadResources vParsed inFile
@@ -166,6 +165,7 @@ runCompiler Options{..} = do
                 printError "Some resources could not be loaded:"
                 mapM_ (printLocatedError contents) errs
             V.Success resources -> do
+
                 fonts <- F.loadFonts
 
                 let outPath = maybe (addExtension (dropExtension inFile) C.outputExtension) id outFile -- Get output filepath.
@@ -174,3 +174,5 @@ runCompiler Options{..} = do
 
                 TS.typesetDocument vParsed mergedOpts completePath
                 putStrLn $ "Compilation succeeded, result in " ++ (C.quote $ T.pack completePath)
+
+-}

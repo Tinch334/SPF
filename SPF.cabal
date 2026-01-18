@@ -27,7 +27,6 @@ library
   exposed-modules:
       Common
       Completion.Commands
-      Completion.Options
       Datatypes.Located
       Datatypes.ParseTokens
       Datatypes.ValidatedTokens
@@ -37,9 +36,8 @@ library
       Penrose
       Resources
       Typesetting.Typesetting
-      Validation.Commands
-      Validation.Configuration
-      Validation.GenericValidations
+      Validation.Document
+      Validation.Rules
       Validation.Schema
   other-modules:
       Paths_SPF
