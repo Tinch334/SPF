@@ -129,6 +129,7 @@ defaultVConfig = VConfig
     , cfgJustification      = Just $ JustifyLeft
     , cfgListStyle          = Just $ ListBullet
     }
+    
 
 -- General data types, meant for reusability, to avoid repetition.
 data PageSize   = SizeA4

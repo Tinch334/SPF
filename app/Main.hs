@@ -8,7 +8,7 @@ import Lib
 
 import qualified Common                     as C
 import qualified Datatypes.Located          as L
-import qualified Fonts                      as F
+import qualified Datatypes.ValidatedTokens  as VT
 import qualified Parser                     as P
 import qualified Resources                  as R
 import qualified Typesetting.Typesetting    as TS
@@ -23,6 +23,7 @@ import qualified Data.Map             as M
 import qualified Data.Text            as T
 import qualified Data.Text.IO         as TIO
 import qualified Data.Validation      as V
+
 import qualified Text.Colour          as TC
 import qualified Text.Megaparsec      as MP
 import           Options.Applicative
@@ -74,8 +75,8 @@ logStep True items header _ = do
 logStep False _ _ msg = putStrLn msg
 
 -- Prints the keys of maps with "String" keys.
-printMapKeys :: Bool -> Map String b -> String -> String -> IO ()
-printMapKeys v m sv snv = if v
+logStepMap :: Bool -> Map String b -> String -> String -> IO ()
+logStepMap v m sv snv = if v
     then do
         putStrLn sv
         mapM_ (putStrLn . C.quote . T.pack) (M.keys m)
@@ -153,26 +154,22 @@ runCompiler Options{..} = do
                 printError "File contains invalid elements:"
                 mapM_ (printLocatedError contents) errs
             V.Success vParsed -> do
-                logStep verbose vParsed "Validated contents\n===============" "File validated"
-                --loadAssets contents vParsed
-{-
+                logStep verbose vParsed "Validated contents\n==================" "File validated"
+                loadAssets contents vParsed
+
     -- Load resources and fonts.
     loadAssets contents vParsed = do
-        resR <- R.loadResources vParsed inFile
-
+        resR <- R.loadResources (VT.vContent vParsed) inFile
         case resR of
             V.Failure errs -> do
                 printError "Some resources could not be loaded:"
                 mapM_ (printLocatedError contents) errs
             V.Success resources -> do
-
-                fonts <- F.loadFonts
+                fonts <- R.loadFonts
+                logStepMap verbose resources "Loaded resources\n================" "Resources loaded"
 
                 let outPath = maybe (addExtension (dropExtension inFile) C.outputExtension) id outFile -- Get output filepath.
                     completePath = C.completePath inFile outPath
-                    mergedOpts = CO.mergeOpts vParsed
 
-                TS.typesetDocument vParsed mergedOpts completePath
+                TS.typesetDocument vParsed resources fonts completePath
                 putStrLn $ "Compilation succeeded, result in " ++ (C.quote $ T.pack completePath)
-
--}

@@ -2,12 +2,17 @@ module Typesetting.Typesetting (typesetDocument) where
 
 import Control.Applicative
 
+import Data.Map (Map)
+import Data.ByteString (ByteString)
+import Resources (LoadedFonts)
+
 import Datatypes.ValidatedTokens
 import Datatypes.Located
+
  
 
-typesetDocument :: [Located VComm] -> VConfig -> FilePath -> IO ()
-typesetDocument comms cfg outFile = print "hello"--do
+typesetDocument :: ValidatedDocument -> Map FilePath ByteString -> LoadedFonts -> FilePath -> IO ()
+typesetDocument doc res fonts outFile = print "hello"
 ------------------------
 -- COMPLETE COMMANDS; NO LONGER DONE IN Main.hs!!!!!!!!!!
 ------------------------
