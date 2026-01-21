@@ -213,8 +213,7 @@ textTypesTable =
     [ TextType  "bold"      PBold
     , TextType  "italic"    PItalic
     , TextType  "emph"      PEmphasised
-    , TextType  "verbatim"  PVerbatim
-    , TextType  "quoted"    PQuoted ]
+    ]
 
 -- Creates a parser by applying the data constructor to the result of parsing the command name string; Followed by the parser for raw text.
 textTypeToParser :: TextType -> Parser PText

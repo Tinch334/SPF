@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Resources 
-    (loadResources
+    ( loadResources
     , loadFonts
-    , LoadedFonts)
+    , getFont
+    , LoadedFonts(..))
     where
 
 import Datatypes.ValidatedTokens
@@ -98,9 +99,9 @@ data LoadedFonts = LoadedFonts
     deriving (Show, Eq)
 
 {-
-    Getting fonts is not straightforward, built-in fonts have to be loaded, which can fail. This means that we cannot simply have a function
-    doing pattern matching for fonts returning a constructor. Instead if fonts are loaded successfully they are stored in a data structure
-    which the pattern matching function then uses to get the corresponding font.
+    Getting fonts is not straightforward, all fonts, incluing built-in ones have to be loaded, which can fail. This means that we cannot simply
+    have a function doing pattern matching for fonts returning a constructor. Instead if fonts are loaded successfully they are stored in a
+    data structure which the pattern matching function then uses to get the corresponding font.
 -}
 -- Loads all supported fonts.
 loadFonts :: IO LoadedFonts
@@ -109,14 +110,14 @@ loadFonts = do
     hbInner <- loadFont SF.Helvetica_Bold
     hiInner <- loadFont SF.Helvetica_Oblique
     hbiInner <- loadFont SF.Helvetica_BoldOblique
-    tInner <- loadFont SF.Courier
-    tbInner <- loadFont SF.Courier_Bold
-    tiInner <- loadFont SF.Courier_Oblique
-    tbiInner <- loadFont SF.Courier_BoldOblique
-    cInner <- loadFont SF.Times_Roman
-    cbInner <- loadFont SF.Times_Bold
-    ciInner <- loadFont SF.Times_Italic
-    cbiInner <- loadFont SF.Times_BoldItalic
+    tInner <- loadFont SF.Times_Roman
+    tbInner <- loadFont SF.Times_Bold
+    tiInner <- loadFont SF.Times_Italic
+    tbiInner <- loadFont SF.Times_BoldItalic 
+    cInner <- loadFont SF.Courier
+    cbInner <- loadFont SF.Courier_Bold
+    ciInner <- loadFont SF.Courier_Oblique
+    cbiInner <- loadFont SF.Courier_BoldOblique
 
     return $ LoadedFonts 
         { h   = hInner
@@ -133,12 +134,12 @@ loadFonts = do
         , cbi = cbiInner
         }
 
--- Attempts to load a font, loading standard fonts cannot fail.
+-- Attempts to load a standard font.
 loadFont :: SF.FontName -> IO AnyFont
 loadFont f = do
         fontOrErr <- SF.mkStdFont f
         case fontOrErr of
-            Right lFont -> return lFont
+            Right lFont -> return lFont -- Loading standard fonts cannot fail.
             Left _ -> error $ "INTERNAL: Failed to load font " ++ quote (T.pack $ show f)
 
 -- Takes a font and style and returns the appropriate font 

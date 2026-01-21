@@ -171,5 +171,7 @@ runCompiler Options{..} = do
                 let outPath = maybe (addExtension (dropExtension inFile) C.outputExtension) id outFile -- Get output filepath.
                     completePath = C.completePath inFile outPath
 
-                TS.typesetDocument vParsed resources fonts completePath
+                -- Fix output path
+                TS.typesetDocument vParsed resources fonts outPath
+                
                 putStrLn $ "Compilation succeeded, result in " ++ (C.quote $ T.pack completePath)

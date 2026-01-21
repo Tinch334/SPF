@@ -94,8 +94,6 @@ data PText  = PNormal      Text
             | PBold        Text
             | PItalic      Text
             | PEmphasised  Text
-            | PVerbatim    Text
-            | PQuoted      Text
             deriving (Show, Eq, Ord)
 
 data PConfigArg = PSize

@@ -35,12 +35,10 @@ type CommandValidationType = Validation [String] VComm
 convertText :: [PText] -> [VText]
 convertText = map cnvInner
   where
-    cnvInner (PNormal t)     = VText {text = t, style = Normal}
-    cnvInner (PBold t)       = VText {text = t, style = Bold}
-    cnvInner (PItalic t)     = VText {text = t, style = Italic}
-    cnvInner (PEmphasised t) = VText {text = t, style = Emphasised}
-    cnvInner (PVerbatim t)   = VText {text = t, style = Verbatim}
-    cnvInner (PQuoted t)     = VText {text = t, style = Quoted}
+    cnvInner (PNormal t)     = VText {textCnt = t, style = Normal}
+    cnvInner (PBold t)       = VText {textCnt = t, style = Bold}
+    cnvInner (PItalic t)     = VText {textCnt = t, style = Italic}
+    cnvInner (PEmphasised t) = VText {textCnt = t, style = Emphasised}
 
 namedFontSizeSchema :: Schema (Maybe Pt)
 namedFontSizeSchema = tryNumberWith "size" (validateNumInst (> 0) Pt) "Font size must be positive"
@@ -133,9 +131,9 @@ validateCommand (Located pos comm) =
     PCommOpt (PList lst) opts         -> namedList lst opts
     PCommOpt (PParagraph txt) opts    -> namedParagraph txt opts
     PCommOpt PNewpage POptionNone     -> Success VNewpage
-    PCommOpt PNewpage _               -> Failure ["The command " ++ quote "newpage" ++ " doesn't accept any options"]
+    PCommOpt PNewpage _               -> Failure ["The command " ++ quote "newpage" ++ " does not accept any options"]
     PCommOpt PHLine POptionNone       -> Success VHLine
-    PCommOpt PHLine _                 -> Failure ["The command " ++ quote "hline" ++ " doesn't accept any options"]
+    PCommOpt PHLine _                 -> Failure ["The command " ++ quote "hline" ++ " does not accept any options"]
     _                                 -> error "INTERNAL: Attempt to validate unknown command"
 
 

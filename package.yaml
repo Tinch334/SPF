@@ -20,7 +20,7 @@ description:         Please see the README on GitHub at <https://github.com/Tinc
 
 dependencies:
 - base >= 4.7 && < 5
-- HPDF == 1.7
+- HPDF
 - text 
 - random #Check necessity
 - vector #Check necessity
@@ -38,6 +38,7 @@ dependencies:
 - bytestring
 - async
 - directory
+- mtl
 
 
 ghc-options:

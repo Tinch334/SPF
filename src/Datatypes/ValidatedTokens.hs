@@ -84,6 +84,8 @@ data VConfig = VConfig
     , cfgSubsectionSize     :: Maybe FontSize
     , cfgJustification      :: Maybe Justification
     , cfgListStyle          :: Maybe ListStyle
+    , cfgVertMargin         :: Maybe Pt
+    , cfgHozMargin          :: Maybe Pt
     } deriving (Show, Eq, Ord)
 
 -- Empty config for easy instantiation.
@@ -91,7 +93,7 @@ emptyVConfig :: VConfig
 emptyVConfig = VConfig
     { cfgPageSize           = Nothing
     , cfgPageNumbering      = Nothing
-    , cfgSectionSpacing       = Nothing
+    , cfgSectionSpacing     = Nothing
     , cfgParagraphSpacing   = Nothing
     , cfgListSpacing        = Nothing
     , cfgTableSpacing       = Nothing
@@ -106,6 +108,8 @@ emptyVConfig = VConfig
     , cfgSubsectionSize     = Nothing
     , cfgJustification      = Nothing
     , cfgListStyle          = Nothing
+    , cfgVertMargin         = Nothing
+    , cfgHozMargin          = Nothing
     }
 
 -- Default configuration values for commands, determined by hand, to make the document aesthetically pleasant.
@@ -128,6 +132,8 @@ defaultVConfig = VConfig
     , cfgSubsectionSize     = Just $ FontSize (Pt 14)
     , cfgJustification      = Just $ JustifyLeft
     , cfgListStyle          = Just $ ListBullet
+    , cfgVertMargin         = Just $ Pt 45
+    , cfgHozMargin          = Just $ Pt 50
     }
     
 
@@ -150,7 +156,7 @@ data Glue = Glue Pt Pt
 data Font = Helvetica | Courier | Times
     deriving (Show, Eq, Ord)
 
-data TextStyle = Normal | Bold | Italic | Emphasised | Verbatim | Quoted
+data TextStyle = Normal | Bold | Italic | Emphasised
     deriving (Show, Eq, Ord)
 
 data Justification = JustifyLeft | JustifyRight | JustifyCenter | JustifyFull
@@ -158,7 +164,7 @@ data Justification = JustifyLeft | JustifyRight | JustifyCenter | JustifyFull
 
 -- Text definition.
 data VText = VText
-    { text  :: Text
+    { textCnt  :: Text
     , style :: TextStyle
     } deriving (Show, Eq, Ord)
 
