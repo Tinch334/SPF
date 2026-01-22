@@ -63,6 +63,7 @@ typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath = do
         , remainingText = []
         }
 
+
         evalStateT (typesetElements cnt) initialState
 ------------------------
 -- COMPLETE COMMANDS; NO LONGER DONE IN Main.hs!!!!!!!!!!
@@ -87,8 +88,13 @@ typesetElements ((Located _ comm):rest) = do
         VHLine -> 
             drawHLine-}
 
-    -- Continue typesetting.
-    typesetElements rest
+    -- Continue typesetting, checking if a line break is needed.
+    cb <- checkBrake
+    if cb
+        then do
+            makeNewPage
+            typesetElements rest
+        else typesetElements rest
 
 ------------------------
 -- AUXILIARY FUNCTIONS
@@ -118,6 +124,17 @@ makeNewPage = do
         currentPage = newPage, 
         currentY = py - fromPt (fromJust $ cfgVertMargin cfg)
     }
+
+-- Returns True if the cursor has advanced over the bottom margin.
+checkBrake :: Typesetter Bool
+checkBrake = do
+    cfg <- gets config
+    py <- gets pageY
+    cy <- gets currentY
+
+    let marginY = fromPt (fromJust $ cfgVertMargin cfg)
+
+    return $ cy > py - marginY
 
 typesetParagraph :: [VText] -> Maybe Font -> Maybe Datatypes.ValidatedTokens.FontSize -> Maybe Datatypes.ValidatedTokens.Justification -> Typesetter ()
 typesetParagraph vText mFont mSize mJust = do
@@ -164,8 +181,9 @@ typesetParagraph vText mFont mSize mJust = do
         yStart <- gets currentY
         page <- gets currentPage
         
-        -- Calculate available height from currentY down to the bottom margin and make a container with that size and the corresponding
-        -- position.
+        -- Calculate available height from currentY down to the bottom margin and make a container with that size, taking into account the
+        -- paragraph spacing.
+        let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgParagraphSpacing cfg
 
         let marginX = fromPt (fromJust $ cfgHozMargin cfg)
         let marginY = fromPt (fromJust $ cfgVertMargin cfg)
@@ -173,7 +191,7 @@ typesetParagraph vText mFont mSize mJust = do
         let height  = yStart - marginY 
 
         -- The mkContainer function defines a container based on it's top left point.
-        let container = mkContainer marginX yStart width height 0
+        let container = mkContainer marginX (yStart - beforeSpace) width height 0
 
         -- Fit boxes into container.
         let verState = defaultVerState NormalParagraph
@@ -183,7 +201,7 @@ typesetParagraph vText mFont mSize mJust = do
         lift $ drawWithPage page drawAction
 
         lift $ drawWithPage page $ do
-            DT.trace (printContainer container) $ strokeColor red
+            DT.trace (show beforeSpace) $ strokeColor red
             stroke $ containerContentRectangle container
             strokeColor blue
             stroke $ containerContentRectangle usedContainer
@@ -193,8 +211,8 @@ typesetParagraph vText mFont mSize mJust = do
         
         if null remainingBoxes
             then do
-                -- Text fits on page, update cursor to the bottom of the placed text.
-                modify $ \s -> s { currentY = newBottomY }
+                -- Text fits on page, update cursor to the bottom of the placed text plus paragraph spacing.
+                modify $ \s -> s { currentY = newBottomY - afterSpace}
             else do
                 -- Overflow, force new page and render remaining boxes.
                 makeNewPage
