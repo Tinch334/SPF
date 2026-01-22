@@ -35,7 +35,7 @@ data RenderState = RenderState
     , remainingText :: [VText]                  -- Any text that cannot fit on the current page gets stored here.
     }
 
--- Manages the cursor and page, as well as PDF generation.
+-- Provides access to all rendering information, additionally it handles the current state of the PDF monad.
 type Typesetter a = StateT RenderState PDF a
 
 -- Helper function to run the typesetter.
@@ -65,28 +65,28 @@ typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath = do
 
 
         evalStateT (typesetElements cnt) initialState
+
 ------------------------
 -- COMPLETE COMMANDS; NO LONGER DONE IN Main.hs!!!!!!!!!!
 ------------------------
-
 typesetElements :: [Located VComm] -> Typesetter ()
 typesetElements [] = return ()
 typesetElements ((Located _ comm):rest) = do
     case comm of
-        VParagraph text font size just -> 
-            typesetParagraph text font size just
-            
-    {-    VSection text font size -> 
-            typesetHeader text font size (cfgSectionSize) (cfgSectionSpacing)
-            
-        VFigure path width caption -> 
-            typesetFigure path width caption
-            
-        VNewpage -> 
-            forceNewPage
-            
-        VHLine -> 
-            drawHLine-}
+        VParagraph text mFont mSize mJust -> 
+            typesetParagraph text mFont mSize mJust
+
+        VSection text font size -> do
+            typesetSection text font size
+
+        VSubsection text font size -> do
+            typesetSubsection text font size
+
+        VNewpage ->
+            makeNewPage
+
+        VHLine ->
+            drawHLine
 
     -- Continue typesetting, checking if a line break is needed.
     cb <- checkBrake
@@ -99,17 +99,6 @@ typesetElements ((Located _ comm):rest) = do
 ------------------------
 -- AUXILIARY FUNCTIONS
 ------------------------
--- Generates the document information from the metadata.
-generateDocInfo :: ValidatedMetadata -> PDFDocumentInfo
-generateDocInfo meta = let
-    baseInfo = standardDocInfo {compressed = False}
-    withAuthor = case vmAuthor meta of
-        Just (VAuthor a _ _) -> baseInfo {author = mergeVText a}
-        Nothing -> baseInfo
-    withSubject = case vmTitle meta of
-        Just (VTitle t _ _) -> withAuthor {subject = mergeVText t}
-        Nothing -> withAuthor in withSubject
-
 -- Creates a new page.
 makeNewPage :: Typesetter ()
 makeNewPage = do
@@ -125,6 +114,21 @@ makeNewPage = do
         currentY = py - fromPt (fromJust $ cfgVertMargin cfg)
     }
 
+drawHLine :: Typesetter ()
+drawHLine = do
+    cy <- gets currentY
+    px <- gets pageX
+    page <- gets currentPage
+
+    -- Get horizontal start and end position.
+    let lineSpan = 0.9
+    let xStart = (1 - lineSpan) * px
+    let xEnd = lineSpan * px
+
+    lift $ drawWithPage page $ do
+        strokeColor black
+        stroke $ Line xStart cy xEnd cy
+
 -- Returns True if the cursor has advanced over the bottom margin.
 checkBrake :: Typesetter Bool
 checkBrake = do
@@ -136,40 +140,36 @@ checkBrake = do
 
     return $ cy > py - marginY
 
-typesetParagraph :: [VText] -> Maybe Font -> Maybe Datatypes.ValidatedTokens.FontSize -> Maybe Datatypes.ValidatedTokens.Justification -> Typesetter ()
-typesetParagraph vText mFont mSize mJust = do
+-- Typesets the given VText, with the given options.
+typesetVText :: [VText] -> Font -> Datatypes.ValidatedTokens.FontSize -> Datatypes.ValidatedTokens.Justification -> Double -> Double -> Typesetter ()
+typesetVText vText font size just beforeSpace afterSpace = do
     cfg <- gets config
     lf <- gets loadedFonts
     
-    -- Get font, size and justification
-    ---------------
-    -- CHANGE STYLE
-    ---------------
-    let font = fromJust $ mFont <|> cfgFont cfg
-    let size = convertFontSize (fromJust $ mSize <|> cfgParSize cfg)
+    let cSize = convertFontSize size
     -- Get justification and convert to PDF data.
-    let just = case mJust <|> cfgJustification cfg of
-            Just JustifyLeft   -> LeftJustification
-            Just JustifyRight  -> RightJustification
-            Just JustifyCenter -> Centered
-            Just JustifyFull   -> FullJustification
+    let cJust = case just of
+            JustifyLeft   -> LeftJustification
+            JustifyRight  -> RightJustification
+            JustifyCenter -> Centered
+            JustifyFull   -> FullJustification
 
     -- Maps VText tokens to PDF typesetting instructions. Defined with in function so we can use "let" defined variables.
     let textGenerator :: TM StandardParagraphStyle StandardStyle ()
         textGenerator = do
-            setJustification just
+            setJustification cJust
             paragraph $ do
+                -- Convert all text into HPDF paragraphs.
                 forM_ vText $ \(VText txtContent style) -> do
                     -- Apply styling to segment.
                     let styledFont = getFont lf font style
-                    setStyle (Font (PDFFont styledFont size) black black)
+                    setStyle (Font (PDFFont styledFont cSize) black black)
                     txt txtContent
 
     -- The text instructions are converted into a list of renderable boxes. StandardParagraphStyle 'NormalParagraph' is used as the baseline
     -- context.
-    let boxes = getBoxes NormalParagraph (Font (PDFFont (getFont lf font Normal) size) black black) textGenerator
+    let boxes = getBoxes NormalParagraph (Font (PDFFont (getFont lf font Normal) cSize) black black) textGenerator
 
-    -- 4. Enter the Box Filling Loop
     fillBoxLoop boxes
 
   where
@@ -182,9 +182,7 @@ typesetParagraph vText mFont mSize mJust = do
         page <- gets currentPage
         
         -- Calculate available height from currentY down to the bottom margin and make a container with that size, taking into account the
-        -- paragraph spacing.
-        let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgParagraphSpacing cfg
-
+        -- given spacing.
         let marginX = fromPt (fromJust $ cfgHozMargin cfg)
         let marginY = fromPt (fromJust $ cfgVertMargin cfg)
         let width   = px - (marginX * 2) 
@@ -201,8 +199,6 @@ typesetParagraph vText mFont mSize mJust = do
         lift $ drawWithPage page drawAction
 
         lift $ drawWithPage page $ do
-            DT.trace (show beforeSpace) $ strokeColor red
-            stroke $ containerContentRectangle container
             strokeColor blue
             stroke $ containerContentRectangle usedContainer
 
@@ -218,36 +214,42 @@ typesetParagraph vText mFont mSize mJust = do
                 makeNewPage
                 fillBoxLoop remainingBoxes
 
-printContainer c = show (containerX c) ++ " - " ++ show (containerY c) ++ " - " ++ show (containerWidth c) ++ " - " ++ show (containerHeight c)
+-- Typesets the given paragraph.
+typesetParagraph :: [VText] -> Maybe Font -> Maybe Datatypes.ValidatedTokens.FontSize -> Maybe Datatypes.ValidatedTokens.Justification -> Typesetter ()
+typesetParagraph vText mFont mSize mJust = do
+    cfg <- gets config
 
+    let font = fromJust $ mFont <|> cfgFont cfg
+    let size = fromJust $ mSize <|> cfgParSize cfg
+    let just = fromJust $ mJust <|> cfgJustification cfg
+    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgParagraphSpacing cfg
 
--- The title page is generated using a different mechanism that the rest of the document.
-{-
-typesetMetadata :: VConfig -> LoadedFonts -> ValidatedMetadata -> PDF ()
-typesetMetadata cfg fonts meta = do
-    -- Get page width and size.
-    let (PDFRect _ _ pw ph) = pageSizeToRect (fromJust $ cfgPageSize cfg)
-    let (titleHozMargin, titleVertMargin) = (0.15, 0.1)
-    let titleRect = Rectangle (pw * titleHozMargin :+ ph * titleVertMargin) (pw * (1 - titleHozMargin) :+ ph * (1 - titleVertMargin))
-    --printRect titleRect
-    let (VTitle vtitle tf ts) = completeMeta cfg (fromJust $ vmTitle meta)
-    let (VAuthor vauth af as) = completeMeta cfg (fromJust $ vmAuthor meta)
-    let (VDate vdate df ds) = completeMeta cfg (fromJust $ vmDate meta)
+    typesetVText vText font size just beforeSpace afterSpace
 
-    titlePage <- addPage Nothing
+-- Typesets the given header.
+typesetSection :: [VText] -> Maybe Font -> Maybe Datatypes.ValidatedTokens.FontSize -> Typesetter ()
+typesetSection vText mFont mSize = do
+    cfg <- gets config
 
-    drawWithPage titlePage $ do
-        strokeColor red
-        stroke $ titleRect
-        displayFormattedText
-            titleRect
-            NormalParagraph
-            (Font (PDFFont (hbi fonts) 10) black black) $ do
-                setJustification Centered
+    let font = fromJust $ mFont <|> cfgFont cfg
+    let size = fromJust $ mSize <|> cfgSectionSize cfg
+    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgSectionSpacing cfg
 
-                typesetParagraph fonts vtitle tf ts Centered
-                typesetParagraph fonts vauth af as Centered
-                typesetParagraph fonts vdate df ds Centered
+    -- Add header to PDF, the passed PDF monad is "return ()" because we only want the side effect of creating the bookmark.
+    lift $ newSection (mergeVText vText) Nothing Nothing (return ())
+    -- Typeset header
+    DT.trace (show beforeSpace ++ " - " ++ show afterSpace) typesetVText vText font size JustifyLeft beforeSpace afterSpace
 
+-- Typesets the given header.
+typesetSubsection :: [VText] -> Maybe Font -> Maybe Datatypes.ValidatedTokens.FontSize -> Typesetter ()
+typesetSubsection vText mFont mSize = do
+    cfg <- gets config
 
--}
+    let font = fromJust $ mFont <|> cfgFont cfg
+    let size = fromJust $ mSize <|> cfgSectionSize cfg
+    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgSectionSpacing cfg
+
+    -- Add header to PDF, the passed PDF monad is "return ()" because we only want the side effect of creating the bookmark.
+    lift $ newSection (mergeVText vText) Nothing Nothing (return ())
+    -- Typeset header
+    DT.trace (show beforeSpace ++ " - " ++ show afterSpace) typesetVText vText font size JustifyLeft beforeSpace afterSpace

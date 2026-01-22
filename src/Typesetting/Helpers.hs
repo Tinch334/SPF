@@ -52,16 +52,14 @@ makeTestBlock = do
         txt $ "incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud "
         txt $ "exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
 
---makeParagraph :: LoadedFonts -> [VText] ->
--- Makes an HPDF paragraph with the given VText, font, size and justification.
-{-
-typesetParagraph lf vt f s j = do
-    setJustification j
-    paragraph $ do
-        mapM_ convertText vt
 
-    where
-        convertText t = do
-            setStyle $ Font (PDFFont (getFont lf f (style t)) s) black black
-            txt $ textCnt t
--}
+-- Generates the document information from the metadata.
+generateDocInfo :: ValidatedMetadata -> PDFDocumentInfo
+generateDocInfo meta = let
+    baseInfo = standardDocInfo {compressed = False}
+    withAuthor = case vmAuthor meta of
+        Just (VAuthor a _ _) -> baseInfo {author = mergeVText a}
+        Nothing -> baseInfo
+    withSubject = case vmTitle meta of
+        Just (VTitle t _ _) -> withAuthor {subject = mergeVText t}
+        Nothing -> withAuthor in withSubject
