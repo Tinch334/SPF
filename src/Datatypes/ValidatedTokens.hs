@@ -8,10 +8,17 @@ import Data.Text (Text)
 --------------------
 -- TOP LEVEL STRUCTURE DEFINITIONS
 --------------------
+-- This data structure represents the hierarchy of the document, allowing for proper typesetting of sections and subsections.
+data DocBlock   = BlockSection VComm [DocBlock]
+                | BlockSubsection VComm [DocBlock]
+                | BlockLeaf VComm
+                deriving (Eq)
+
+-- Represents a valid document, ready to typeset.
 data ValidatedDocument = ValidatedDocument
     { vConfig   :: VConfig
     , vMetadata :: ValidatedMetadata
-    , vContent  :: [Located VComm]
+    , vContent  :: [DocBlock]
     } deriving (Eq)
 
 -- Once the metadata has been validated location data is no longer needed.
@@ -21,14 +28,27 @@ data ValidatedMetadata = ValidatedMetadata
     , vmDate   :: Maybe VMeta
     } deriving (Eq)
 
+
+instance Show DocBlock where
+    show (BlockSection comm block) =
+        let padding = replicate 4 ' ' in
+            "Section: " ++ show comm ++ "\n" ++
+            concatMap (\e -> padding <> show e <> "\n") block
+    show (BlockSubsection comm block) =
+        let padding = replicate 4 ' ' in
+            "Subsection: " ++ show comm ++ "\n" ++
+            concatMap (\e -> padding <> show e <> "\n") block
+    show (BlockLeaf comm) =
+        "Leaf: " ++ show comm ++ "\n"
+
 instance Show ValidatedDocument where
     show (ValidatedDocument cfg meta cnt) = 
         "\nConfiguration\n-------------\n" ++ show cfg ++
         "\nMetadata\n--------\n" ++ show meta ++ 
-        "\nDocument\n--------\n" ++ concatMap (\e -> show e <> "\n") cnt
+        "\nDocument\n--------\n" ++ show cnt
 
 instance Show ValidatedMetadata where
-    show (ValidatedMetadata t a d) = let padding = replicate 4 ' ' in
+    show (ValidatedMetadata t a d) =
         "Title: " ++ maybe "None" show t ++ "\n" ++
         "Author: " ++ maybe "None" show a ++ "\n" ++
         "Date: " ++ maybe "None" show d ++ "\n"

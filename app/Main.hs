@@ -159,11 +159,11 @@ runCompiler Options{..} = do
 
     -- Load resources and fonts.
     loadAssets contents vParsed = do
-        resR <- R.loadResources (VT.vContent vParsed) inFile
+        let resR = V.Success M.empty--R.loadResources (VT.vContent vParsed) inFile
         case resR of
             V.Failure errs -> do
                 printError "Some resources could not be loaded:"
-                mapM_ (printLocatedError contents) errs
+                --mapM_ (printLocatedError contents) errs
             V.Success resources -> do
                 fonts <- R.loadFonts
                 logStepMap verbose resources "Loaded resources\n================" "Resources loaded"

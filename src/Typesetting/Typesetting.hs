@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, BangPatterns, FlexibleInstances #-}
 
 module Typesetting.Typesetting (typesetDocument) where
 
@@ -17,9 +17,15 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Maybe (fromJust)
 import Data.List (intersperse)
+import Data.IORef
+
+import System.IO.Unsafe (unsafePerformIO)
+import Control.Exception (evaluate)
+import Control.Concurrent.MVar
 
 import Graphics.PDF
 import Graphics.PDF.Typesetting
+
 
 import qualified Debug.Trace as DT
 
@@ -37,6 +43,7 @@ data RenderState = RenderState
 
 -- Provides access to all rendering information, additionally it handles the current state of the PDF monad.
 type Typesetter a = StateT RenderState PDF a
+
 
 -- Helper function to run the typesetter.
 runTypesetter :: RenderState -> Typesetter a -> PDF a
@@ -63,24 +70,76 @@ typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath = do
         , remainingText = []
         }
 
-
-        evalStateT (typesetElements cnt) initialState
+        evalStateT (typesetBlocks cnt) initialState
 
 ------------------------
 -- COMPLETE COMMANDS; NO LONGER DONE IN Main.hs!!!!!!!!!!
 ------------------------
-typesetElements :: [Located VComm] -> Typesetter ()
-typesetElements [] = return ()
-typesetElements ((Located _ comm):rest) = do
+------------------------
+-- TYPESETTING BLOCKS (The Tree Walker)
+------------------------
+-- | Forces an IO action to run immediately within the PDF monad.
+{-# NOINLINE unsafeLiftIO #-}
+unsafeLiftIO :: IO a -> PDF a
+unsafeLiftIO action = do
+    let !result = unsafePerformIO action
+    return result
+
+typesetBlocks :: [DocBlock] -> Typesetter ()
+typesetBlocks [] = return ()
+typesetBlocks (block : rest) = do
+    case block of
+        BlockLeaf locComm -> 
+            typesetElement locComm
+
+        BlockSection ((VSection text font size)) children -> do
+            typesetSection text font size
+            tunnelChildren text children
+
+        BlockSubsection ((VSubsection text font size)) children -> do
+            typesetSubsection text font size
+            tunnelChildren text children
+            
+        _ -> return ()
+
+    cb <- checkBrake
+    if cb then makeNewPage else return ()
+    
+    typesetBlocks rest
+
+ where
+    tunnelChildren :: [VText] -> [DocBlock] -> Typesetter ()
+    tunnelChildren text children = do
+        st <- get
+        let title = mergeVText text
+        
+        -- 1. Create a reference to hold the state.
+        ref <- lift $ unsafeLiftIO $ newIORef st
+        
+        -- 2. Run the section.
+        lift $ newSection title Nothing Nothing $ do
+            -- Run the children logic starting with the current state 'st'
+            finalState <- execStateT (typesetBlocks children) st
+            
+            -- Write the RESULTING state to the ref.
+            _ <- unsafeLiftIO $ writeIORef ref finalState
+            
+            -- CRITICAL FIX: explicit return () to satisfy newSection's type signature.
+            return ()
+        
+        -- 3. Read the state back.
+        -- Because we used the strict unsafeLiftIO, this guaranteed to run 
+        -- AFTER the writeIORef above.
+        newState <- lift $ unsafeLiftIO $ readIORef ref
+        put newState
+
+
+-- Typeset a single non hierarchical element.
+typesetElement :: VComm -> Typesetter ()
+typesetElement comm = do
     case comm of
         VParagraph text mFont mSize mJust -> 
             typesetParagraph text mFont mSize mJust
-
-        VSection text font size -> do
-            typesetSection text font size
-
-        VSubsection text font size -> do
-            typesetSubsection text font size
 
         VNewpage ->
             makeNewPage
@@ -88,13 +147,6 @@ typesetElements ((Located _ comm):rest) = do
         VHLine ->
             drawHLine
 
-    -- Continue typesetting, checking if a line break is needed.
-    cb <- checkBrake
-    if cb
-        then do
-            makeNewPage
-            typesetElements rest
-        else typesetElements rest
 
 ------------------------
 -- AUXILIARY FUNCTIONS
@@ -133,12 +185,11 @@ drawHLine = do
 checkBrake :: Typesetter Bool
 checkBrake = do
     cfg <- gets config
-    py <- gets pageY
     cy <- gets currentY
 
     let marginY = fromPt (fromJust $ cfgVertMargin cfg)
 
-    return $ cy > py - marginY
+    DT.trace ("Check brake: " ++ show cy ++ " - " ++ show marginY) (return $ cy < marginY)
 
 -- Typesets the given VText, with the given options.
 typesetVText :: [VText] -> Font -> Datatypes.ValidatedTokens.FontSize -> Datatypes.ValidatedTokens.Justification -> Double -> Double -> Typesetter ()
@@ -235,10 +286,8 @@ typesetSection vText mFont mSize = do
     let size = fromJust $ mSize <|> cfgSectionSize cfg
     let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgSectionSpacing cfg
 
-    -- Add header to PDF, the passed PDF monad is "return ()" because we only want the side effect of creating the bookmark.
-    lift $ newSection (mergeVText vText) Nothing Nothing (return ())
     -- Typeset header
-    DT.trace (show beforeSpace ++ " - " ++ show afterSpace) typesetVText vText font size JustifyLeft beforeSpace afterSpace
+    typesetVText vText font size JustifyLeft beforeSpace afterSpace
 
 -- Typesets the given header.
 typesetSubsection :: [VText] -> Maybe Font -> Maybe Datatypes.ValidatedTokens.FontSize -> Typesetter ()
@@ -249,7 +298,4 @@ typesetSubsection vText mFont mSize = do
     let size = fromJust $ mSize <|> cfgSectionSize cfg
     let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgSectionSpacing cfg
 
-    -- Add header to PDF, the passed PDF monad is "return ()" because we only want the side effect of creating the bookmark.
-    lift $ newSection (mergeVText vText) Nothing Nothing (return ())
-    -- Typeset header
-    DT.trace (show beforeSpace ++ " - " ++ show afterSpace) typesetVText vText font size JustifyLeft beforeSpace afterSpace
+    typesetVText vText font size JustifyLeft beforeSpace afterSpace
