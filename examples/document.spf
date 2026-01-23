@@ -47,12 +47,16 @@ Instead of specifying only one particular S, I needed many different vari-
 ations, including bold face S’s that are much darker than the normal
 text. I discussed this recently with Alan Perlis, who pointed out that a
 central issue arising whenever we try to automate something properly is
-what he calls “the art of making constant things variable.” In the case
+what he calls “the art of making constant things variable.”
+
+In the case
 of letter design, we don’t merely want to take a particular drawing and
 come up with some mathematics to describe it; we really want to find
 the principles underlying the drawing, so that we can generate infinitely
 many drawings (including the given one) as a function of appropriate
-parameters. My goal was to create entire alphabets that would depend
+parameters.
+
+My goal was to create entire alphabets that would depend
 on a dozen or two parameters in such a way that all the letters would
 vary in a compatible manner as the parameters would change.
 

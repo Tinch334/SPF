@@ -46,4 +46,5 @@ merge op1 op2 = VConfig
     , cfgListStyle        = cfgListStyle op1        <|> cfgListStyle op2
     , cfgVertMargin       = cfgVertMargin op1       <|> cfgVertMargin op2
     , cfgHozMargin        = cfgHozMargin op1        <|> cfgHozMargin op2
+    , cfgSectionNumbering = cfgSectionNumbering op1 <|> cfgSectionNumbering op2
     }

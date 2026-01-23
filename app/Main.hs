@@ -107,9 +107,7 @@ printLocatedError fileContents (L.LocatedError pos err) = do
         (line:_) -> putStrLn $ lineStr ++ " | " ++ T.unpack (T.strip line)
         _        -> putStrLn $ lineStr ++ " | [Line out of range]"
     putStrLn $ padding ++ "|"
-    putStrLn err
-
-    
+    putStrLn err    
 
 -- Haskell definition of "show" for "IO error" does not follow the style of the rest of the program.
 showIOError :: IOError -> String

@@ -3,12 +3,12 @@
 module Resources 
     ( loadResources
     , loadFonts
-    , getFont
-    , LoadedFonts(..))
+    , getFont)
     where
 
 import Datatypes.ValidatedTokens
 import Datatypes.Located
+import Datatypes.Resources
 import Common
 
 import Control.Applicative
@@ -21,8 +21,9 @@ import qualified Data.Map as M
 
 import Data.Maybe
 import Data.List (nub)
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.Vector.Storable as V
 import Data.ByteString (ByteString)
-import Data.ByteString as BS
 import qualified Data.Text as T
 
 import System.FilePath
@@ -40,12 +41,12 @@ import qualified Graphics.PDF.Fonts.StandardFont as SF
 --------------------
 -- Loads all resources from the document, returns them as a map where each filepath is associated with the given element.
 -- The filepath is that of the .spf that the resources are being loaded for.
-loadResources :: [Located VComm] -> FilePath -> IO (Validation [LocatedError] (Map FilePath ByteString))
+loadResources :: [Located VComm] -> FilePath -> IO (Validation [LocatedError] ResourceMap)
 loadResources comms sFilepath = do
     let uniqueRes = nub $ mapMaybe getResource comms -- Get all unique resources with their location.
     let absoluteRes = Prelude.map (\(Located p rp) -> Located p $ completePath sFilepath rp) uniqueRes
-    -- Load resources concurrently.
-    validRes <- mapConcurrently loadResource absoluteRes
+    -- Load resources concurrently, the original path is needed for resource loading during typesetting..
+    validRes <- mapConcurrently loadResource (Prelude.zip absoluteRes uniqueRes)
 
     return $ M.fromList <$> sequenceA validRes
 
@@ -55,49 +56,39 @@ getResource (Located pos (VFigure rp _ _)) = Just (Located pos rp)
 getResource _ = Nothing
 
 -- Tries to get the data from the given filepath, if successful returns both.
-loadResource :: Located FilePath -> IO (Validation [LocatedError] (FilePath, ByteString))
-loadResource (Located pos rp) = do
-    let ext = takeExtension rp
-    exists <- doesFileExist rp
+loadResource :: (Located FilePath, Located FilePath) -> IO (Validation [LocatedError] (FilePath, FileInfo))
+loadResource (Located pos completePath, Located _ originalPath) = do
+    let ext = takeExtension completePath
+    exists <- doesFileExist completePath
     
     if not exists
-        then return $ Failure [at pos $ "File does not exist: " ++ quote (T.pack rp)]
+        then return $ Failure [at pos $ "File does not exist: " ++ quote (T.pack completePath)]
         else handleFile ext
         where
             handleFile ext =
                 case ext of
-                -- If the image is in one of these formats we can load the bytes directly, avoiding unnecessary processing.
-                e | Prelude.elem e [".png", ".jpg", ".jpeg"] -> do
-                    bytes <- BS.readFile rp
-                    return $ Success (rp, bytes)
-                ".bmp" -> do
-                    res <- readImage rp
+                e | Prelude.elem e [".bmp", ".png", ".jpg", ".jpeg"] -> do
+                    res <- readImage completePath
                     case res of
                         -- The default error does not follow the style of the rest of the program.
-                        Left _ -> return $ Failure [at pos $ "The file " ++ quote (T.pack rp) ++ " could not be accessed"]
-                        Right img -> return $ Success (rp, BS.toStrict $ imageToPng img) -- "imageToPng" returns lazy a ByteString.
+                        Left _ -> return $ Failure [at pos $ "The file " ++ quote (T.pack completePath) ++ " could not be accessed"]
+                        Right img -> do
+                            -- Handles colour space by forcing conversion to RGB8.
+                            let rgbImage = convertRGB8 img
+                            -- Get image dimensions.
+                            let width = imageWidth rgbImage
+                            let height = imageHeight rgbImage
+                            -- Extracts the raw data ad converts it to a ByteString.
+                            let vector = imageData rgbImage
+                            let bytes = BL.pack (V.toList vector)
+
+                            return $ Success (originalPath, FileInfo bytes width height)
                 e -> return $ Failure [at pos $ "The file extension " ++ quote (T.pack e) ++ " is invalid"]
 
 
 --------------------
 -- FONT LOADING FUNCTIONS
 --------------------
-data LoadedFonts = LoadedFonts
-    { h   :: AnyFont
-    , hb  :: AnyFont
-    , hi  :: AnyFont
-    , hbi :: AnyFont
-    , t   :: AnyFont
-    , tb  :: AnyFont
-    , ti  :: AnyFont
-    , tbi :: AnyFont
-    , c   :: AnyFont
-    , cb  :: AnyFont
-    , ci  :: AnyFont
-    , cbi :: AnyFont
-    }
-    deriving (Show, Eq)
-
 {-
     Getting fonts is not straightforward, all fonts, incluing built-in ones have to be loaded, which can fail. This means that we cannot simply
     have a function doing pattern matching for fonts returning a constructor. Instead if fonts are loaded successfully they are stored in a

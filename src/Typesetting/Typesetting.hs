@@ -1,22 +1,24 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Typesetting.Typesetting (typesetDocument) where
 
-import Resources (LoadedFonts(..), getFont)
 import Datatypes.ValidatedTokens
 import Datatypes.Located
+import Datatypes.Resources
 import Typesetting.Helpers
+import Resources (getFont)
 
-import Control.Applicative
+import Control.Applicative ((<|>))
 import Control.Monad
 import Control.Monad.State
 
 import Data.Map (Map)
+import qualified Data.Map as M
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Maybe (fromJust)
-import Data.List (intersperse)
 
 import Graphics.PDF
 import Graphics.PDF.Typesetting
@@ -24,15 +26,22 @@ import Graphics.PDF.Typesetting
 import qualified Debug.Trace as DT
 
 
+-- Stores the current state of the sections.
+data SectionState = SectionState
+    { currentSection    :: Int
+    , currentSubsection :: Int
+    }
+
 data RenderState = RenderState
     { currentY      :: Double                   -- Vertical cursor position.
     , currentPage   :: PDFReference PDFPage     -- The page currently being typeset.
     , config        :: VConfig                  -- Configuration.
     , loadedFonts   :: LoadedFonts              -- Loaded fonts.
-    , resources     :: Map FilePath ByteString  -- All loaded resources, with their associated path.
+    , resources     :: ResourceMap              -- All loaded resources, with their associated path.
     , pageX         :: Double                   -- Page dimensions are needed for state resetting, the PDF monad doesn't provide access.
     , pageY         :: Double
     , remainingText :: [VText]                  -- Any text that cannot fit on the current page gets stored here.
+    , sectionState  :: SectionState
     }
 
 -- Provides access to all rendering information, additionally it handles the current state of the PDF monad.
@@ -42,11 +51,12 @@ type Typesetter a = StateT RenderState PDF a
 runTypesetter :: RenderState -> Typesetter a -> PDF a
 runTypesetter initial action = evalStateT action initial
 
-typesetDocument :: ValidatedDocument -> Map FilePath ByteString -> LoadedFonts -> FilePath -> IO ()
+typesetDocument :: ValidatedDocument -> ResourceMap -> LoadedFonts -> FilePath -> IO ()
 typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath = do
     let pageRect = pageSizeToRect (fromJust $ cfgPageSize cfg)
     let (PDFRect _ _ px py) = pageRect
     let startY = py - fromPt (fromJust $ cfgVertMargin cfg)
+    let sectionState = SectionState 0 0
 
     runPdf outPath (generateDocInfo meta) pageRect $ do
         initialPage <- addPage Nothing
@@ -61,6 +71,7 @@ typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath = do
         , pageX = px
         , pageY = py
         , remainingText = []
+        , sectionState = sectionState
         }
 
 
@@ -69,76 +80,71 @@ typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath = do
 ------------------------
 -- COMPLETE COMMANDS; NO LONGER DONE IN Main.hs!!!!!!!!!!
 ------------------------
+------------------------
+-- BOOKMARKS NOT WORKING; THEY TAKE YOU TO THE START OF THE FILE.
+------------------------
 typesetElements :: [Located VComm] -> Typesetter ()
-typesetElements [] = return ()
-typesetElements ((Located _ comm):rest) = do
-    case comm of
-        VParagraph text mFont mSize mJust -> 
-            typesetParagraph text mFont mSize mJust
+typesetElements elements = do
+    forM_ elements $ \(Located _ comm) -> do
+        case comm of
+            VParagraph text mFont mSize mJust -> 
+                typesetParagraph text mFont mSize mJust
 
-        VSection text font size -> do
-            typesetSection text font size
+            VSection text font size -> do
+                typesetHeader text font size True
 
-        VSubsection text font size -> do
-            typesetSubsection text font size
+            VSubsection text font size -> do
+                typesetHeader text font size False
 
-        VNewpage ->
-            makeNewPage
+            VFigure path width caption -> do
+                typesetFigure path width caption
 
-        VHLine ->
-            drawHLine
+            VNewpage ->
+                makeNewPage
 
-    -- Continue typesetting, checking if a line break is needed.
-    cb <- checkBrake
-    if cb
-        then do
-            makeNewPage
-            typesetElements rest
-        else typesetElements rest
+            VHLine ->
+                drawHLine
+
+        ensureSpace
+
 
 ------------------------
 -- AUXILIARY FUNCTIONS
 ------------------------
+-- Checks if the cursor is below the bottom margin, if so makes a new page.
+ensureSpace :: Typesetter ()
+ensureSpace = do
+    RenderState{..} <- get
+
+    let marginY = fromPt (fromJust $ cfgVertMargin config)
+
+    if currentY < marginY then makeNewPage else return ()
+
 -- Creates a new page.
 makeNewPage :: Typesetter ()
 makeNewPage = do
+    RenderState{..} <- get
     -- Create new page of standard size in PDF Monad.
     newPage <- lift $ addPage Nothing
     
     -- Reset state, since we are in a new page.
-    cfg <- gets config
-    py <- gets pageY
-    
     modify $ \s -> s { 
         currentPage = newPage, 
-        currentY = py - fromPt (fromJust $ cfgVertMargin cfg)
+        currentY = pageY - fromPt (fromJust $ cfgVertMargin config)
     }
 
 drawHLine :: Typesetter ()
 drawHLine = do
-    cy <- gets currentY
-    px <- gets pageX
-    page <- gets currentPage
+    RenderState{..} <- get
 
     -- Get horizontal start and end position.
     let lineSpan = 0.9
-    let xStart = (1 - lineSpan) * px
-    let xEnd = lineSpan * px
+    let xStart = (1 - lineSpan) * pageX
+    let xEnd = lineSpan * pageX
 
-    lift $ drawWithPage page $ do
+    lift $ drawWithPage currentPage $ do
         strokeColor black
-        stroke $ Line xStart cy xEnd cy
-
--- Returns True if the cursor has advanced over the bottom margin.
-checkBrake :: Typesetter Bool
-checkBrake = do
-    cfg <- gets config
-    py <- gets pageY
-    cy <- gets currentY
-
-    let marginY = fromPt (fromJust $ cfgVertMargin cfg)
-
-    return $ cy > py - marginY
+        stroke $ Line xStart currentY xEnd currentY
 
 -- Typesets the given VText, with the given options.
 typesetVText :: [VText] -> Font -> Datatypes.ValidatedTokens.FontSize -> Datatypes.ValidatedTokens.Justification -> Double -> Double -> Typesetter ()
@@ -176,29 +182,27 @@ typesetVText vText font size just beforeSpace afterSpace = do
     -- Fills containers page by page.
     fillBoxLoop [] = return () -- Done
     fillBoxLoop boxes = do
-        px <- gets pageX
-        cfg <- gets config
-        yStart <- gets currentY
-        page <- gets currentPage
+        RenderState{..} <- get
         
         -- Calculate available height from currentY down to the bottom margin and make a container with that size, taking into account the
         -- given spacing.
-        let marginX = fromPt (fromJust $ cfgHozMargin cfg)
-        let marginY = fromPt (fromJust $ cfgVertMargin cfg)
-        let width   = px - (marginX * 2) 
-        let height  = yStart - marginY 
+        let marginX = fromPt (fromJust $ cfgHozMargin config)
+        let marginY = fromPt (fromJust $ cfgVertMargin config)
+        let width   = pageX - (marginX * 2) 
+        let height  = currentY - marginY 
 
         -- The mkContainer function defines a container based on it's top left point.
-        let container = mkContainer marginX (yStart - beforeSpace) width height 0
-
+        let container = mkContainer marginX (currentY - beforeSpace) width height 0
         -- Fit boxes into container.
         let verState = defaultVerState NormalParagraph
+
+        -- Fill container.
         let (drawAction, usedContainer, remainingBoxes) = fillContainer verState container boxes
 
         -- Execute the resulting draw action on the current page.
-        lift $ drawWithPage page drawAction
+        lift $ drawWithPage currentPage drawAction
 
-        lift $ drawWithPage page $ do
+        lift $ drawWithPage currentPage $ do
             strokeColor blue
             stroke $ containerContentRectangle usedContainer
 
@@ -226,30 +230,53 @@ typesetParagraph vText mFont mSize mJust = do
 
     typesetVText vText font size just beforeSpace afterSpace
 
--- Typesets the given header.
-typesetSection :: [VText] -> Maybe Font -> Maybe Datatypes.ValidatedTokens.FontSize -> Typesetter ()
-typesetSection vText mFont mSize = do
-    cfg <- gets config
+-- Typesets both sections and subsections. 
+typesetHeader :: [VText] -> Maybe Font -> Maybe Datatypes.ValidatedTokens.FontSize -> Bool -> Typesetter ()
+typesetHeader vText mFont mSize isSection = do
+    RenderState{..} <- get
+    let SectionState{..} = sectionState
 
-    let font = fromJust $ mFont <|> cfgFont cfg
-    let size = fromJust $ mSize <|> cfgSectionSize cfg
-    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgSectionSpacing cfg
+    let font = fromJust $ mFont <|> cfgFont config
+    let (FontSize (Pt ptSize)) = fromJust $ mSize <|> cfgSectionSize config
+    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgSectionSpacing config
+    let numberingEnabled = fromJust $ cfgSectionNumbering config
 
-    -- Add header to PDF, the passed PDF monad is "return ()" because we only want the side effect of creating the bookmark.
-    lift $ newSection (mergeVText vText) Nothing Nothing (return ())
-    -- Typeset header
-    DT.trace (show beforeSpace ++ " - " ++ show afterSpace) typesetVText vText font size JustifyLeft beforeSpace afterSpace
+    let (label, newSecState, finalSize) = if isSection
+        then
+            let nextSec = currentSection + 1
+                lbl = show nextSec
+            in (lbl, SectionState nextSec 0, FontSize $ Pt ptSize)
+        else
+            let nextSub = currentSubsection + 1
+                lbl = show currentSection ++ "." ++ show nextSub
+            in (lbl, SectionState currentSection nextSub, FontSize (Pt $ ptSize * 0.8))
 
--- Typesets the given header.
-typesetSubsection :: [VText] -> Maybe Font -> Maybe Datatypes.ValidatedTokens.FontSize -> Typesetter ()
-typesetSubsection vText mFont mSize = do
-    cfg <- gets config
+    -- Update section state.
+    modify $ \s -> s { sectionState = newSecState }
 
-    let font = fromJust $ mFont <|> cfgFont cfg
-    let size = fromJust $ mSize <|> cfgSectionSize cfg
-    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgSectionSpacing cfg
+    let numbering = if numberingEnabled then T.pack $ label ++ " " else ""
+    let fullText = if numberingEnabled then (VText numbering Bold):vText else vText
 
-    -- Add header to PDF, the passed PDF monad is "return ()" because we only want the side effect of creating the bookmark.
-    lift $ newSection (mergeVText vText) Nothing Nothing (return ())
-    -- Typeset header
-    DT.trace (show beforeSpace ++ " - " ++ show afterSpace) typesetVText vText font size JustifyLeft beforeSpace afterSpace
+    let pfl = PDFLink "A great link" [50.0, 100.0] currentPage 500.0 250.0
+
+    -- Create bookmark in PDF.
+    lift $ newSectionWithPage (numbering <> mergeVText vText) Nothing Nothing currentPage (return ())
+
+    typesetVText fullText font finalSize JustifyLeft beforeSpace afterSpace
+
+typesetFigure :: FilePath -> PageWidth -> Maybe Caption -> Typesetter ()
+typesetFigure path width mCap = do
+    RenderState{..} <- get
+
+    -- Validation guarantees that all paths have a valid resource.
+    let (FileInfo bs w h) = fromJust $ M.lookup path resources
+
+    -- From the source code it seems this function expects raw pixel values.
+    img <- lift $ createPDFRawImageFromByteString w h True NoFilter bs
+
+    -- Draw image.
+    lift $ drawWithPage currentPage $ do
+      withNewContext $ do
+          drawXObject img
+
+    return ()

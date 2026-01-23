@@ -3,7 +3,6 @@
 module Typesetting.Helpers where
 
 import Datatypes.ValidatedTokens
-import Resources (LoadedFonts(..), getFont)
 
 import Data.Text (Text)
 import GHC.Float (double2Int)

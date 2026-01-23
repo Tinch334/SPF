@@ -26,9 +26,9 @@ source-repository head
 library
   exposed-modules:
       Common
-      Completion
       Datatypes.Located
       Datatypes.ParseTokens
+      Datatypes.Resources
       Datatypes.ValidatedTokens
       Lib
       Parser

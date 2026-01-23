@@ -86,6 +86,7 @@ data VConfig = VConfig
     , cfgListStyle          :: Maybe ListStyle
     , cfgVertMargin         :: Maybe Pt
     , cfgHozMargin          :: Maybe Pt
+    , cfgSectionNumbering   :: Maybe Bool
     } deriving (Show, Eq, Ord)
 
 -- Empty config for easy instantiation.
@@ -110,6 +111,7 @@ emptyVConfig = VConfig
     , cfgListStyle          = Nothing
     , cfgVertMargin         = Nothing
     , cfgHozMargin          = Nothing
+    , cfgSectionNumbering   = Nothing
     }
 
 -- Default configuration values for commands, determined by hand, to make the document aesthetically pleasant.
@@ -125,7 +127,7 @@ defaultVConfig = VConfig
     , cfgSpacingGlue        = Just $ Glue (Pt 2) (Pt 2)
     , cfgTextGlue           = Just $ Glue (Pt 2) (Pt 2)
     , cfgParIndent          = Just $ Pt 6
-    , cfgFont               = Just $ Helvetica
+    , cfgFont               = Just $ Times
     , cfgParSize            = Just $ FontSize (Pt 12)
     , cfgTitleSize          = Just $ FontSize (Pt 22)
     , cfgSectionSize        = Just $ FontSize (Pt 18)
@@ -134,6 +136,7 @@ defaultVConfig = VConfig
     , cfgListStyle          = Just $ ListBullet
     , cfgVertMargin         = Just $ Pt 45
     , cfgHozMargin          = Just $ Pt 50
+    , cfgSectionNumbering   = Just True
     }
     
 
