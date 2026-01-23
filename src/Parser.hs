@@ -157,7 +157,6 @@ mkBeginEndCommand n p c = CommandSpec n $ do
 
     op <- lexeme $ optional parseOptions
     b <- p <?> mkErrStr "" n " content"
-    void (string "\\end" >> braces (string n)) <?> "\\end"
 
     void (string "\\end") <?> "\\end"
     braces (string n) <?> mkErrStr "" n " for end"
@@ -224,6 +223,9 @@ textTypeToParser (TextType n c) = do
 
 parseSpecialText :: Parser PText
 parseSpecialText = do
+    -- Forces parsePText to stop if a structural command is encountered.
+    notFollowedBy (choice [string "\\item", string "\\end"])
+    -- Parse text.
     void (char '\\') <?> "escape for special text"
     choice (map (try . textTypeToParser) textTypesTable) <|> unknown where
         unknown = do
@@ -292,7 +294,10 @@ parseTable :: Parser [[[PText]]]
 parseTable = label "table" $ sepEndBy1 (sepBy1 parsePText (symbol "|")) (symbol "\\\\")
 
 parseList :: Parser [[PText]]
-parseList = label "list" $ sepBy1 parsePText (symbol "\\item{}")
+parseList = label "list" $ Text.Megaparsec.some $ do
+    sc
+    void $ symbol "\\item{}"
+    parsePText
 
 
 --------------------

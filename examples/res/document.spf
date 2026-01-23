@@ -50,7 +50,9 @@ central issue arising whenever we try to automate something properly is
 what he calls “the art of making constant things variable.”
 
 /*
-Causes weird artifacts
+LOOK INTO IT!!!!!!!!!!!
+Causes weird line breaking artifacts:
+
 In the case
 of letter design, we don’t merely want to take a particular drawing and
 come up with some mathematics to describe it; we really want to find
@@ -108,3 +110,22 @@ linear equations, so it is easy to compute the intersection of lines in
 METAFONT programs.
 
 \figure{AspectRatio.jpg}[width: 0.75, caption: Look at this calibration image]
+
+It turned out that it was not hard to achieve this level of quality
+with respect to the formatting of text, after about two years of work.
+For example, we did experiments with Time magazine to prove that
+Time would look much better if it had been done with TEX. But it
+turned out that the design of typefaces was much more difficult than
+I had anticipated; seven years went by before I was able to generate
+letterforms that I began to like.
+
+\begin{list}
+\item{} A list item, WOW
+
+\item{} A second thing
+
+\item{} We are up to threeee
+
+\item{} This is the last one :(
+
+\end{list}

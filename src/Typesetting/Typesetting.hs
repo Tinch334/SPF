@@ -102,6 +102,9 @@ typesetElements elements = do
             VFigure path width caption -> do
                 typesetFigure path width caption
 
+            VList list style -> do
+                typesetList list style
+
             VNewpage ->
                 makeNewPage
 
@@ -268,6 +271,7 @@ typesetHeader vText mFont mSize isSection = do
     -- Typeset section text.
     typesetContent (Left fullText) font finalSize JustifyLeft 0 beforeSpace afterSpace
 
+-- Typesets the given figure, with it's caption if present.
 typesetFigure :: FilePath -> PageWidth -> Maybe Caption -> Typesetter ()
 typesetFigure path (PageWidth givenWidth) mCap = do
     RenderState{..} <- get
@@ -363,8 +367,39 @@ typesetFigure path (PageWidth givenWidth) mCap = do
             else
                 return False
 
-typesetList :: [[VText]] -> Font -> Datatypes.ValidatedTokens.FontSize -> Datatypes.ValidatedTokens.Justification -> Typesetter ()
-typesetList vText font size just = do
+-- Typesets the given list.
+typesetList :: [[VText]] -> Maybe ListStyle -> Typesetter ()
+typesetList items mStyle = do
     RenderState{..} <- get
+
+    let size = fromJust $ cfgParSize config
+    let font = fromJust $ cfgFont config
+    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgListSpacing config
+
+    -- Get list style and convert it to a character
+    let styleToken = fromJust $ mStyle <|> cfgListStyle config
+    -- The style is a function that takes the item's position in the list and returns the corresponding string to use.
+    let styleFunction = case styleToken of
+            ListBullet -> \_ -> "•"
+            ListSquare -> \_ -> "■"
+            ListArrow -> \_ -> "⮞"
+            ListNumber -> \n -> show n ++ "."
+
+    let list = do
+            setJustification LeftJustification
+            paragraph $ do
+                -- Typeset each line.
+                forM_ (zip items [1..(length items)]) $ \(line, i) -> do
+                    kern 10
+                    txt $ T.pack (styleFunction i)
+                    kern 5
+                    -- Convert all text into HPDF paragraphs.
+                    forM_ line $ \(VText txtContent style) -> do
+                        -- Apply styling to segment.
+                        let styledFont = getFont loadedFonts font style
+                        setStyle (Font (PDFFont styledFont (convertFontSize size)) black black)
+                        txt txtContent
+
+    typesetContent (Right list) font size JustifyLeft 0 beforeSpace afterSpace
 
     return ()
