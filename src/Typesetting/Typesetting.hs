@@ -20,6 +20,8 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Maybe (fromJust)
 
+import GHC.Float (int2Double)
+
 import Graphics.PDF
 import Graphics.PDF.Typesetting
 
@@ -265,7 +267,7 @@ typesetHeader vText mFont mSize isSection = do
     typesetVText fullText font finalSize JustifyLeft beforeSpace afterSpace
 
 typesetFigure :: FilePath -> PageWidth -> Maybe Caption -> Typesetter ()
-typesetFigure path width mCap = do
+typesetFigure path (PageWidth givenWidth) mCap = do
     RenderState{..} <- get
 
     -- Validation guarantees that all paths have a valid resource.
@@ -274,9 +276,22 @@ typesetFigure path width mCap = do
     -- From the source code it seems this function expects raw pixel values.
     img <- lift $ createPDFRawImageFromByteString w h True NoFilter bs
 
+    -- Calculate image scale and position.
+    let imageRatio = (int2Double w) / (int2Double h)
+    let figureWidth = pageX * givenWidth
+    let figureHeight = figureWidth / imageRatio
+
+    let figureX = (pageX - figureWidth) / 2
+    let figureY = currentY - figureHeight
+
+    let figureScaleX = (1 / (int2Double w)) * figureWidth
+    let figureScaleY = (1 / (int2Double h)) * figureHeight
+
     -- Draw image.
     lift $ drawWithPage currentPage $ do
-      withNewContext $ do
-          drawXObject img
+        withNewContext $ do
+            applyMatrix $ translate (figureX :+ figureY)
+            applyMatrix $ scale figureScaleX figureScaleY
+            drawXObject img
 
     return ()
