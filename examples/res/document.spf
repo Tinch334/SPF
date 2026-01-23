@@ -49,12 +49,15 @@ text.I discussed this recently with Alan Perlis, who pointed out that a
 central issue arising whenever we try to automate something properly is
 what he calls “the art of making constant things variable.”
 
+/*
+Causes weird artifacts
 In the case
 of letter design, we don’t merely want to take a particular drawing and
 come up with some mathematics to describe it; we really want to find
 the principles underlying the drawing, so that we can generate infinitely
 many drawings (including the given one) as a function of appropriate
 parameters.
+*/
 
 After looking at these Renaissance constructions and a lot of mod-
 ern S shapes, I came to the conclusion that the main stroke of the
@@ -99,4 +102,9 @@ I spent several hours deriving and rederiving the formulas whenever I
 needed them. Finally I decided to write this paper so that I wouldn’t
 have to derive the answer again.
 
-\figure{AspectRatio.jpg}[width: 0.5]
+These four simultaneous linear equations in x, y, α, and β are easily
+solved; and in fact METAFONT will automatically solve simultaneous
+linear equations, so it is easy to compute the intersection of lines in
+METAFONT programs.
+
+\figure{AspectRatio.jpg}[width: 0.75, caption: Look at this calibration image]

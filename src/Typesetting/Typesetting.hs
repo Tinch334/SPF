@@ -48,6 +48,7 @@ data RenderState = RenderState
 
 -- Provides access to all rendering information, additionally it handles the current state of the PDF monad.
 type Typesetter a = StateT RenderState PDF a
+type HPDFParagraph = TM StandardParagraphStyle StandardStyle ()
 
 -- Helper function to run the typesetter.
 runTypesetter :: RenderState -> Typesetter a -> PDF a
@@ -107,20 +108,21 @@ typesetElements elements = do
             VHLine ->
                 drawHLine
 
-        ensureSpace
+        cs <- checkSpace
+        if cs then makeNewPage else return ()
 
 
 ------------------------
 -- AUXILIARY FUNCTIONS
 ------------------------
--- Checks if the cursor is below the bottom margin, if so makes a new page.
-ensureSpace :: Typesetter ()
-ensureSpace = do
+-- Checks if the cursor is below the bottom margin, if so returns "True".
+checkSpace :: Typesetter (Bool)
+checkSpace = do
     RenderState{..} <- get
 
     let marginY = fromPt (fromJust $ cfgVertMargin config)
 
-    if currentY < marginY then makeNewPage else return ()
+    return $ currentY < marginY
 
 -- Creates a new page.
 makeNewPage :: Typesetter ()
@@ -148,44 +150,44 @@ drawHLine = do
         strokeColor black
         stroke $ Line xStart currentY xEnd currentY
 
--- Typesets the given VText, with the given options.
-typesetVText :: [VText] -> Font -> Datatypes.ValidatedTokens.FontSize -> Datatypes.ValidatedTokens.Justification -> Double -> Double -> Typesetter ()
-typesetVText vText font size just beforeSpace afterSpace = do
-    cfg <- gets config
-    lf <- gets loadedFonts
-    
-    let cSize = convertFontSize size
-    -- Get justification and convert to PDF data.
-    let cJust = case just of
-            JustifyLeft   -> LeftJustification
-            JustifyRight  -> RightJustification
-            JustifyCenter -> Centered
-            JustifyFull   -> FullJustification
+-- Typesets the given VText or paragraph, with the given options. Note that justification and indentation only have an effect in VText mode.
+typesetContent :: (Either [VText] HPDFParagraph) -> Font -> Datatypes.ValidatedTokens.FontSize -> Datatypes.ValidatedTokens.Justification -> Double -> Double -> Double -> Typesetter ()
+typesetContent content font size just indent beforeSpace afterSpace = do
+    RenderState{..} <- get
 
     -- Maps VText tokens to PDF typesetting instructions. Defined with in function so we can use "let" defined variables.
-    let textGenerator :: TM StandardParagraphStyle StandardStyle ()
-        textGenerator = do
+    let textGenerator vText = do
+            let cSize = convertFontSize size
+            -- Get justification and convert to PDF data.
+            let cJust = case just of
+                    JustifyLeft   -> LeftJustification
+                    JustifyRight  -> RightJustification
+                    JustifyCenter -> Centered
+                    JustifyFull   -> FullJustification
+
             setJustification cJust
             paragraph $ do
+                kern indent
                 -- Convert all text into HPDF paragraphs.
                 forM_ vText $ \(VText txtContent style) -> do
                     -- Apply styling to segment.
-                    let styledFont = getFont lf font style
+                    let styledFont = getFont loadedFonts font style
                     setStyle (Font (PDFFont styledFont cSize) black black)
                     txt txtContent
 
-    -- The text instructions are converted into a list of renderable boxes. StandardParagraphStyle 'NormalParagraph' is used as the baseline
-    -- context.
-    let boxes = getBoxes NormalParagraph (Font (PDFFont (getFont lf font Normal) cSize) black black) textGenerator
+    -- The content is converted into a list of renderable boxes. The style 'NormalParagraph' is used as the baseline context.
+    let cnt = case content of
+            Left text -> textGenerator text
+            Right para -> para
+    let boxes = getBoxes NormalParagraph (Font (PDFFont (getFont loadedFonts font Normal) (convertFontSize size)) black black) cnt
 
     fillBoxLoop boxes
-
   where
     -- Fills containers page by page.
     fillBoxLoop [] = return () -- Done
     fillBoxLoop boxes = do
         RenderState{..} <- get
-        
+            
         -- Calculate available height from currentY down to the bottom margin and make a container with that size, taking into account the
         -- given spacing.
         let marginX = fromPt (fromJust $ cfgHozMargin config)
@@ -195,7 +197,6 @@ typesetVText vText font size just beforeSpace afterSpace = do
 
         -- The mkContainer function defines a container based on it's top left point.
         let container = mkContainer marginX (currentY - beforeSpace) width height 0
-        -- Fit boxes into container.
         let verState = defaultVerState NormalParagraph
 
         -- Fill container.
@@ -210,11 +211,11 @@ typesetVText vText font size just beforeSpace afterSpace = do
 
         -- Update State, containerContentRectangle tells us the bounds of the text explicitly placed.
         let (Rectangle (_ :+ newBottomY) _) = containerContentRectangle usedContainer
-        
+            
         if null remainingBoxes
             then do
                 -- Text fits on page, update cursor to the bottom of the placed text plus paragraph spacing.
-                modify $ \s -> s { currentY = newBottomY - afterSpace}
+                modify $ \s -> s { currentY = newBottomY - afterSpace }
             else do
                 -- Overflow, force new page and render remaining boxes.
                 makeNewPage
@@ -228,9 +229,10 @@ typesetParagraph vText mFont mSize mJust = do
     let font = fromJust $ mFont <|> cfgFont cfg
     let size = fromJust $ mSize <|> cfgParSize cfg
     let just = fromJust $ mJust <|> cfgJustification cfg
+    let (Pt indent) = fromJust $ cfgParIndent cfg
     let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgParagraphSpacing cfg
 
-    typesetVText vText font size just beforeSpace afterSpace
+    typesetContent (Left vText) font size just indent beforeSpace afterSpace
 
 -- Typesets both sections and subsections. 
 typesetHeader :: [VText] -> Maybe Font -> Maybe Datatypes.ValidatedTokens.FontSize -> Bool -> Typesetter ()
@@ -239,7 +241,8 @@ typesetHeader vText mFont mSize isSection = do
     let SectionState{..} = sectionState
 
     let font = fromJust $ mFont <|> cfgFont config
-    let (FontSize (Pt ptSize)) = fromJust $ mSize <|> cfgSectionSize config
+    let sectionSize = fromJust $ mSize <|> cfgSectionSize config
+    let subsectionSize = fromJust $ mSize <|> cfgSubsectionSize config
     let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgSectionSpacing config
     let numberingEnabled = fromJust $ cfgSectionNumbering config
 
@@ -247,24 +250,23 @@ typesetHeader vText mFont mSize isSection = do
         then
             let nextSec = currentSection + 1
                 lbl = show nextSec
-            in (lbl, SectionState nextSec 0, FontSize $ Pt ptSize)
+            in (lbl, SectionState nextSec 0, sectionSize)
         else
             let nextSub = currentSubsection + 1
                 lbl = show currentSection ++ "." ++ show nextSub
-            in (lbl, SectionState currentSection nextSub, FontSize (Pt $ ptSize * 0.8))
+            in (lbl, SectionState currentSection nextSub, subsectionSize)
 
     -- Update section state.
     modify $ \s -> s { sectionState = newSecState }
 
-    let numbering = if numberingEnabled then T.pack $ label ++ " " else ""
+    let numbering = if numberingEnabled then T.pack $ label ++ ". " else ""
     let fullText = if numberingEnabled then (VText numbering Bold):vText else vText
-
-    let pfl = PDFLink "A great link" [50.0, 100.0] currentPage 500.0 250.0
 
     -- Create bookmark in PDF.
     lift $ newSectionWithPage (numbering <> mergeVText vText) Nothing Nothing currentPage (return ())
 
-    typesetVText fullText font finalSize JustifyLeft beforeSpace afterSpace
+    -- Typeset section text.
+    typesetContent (Left fullText) font finalSize JustifyLeft 0 beforeSpace afterSpace
 
 typesetFigure :: FilePath -> PageWidth -> Maybe Caption -> Typesetter ()
 typesetFigure path (PageWidth givenWidth) mCap = do
@@ -272,8 +274,10 @@ typesetFigure path (PageWidth givenWidth) mCap = do
 
     -- Validation guarantees that all paths have a valid resource.
     let (FileInfo bs w h) = fromJust $ M.lookup path resources
+    -- Get figure spacing.
+    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgFigureSpacing config
 
-    -- From the source code it seems this function expects raw pixel values.
+    -- This function expects raw pixel values; Or so I think, from reading the source code.
     img <- lift $ createPDFRawImageFromByteString w h True NoFilter bs
 
     -- Calculate image scale and position.
@@ -282,16 +286,85 @@ typesetFigure path (PageWidth givenWidth) mCap = do
     let figureHeight = figureWidth / imageRatio
 
     let figureX = (pageX - figureWidth) / 2
-    let figureY = currentY - figureHeight
+    let figureY = currentY - figureHeight - beforeSpace
 
     let figureScaleX = (1 / (int2Double w)) * figureWidth
     let figureScaleY = (1 / (int2Double h)) * figureHeight
 
-    -- Draw image.
-    lift $ drawWithPage currentPage $ do
-        withNewContext $ do
-            applyMatrix $ translate (figureX :+ figureY)
-            applyMatrix $ scale figureScaleX figureScaleY
-            drawXObject img
+    let drawFigure =
+            lift (drawWithPage currentPage $ do -- Indented clearly past 'drawFigure'
+                withNewContext $ do
+                    applyMatrix (translate (figureX :+ figureY))
+                    applyMatrix (scale figureScaleX figureScaleY)
+                    drawXObject img)
+
+    -- Update cursor by the height of the figure, spacing after it is added later..
+    modify $ \s -> s { currentY = figureY }
+    cs <- checkSpace
+
+    -- Check if there's enough space to fit the figure, if there's not create a new page and typeset it there.
+    if cs
+        then do
+            makeNewPage
+            typesetFigure path (PageWidth givenWidth) mCap
+        else -- Draw image and potentially caption.
+            case mCap of
+                Just (Caption caption) -> do
+                    mkRes <- makeFigureCaption caption afterSpace
+                    -- Check if there's enough space to fit the figure and caption, if there's not create a new page and typeset it there.
+                    if mkRes then drawFigure else typesetFigure path (PageWidth givenWidth) (Just $ Caption caption)
+
+                -- No caption, draw figure and spacing directly..
+                Nothing -> do
+                    modify $ \s -> s { currentY = currentY - afterSpace }
+                    drawFigure
+
+    return ()
+  where
+    -- The signature is required, otherwise Haskell complains about inferring a concrete type.
+    makeFigureCaption :: Text -> Double -> Typesetter Bool
+    makeFigureCaption caption afterSpace = do
+        RenderState{..} <- get
+
+        let font = fromJust $ cfgFont config
+
+        -- Generate and format the text, then put it in a box.
+        let boxes = getBoxes NormalParagraph (Font (PDFFont (getFont loadedFonts font Normal) 12) black black) $ do
+                setJustification Centered
+                paragraph $ do 
+                    txt caption
+        
+        -- Space between figure and caption.
+        let figureCaptionSpacing = 10
+        -- Calculate available height from currentY down to the bottom margin and make a container with that size, taking into account the
+        -- given spacing.
+        let marginX = fromPt (fromJust $ cfgHozMargin config)
+        let marginY = fromPt (fromJust $ cfgVertMargin config)
+        let width   = pageX - (marginX * 2) 
+        let height  = currentY - marginY
+
+        -- The mkContainer function defines a container based on it's top left point.
+        let container = mkContainer marginX (currentY - figureCaptionSpacing) width height 0
+        let verState = defaultVerState NormalParagraph
+
+        -- Fill container.
+        let (drawAction, usedContainer, remainingBoxes) = fillContainer verState container boxes
+
+        -- Update State, containerContentRectangle tells us the bounds of the text explicitly placed.
+        let (Rectangle (_ :+ newBottomY) _) = containerContentRectangle usedContainer
+        
+        if null remainingBoxes
+            then do
+                -- Text fits on page, add caption; Then update cursor to the bottom of the placed text plus paragraph spacing.
+                lift $ drawWithPage currentPage drawAction
+                modify $ \s -> s { currentY = newBottomY - afterSpace }
+
+                return True
+            else
+                return False
+
+typesetList :: [[VText]] -> Font -> Datatypes.ValidatedTokens.FontSize -> Datatypes.ValidatedTokens.Justification -> Typesetter ()
+typesetList vText font size just = do
+    RenderState{..} <- get
 
     return ()

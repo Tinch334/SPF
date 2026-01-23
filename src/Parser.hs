@@ -237,7 +237,7 @@ parseRawText = label "raw paragraph" $ do
     return (foldl mappend "" l) -- Additional spaces are not trimmed, this is done later depending on the type of text.
 
 parseRawTextLine :: Parser Text
-parseRawTextLine = takeWhile1P (Just "raw line") (\c -> notElem c (['\\', '{', '}'] ++ ['\n', '\r', '\036']))
+parseRawTextLine = takeWhile1P (Just "raw line") (\c -> notElem c (['\\', '{', '}', '\n', '\r', '\036']))
 
 -- Succeeds when a single newline is present.
 singleNewline :: Parser ()
@@ -329,6 +329,7 @@ parseOptionValue = label "option value" $ choice
     [ try $ PNumber <$> L.float -- Goes first otherwise a float might be interpreted as a decimal number and committed, leaving a ".".
     , PNumber . int2Double <$> L.decimal -- The function "fromIntegral" is not used since it performs silent truncation.
     , do
-        t <- Text.Megaparsec.some letterChar
+        ic <- letterChar
+        t <- Text.Megaparsec.some (alphaNumChar <|> spaceChar)
         notFollowedBy (symbol ":") -- Avoids situations where there's a value and colon followed by nothing, for example "key:".
-        return (PText $ T.pack t) ]
+        return (PText $ T.pack $ ic:t) ]
