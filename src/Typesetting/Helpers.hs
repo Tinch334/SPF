@@ -26,6 +26,9 @@ pageSizeToRect (SizeCustom (Pt w) (Pt h)) = PDFRect 0 0 w h
 convertFontSize :: Datatypes.ValidatedTokens.FontSize -> Int
 convertFontSize (FontSize (Pt pt)) = double2Int pt
 
+convertAdjustFontSize :: Datatypes.ValidatedTokens.FontSize -> Double -> Int
+convertAdjustFontSize (FontSize (Pt pt)) a = double2Int (pt * a)
+
 fromPt :: Pt -> Double
 fromPt (Pt s) = s
 ------------------------

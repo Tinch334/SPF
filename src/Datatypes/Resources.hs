@@ -17,17 +17,20 @@ type ResourceMap = Map FilePath FileInfo
 
 
 data LoadedFonts = LoadedFonts
-    { h   :: AnyFont
-    , hb  :: AnyFont
-    , hi  :: AnyFont
-    , hbi :: AnyFont
-    , t   :: AnyFont
-    , tb  :: AnyFont
-    , ti  :: AnyFont
-    , tbi :: AnyFont
-    , c   :: AnyFont
-    , cb  :: AnyFont
-    , ci  :: AnyFont
-    , cbi :: AnyFont
+    { h         :: AnyFont
+    , hb        :: AnyFont
+    , hi        :: AnyFont
+    , hbi       :: AnyFont
+    , t         :: AnyFont
+    , tb        :: AnyFont
+    , ti        :: AnyFont
+    , tbi       :: AnyFont
+    , c         :: AnyFont
+    , cb        :: AnyFont
+    , ci        :: AnyFont
+    , cbi       :: AnyFont
+    -- These styles are not for text fonts, but symbols.
+    , symbols   :: AnyFont
+    , zapf      :: AnyFont
     }
     deriving (Show, Eq)

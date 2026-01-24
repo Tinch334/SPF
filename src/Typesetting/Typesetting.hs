@@ -376,14 +376,24 @@ typesetList items mStyle = do
     let font = fromJust $ cfgFont config
     let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgListSpacing config
 
-    -- Get list style and convert it to a character
+    -- Get list style and convert it to a character.
     let styleToken = fromJust $ mStyle <|> cfgListStyle config
-    -- The style is a function that takes the item's position in the list and returns the corresponding string to use.
+    let styleZap = setStyle (Font (PDFFont (zapf loadedFonts) (convertAdjustFontSize size 0.6)) black black)
+
+    -- The style is a function that takes the item's position in the list and returns the element to typeset.
     let styleFunction = case styleToken of
-            ListBullet -> \_ -> "•"
-            ListSquare -> \_ -> "■"
-            ListArrow -> \_ -> "⮞"
-            ListNumber -> \n -> show n ++ "."
+            ListBullet -> \_ -> do
+                styleZap
+                txt $ "●"
+            ListSquare -> \_ -> do
+                styleZap
+                txt $ "■"
+            ListArrow -> \_ -> do
+                styleZap
+                txt $ "➤"
+            ListNumber -> \n -> do
+                setStyle (Font (PDFFont (getFont loadedFonts font Normal) (convertFontSize size)) black black)
+                txt $ T.pack $ show n ++ "."
 
     let list = do
             setJustification LeftJustification
@@ -391,7 +401,7 @@ typesetList items mStyle = do
                 -- Typeset each line.
                 forM_ (zip items [1..(length items)]) $ \(line, i) -> do
                     kern 10
-                    txt $ T.pack (styleFunction i)
+                    styleFunction i
                     kern 5
                     -- Convert all text into HPDF paragraphs.
                     forM_ line $ \(VText txtContent style) -> do
@@ -399,6 +409,7 @@ typesetList items mStyle = do
                         let styledFont = getFont loadedFonts font style
                         setStyle (Font (PDFFont styledFont (convertFontSize size)) black black)
                         txt txtContent
+                        forceNewLine
 
     typesetContent (Right list) font size JustifyLeft 0 beforeSpace afterSpace
 

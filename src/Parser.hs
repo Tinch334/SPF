@@ -294,10 +294,12 @@ parseTable :: Parser [[[PText]]]
 parseTable = label "table" $ sepEndBy1 (sepBy1 parsePText (symbol "|")) (symbol "\\\\")
 
 parseList :: Parser [[PText]]
-parseList = label "list" $ Text.Megaparsec.some $ do
-    sc
+parseList = label "list" $ Text.Megaparsec.many $ do
     void $ symbol "\\item{}"
-    parsePText
+    t <- parsePText
+    sc -- Consume trailing whitespace.
+
+    return t
 
 
 --------------------

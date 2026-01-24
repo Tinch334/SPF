@@ -109,6 +109,8 @@ loadFonts = do
     cbInner <- loadFont SF.Courier_Bold
     ciInner <- loadFont SF.Courier_Oblique
     cbiInner <- loadFont SF.Courier_BoldOblique
+    symbolsInner <- loadFont SF.Symbol
+    zapfInner <- loadFont SF.ZapfDingbats
 
     return $ LoadedFonts 
         { h   = hInner
@@ -123,6 +125,8 @@ loadFonts = do
         , cb  = cbInner
         , ci  = ciInner
         , cbi = cbiInner
+        , symbols = symbolsInner
+        , zapf = zapfInner
         }
 
 -- Attempts to load a standard font.

@@ -119,13 +119,9 @@ turned out that the design of typefaces was much more difficult than
 I had anticipated; seven years went by before I was able to generate
 letterforms that I began to like.
 
-\begin{list}
+\begin{list}[style: arrow]
 \item{} A list item, WOW
-
 \item{} A second thing
-
 \item{} We are up to threeee
-
 \item{} This is the last one :(
-
 \end{list}
