@@ -1,3 +1,5 @@
+{-# LANGUAGE StrictData #-}
+
 module Datatypes.Resources where
 
 import Data.Map (Map)

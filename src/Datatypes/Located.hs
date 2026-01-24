@@ -1,3 +1,5 @@
+{-# LANGUAGE StrictData #-}
+
 module Datatypes.Located
     ( Located(..)
     , LocatedError(..)

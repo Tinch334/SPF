@@ -6,14 +6,14 @@ import Datatypes.ParseTokens
 import Datatypes.Located (Located(..))
 import Common
 
-import Control.Applicative
-import Control.Monad
+import Control.Applicative hiding (many, some)
+import Control.Monad (void)
 
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Char as DC
-import Data.Maybe (isNothing)
 import GHC.Float (int2Double)
+import Data.Functor (($>))
 
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -92,11 +92,7 @@ parseLanguage = do
     meta <- parseMeta
     doc <- parseDocument
 
-    return $ ParsedDocument
-        { pdConfig = cfg
-        , pdMetadata = meta
-        , pdContent = doc
-        }
+    return $ ParsedDocument cfg meta doc
 
 -- Parse metadata commands, ensuring at most one of each kind is present.
 parseMeta :: Parser DocumentMetadata
@@ -109,9 +105,7 @@ parseMeta = DocumentMetadata
             arg <- braces parsePText
             maybeOp <- optional $ lexeme parseOptions
             void sc -- There might be blank space between metadata definitions.
-            case maybeOp of
-                Just op -> return $ PMetaOpt (c arg) op
-                Nothing -> return $ PMetaOpt (c arg) POptionNone
+            return $ PMetaOpt (c arg) (maybe POptionNone id maybeOp)
 
 parseDocument :: Parser [Located PCommOpt]
 parseDocument = sepEndBy1 documentOptions sc where
@@ -136,9 +130,7 @@ mkSimpleCommand n p c = CommandSpec n $ do
     arg <- braces p <?> mkErrStr "" n " argument"
     op <- lexeme $ optional parseOptions
 
-    case op of
-        Nothing -> return (PCommOpt (c arg) POptionNone)
-        Just l -> return (PCommOpt (c arg) l)
+    return $ PCommOpt (c arg) (maybe POptionNone id op)
 
 -- Helper for a command with no argument "\comm[opts].
 mkNoArgCommand :: Text -> PComm -> CommandSpec
@@ -146,9 +138,7 @@ mkNoArgCommand n c = CommandSpec n $ do
     void (string $ "\\" <> n) <?> "\\" ++ T.unpack n
     op <- lexeme $ optional parseOptions
 
-    case op of
-        Nothing -> return (PCommOpt c POptionNone)
-        Just l -> return (PCommOpt c l)
+    return $ PCommOpt c (maybe POptionNone id op)
 
 mkBeginEndCommand :: Text -> Parser a -> (a -> PComm) -> CommandSpec
 mkBeginEndCommand n p c = CommandSpec n $ do
@@ -161,31 +151,30 @@ mkBeginEndCommand n p c = CommandSpec n $ do
     void (string "\\end") <?> "\\end"
     braces (string n) <?> mkErrStr "" n " for end"
 
-    case op of
-        Nothing -> return (PCommOpt (c b) POptionNone)
-        Just l -> return (PCommOpt (c b) l)
+    return $ PCommOpt (c b) (maybe POptionNone id op)
 
 -- Parses a command and it's options.
 parseCommand :: [CommandSpec] -> Parser PCommOpt
 parseCommand lst = do
-    label "command" $ choice [try (cmdParser l <?> T.unpack (cmdName l)) | l <- lst] <|> try unknown where
-        -- Runs after all other commands are tried, detects invalid commands.
-        unknown = do
-            void (char '\\')
-            c <- Text.Megaparsec.some letterChar
-            unknownCommand (T.pack c)
+    label "command" $ choice [try (cmdParser l <?> T.unpack (cmdName l)) | l <- lst] <|> try unknown
+  where
+    -- Runs after all other commands are tried, detects invalid commands.
+    unknown = do
+        void (char '\\')
+        c <- some letterChar
+        unknownCommand (T.pack c)
 
 
 -- Commands accepted in the document.
 documentCommandTable :: [CommandSpec]
 documentCommandTable =
-    [ mkSimpleCommand       "section"       parsePText      PSection        -- Commands with arguments.
+    [ mkSimpleCommand       "section"       parsePText      PSection
     , mkSimpleCommand       "subsection"    parsePText      PSubsection
     , mkSimpleCommand       "figure"        parseFilepath   PFigure
     , mkBeginEndCommand     "paragraph"     parsePText      PParagraph
     , mkBeginEndCommand     "table"         parseTable      PTable
     , mkBeginEndCommand     "list"          parseList       PList
-    , mkNoArgCommand        "newpage"       PNewpage                        -- Commands with no arguments.
+    , mkNoArgCommand        "newpage"       PNewpage
     , mkNoArgCommand        "hline"         PHLine
     ]
 
@@ -201,7 +190,7 @@ parseParagraph = label "paragraph" $ do
         return $ PCommOpt (PParagraph t) POptionNone
 
 parsePText :: Parser [PText]
-parsePText = Text.Megaparsec.some (choice [parseSpecialText, PNormal <$> parseRawText])
+parsePText = some (choice [parseSpecialText, PNormal <$> parseRawText])
 
 -- Similar idea to CommandSpec, simplified to the valid text types. In this case a quantifier isn't necessary, because all constructors take
 -- a string as their argument.
@@ -229,7 +218,7 @@ parseSpecialText = do
     void (char '\\') <?> "escape for special text"
     choice (map (try . textTypeToParser) textTypesTable) <|> unknown where
         unknown = do
-            c <- Text.Megaparsec.some letterChar
+            c <- some letterChar
             unknownText (T.pack c)
 
 -- Parsing raw text is done one character at a time, this parser stops after hitting an empty line. Follows LaTeX style paragraph separation.
@@ -242,7 +231,7 @@ controlChars :: [Char]
 controlChars = ['\\', '{', '}', '"', '/', '\n', '\r', '\036']
 
 parseRawTextLine :: Parser Text
-parseRawTextLine = T.pack <$> Text.Megaparsec.some (try escapedChar <|> normalChar)
+parseRawTextLine = T.pack <$> some (try escapedChar <|> normalChar)
   where
     -- Allows for character escaping, matches a '\' then accepts a control character that couldn't have been read normally. Otherwise
     -- commands would never match, since they would be treated as an escaped character.
@@ -252,12 +241,8 @@ parseRawTextLine = T.pack <$> Text.Megaparsec.some (try escapedChar <|> normalCh
 
 -- Succeeds when a single newline is present.
 singleNewline :: Parser ()
-singleNewline = try $ parseNewline *> notFollowedBy parseNewline where
-    parseNewline = choice
-        [ string "\r\n"
-        , string "\n\r"
-        , string "\n"
-        , string "\r" ]
+singleNewline = try $ eol *> notFollowedBy eol
+
 
 --------------------
 -- CONFIGURATION PARSING FUNCTIONS
@@ -267,10 +252,8 @@ parseConfigCommand = label "configuration command" $ do
     void (string "\\config") <?> "\\config"
     arg <- braces parseConfigArg <?> "config argument"
     maybeOp <- lexeme $ optional parseOptions
-    case maybeOp of
-        Just op -> return $ PConfig arg op
-        Nothing -> return $ PConfig arg POptionNone
 
+    return $ PConfig arg (maybe POptionNone id maybeOp)
 
 -- Parses configuration arguments.
 parseConfigArg :: Parser PConfigArg
@@ -292,6 +275,10 @@ parseConfigArg = label "config option" $ choice
     , PJustification    <$ string "justification"
     , PListstyle        <$ string "style" ]
 
+
+--------------------
+-- AUXILIARY PARSING FUNCTIONS
+--------------------
 -- Parses a filepath, doesn't check that it's valid. Follows POSIX standard "Fully portable filenames", adding spaces.
 parseFilepath :: Parser FilePath
 parseFilepath = label "filepath" $ do
@@ -303,8 +290,9 @@ parseTable :: Parser [[[PText]]]
 parseTable = label "table" $ sepEndBy1 (sepBy1 parsePText (symbol "|")) (symbol "\\\\")
 
 parseList :: Parser [[PText]]
-parseList = label "list" $ Text.Megaparsec.many $ do
-    void $ symbol "\\item{}"
+parseList = label "list" $ many $ do
+    void $ symbol "\\item"
+    void $ optional (string "{}")
     t <- parsePText
     sc -- Consume trailing whitespace.
 
@@ -319,7 +307,6 @@ parseList = label "list" $ Text.Megaparsec.many $ do
 parseOptions :: Parser POption
 parseOptions = label "options" $ between (symbol "[") (symbol "]") $ do
     l <- parseOptionList
-    -- Check that all options are of the same type, otherwise throw an error.
     return $ POptionMap l
 
 -- Parses all elements in the list, regardless of type.
@@ -329,14 +316,12 @@ parseOptionList = label "option" $ sepBy1 (lexeme parseOptionMap) (symbol ",")
 -- Parses an option in map form.
 parseOptionMap :: Parser POptionPair
 parseOptionMap = label "option pair" $ do
-    k <- lexeme $ Text.Megaparsec.some letterChar
-    -- Check for ":" if not present throw error.
+    k <- lexeme (some letterChar)
+    -- Check for ":", if not present throw error.
     colon <- optional (symbol ":")
     case colon of
-        Just _ -> do
-            v <- lexeme parseOptionValue
-            return $ (T.pack k, v)
-        Nothing -> invalidOptions $ T.pack ("Missing value for key " ++ quote (T.pack k))
+        Just _ -> (,) (T.pack k) <$> lexeme parseOptionValue
+        Nothing -> invalidOptions $ T.pack ("Missing value for key " <> k)
 
 -- Parses an option in value form., note that both integers and floats are returned as numbers, the parsing separation is simply
 -- because there's not a single parser for integers and floats.
@@ -344,11 +329,13 @@ parseOptionValue :: Parser POptionValue
 parseOptionValue = label "option value" $ choice
     [ try $ PNumber <$> L.float -- Goes first otherwise a float might be interpreted as a decimal number and committed, leaving a ".".
     , PNumber . int2Double <$> L.decimal -- The function "fromIntegral" is not used since it performs silent truncation.
-    , try $ do -- This is meant for options that take a single word, for example "style".
-        t <- Text.Megaparsec.some letterChar
-        notFollowedBy (symbol ":") -- Avoids situations where there's a value and colon followed by nothing, for example "key:".
-        return (PText $ T.pack t)
-    , do -- This is meant for options that text, for example "caption".
-        t <- between (space *> string "\"") (string "\"") parseRawTextLine
-        notFollowedBy (symbol ":") -- Avoids situations where there's a value and colon followed by nothing, for example "key:".
-        return (PText t) ]
+    , PText <$> stringLiteral
+    , PText . T.pack <$> identifier
+    ]
+
+  where
+    stringLiteral = between (char '"') (char '"') parseRawTextLine
+    identifier = do
+        t <- some letterChar
+        notFollowedBy (symbol ":")
+        return t

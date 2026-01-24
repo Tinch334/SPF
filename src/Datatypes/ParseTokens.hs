@@ -1,7 +1,11 @@
+{-# LANGUAGE StrictData #-}
+
 module Datatypes.ParseTokens where
 
 import Datatypes.Located (Located(..))
 import Data.Text (Text)
+import qualified Data.Text as T
+import Data.List (intercalate)
 
 
 --------------------
@@ -9,9 +13,9 @@ import Data.Text (Text)
 --------------------
 -- These structures are used for easier document processing, and to avoid later searches of a list of tokens, which would be inefficient.
 data ParsedDocument = ParsedDocument
-    { pdConfig      :: [Located PConfig] -- List for configurations.
-    , pdMetadata    :: DocumentMetadata        -- Stores the Title/Author/Date.
-    , pdContent     :: [Located PCommOpt]      -- The body of the document.
+    { pdConfig      :: [Located PConfig]    -- List for configurations.
+    , pdMetadata    :: DocumentMetadata     -- Stores the Title/Author/Date.
+    , pdContent     :: [Located PCommOpt]   -- The body of the document.
     } deriving (Eq)
 
 
@@ -26,16 +30,21 @@ emptyMetadata = DocumentMetadata Nothing Nothing Nothing
 
 -- Make verbose output more legible.
 instance Show ParsedDocument where
-    show (ParsedDocument cfg meta cnt) = 
-        "\nConfiguration\n-------------\n" ++ concatMap (\e -> show e ++ "\n") cfg ++
-        "\nMetadata\n--------\n" ++ show meta ++ 
-        "\nDocument\n--------\n" ++ concatMap (\e -> show e ++ "\n") cnt
+    show (ParsedDocument cfg meta cnt) = unlines
+        [ "\nConfiguration\n-------------"
+        , unlines (map show cfg)
+        , "\nMetadata\n--------\n"
+        , show meta
+        , "\nDocument\n--------\n"
+        , unlines (map show cnt)
+        ]
 
 instance Show DocumentMetadata where
-    show (DocumentMetadata t a d) =
-       "Title: " ++ maybe "None" show t ++ "\n" ++
-       "Author: " ++ maybe "None" show a ++ "\n" ++
-       "Date: " ++ maybe "None" show d ++ "\n"
+    show (DocumentMetadata t a d) = unlines 
+        [ "Title: " ++ maybe "None" show t
+        , "Author: " ++ maybe "None" show a
+        , "Date: " ++ maybe "None" show d
+        ]
 
 
 --------------------
@@ -56,7 +65,6 @@ instance Show POption where
     show (POptionMap m) = show m
     show POptionNone = "-"
 
-
 -- Different data definitions are used to reduce ambiguity and avoid representing incorrect information and. For example a metadata field with
 -- a command.
 data PConfig = PConfig PConfigArg POption
@@ -69,12 +77,11 @@ data PMeta  = PTitle       [PText]
             | PDate        [PText]
             deriving (Show, Eq, Ord)
 
-
 data PCommOpt = PCommOpt PComm POption
    deriving (Eq, Ord)
 
 instance Show PCommOpt where
-    show (PCommOpt comm opts) = show comm ++ "\n" ++ replicate 4 ' ' ++ show opts
+    show (PCommOpt comm opts) = show comm ++ "\n    " ++ show opts
 
 data PComm  = PSection     [PText]
             | PSubsection  [PText]

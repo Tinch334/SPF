@@ -1,3 +1,5 @@
+{-# LANGUAGE StrictData #-}
+
 module Datatypes.ValidatedTokens where
 
 import Datatypes.Located (Located(..))
