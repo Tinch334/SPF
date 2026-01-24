@@ -238,8 +238,17 @@ parseRawText = label "raw paragraph" $ do
     l <- sepEndBy1 parseRawTextLine singleNewline
     return (foldl mappend "" l) -- Additional spaces are not trimmed, this is done later depending on the type of text.
 
+controlChars :: [Char]
+controlChars = ['\\', '{', '}', '"', '/', '\n', '\r', '\036']
+
 parseRawTextLine :: Parser Text
-parseRawTextLine = takeWhile1P (Just "raw line") (\c -> notElem c (['\\', '{', '}', '\n', '\r', '\036']))
+parseRawTextLine = T.pack <$> Text.Megaparsec.some (try escapedChar <|> normalChar)
+  where
+    -- Allows for character escaping, matches a '\' then accepts a control character that couldn't have been read normally. Otherwise
+    -- commands would never match, since they would be treated as an escaped character.
+    escapedChar = char '\\' *> oneOf controlChars <?> "escaped character"
+    -- Matches any char except control ones.
+    normalChar = noneOf controlChars
 
 -- Succeeds when a single newline is present.
 singleNewline :: Parser ()
@@ -335,8 +344,11 @@ parseOptionValue :: Parser POptionValue
 parseOptionValue = label "option value" $ choice
     [ try $ PNumber <$> L.float -- Goes first otherwise a float might be interpreted as a decimal number and committed, leaving a ".".
     , PNumber . int2Double <$> L.decimal -- The function "fromIntegral" is not used since it performs silent truncation.
-    , do
-        ic <- letterChar
-        t <- Text.Megaparsec.some (alphaNumChar <|> spaceChar)
+    , try $ do -- This is meant for options that take a single word, for example "style".
+        t <- Text.Megaparsec.some letterChar
         notFollowedBy (symbol ":") -- Avoids situations where there's a value and colon followed by nothing, for example "key:".
-        return (PText $ T.pack $ ic:t) ]
+        return (PText $ T.pack t)
+    , do -- This is meant for options that text, for example "caption".
+        t <- between (space *> string "\"") (string "\"") parseRawTextLine
+        notFollowedBy (symbol ":") -- Avoids situations where there's a value and colon followed by nothing, for example "key:".
+        return (PText t) ]
