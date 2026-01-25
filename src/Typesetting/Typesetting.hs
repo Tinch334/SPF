@@ -33,23 +33,24 @@ import Graphics.PDF.Typesetting
 ------------------------
 -- Replaces VConfig for internal use, to avoid having "fromJust" everywhere.
 data RenderConfig = RenderConfig
-    { rcPageSize         :: PageSize
-    , rcPageNumbering    :: PageNumbering
-    , rcSectionSpacing   :: Spacing
-    , rcParagraphSpacing :: Spacing
-    , rcListSpacing      :: Spacing
-    , rcTableSpacing     :: Spacing
-    , rcFigureSpacing    :: Spacing
-    , rcParIndent        :: Pt
-    , rcFont             :: Font
-    , rcParSize          :: Datatypes.ValidatedTokens.FontSize
-    , rcSectionSize      :: Datatypes.ValidatedTokens.FontSize
-    , rcSubsectionSize   :: Datatypes.ValidatedTokens.FontSize
-    , rcJustification    :: Datatypes.ValidatedTokens.Justification
-    , rcListStyle        :: ListStyle
-    , rcVertMargin       :: Pt
-    , rcHozMargin        :: Pt
-    , rcSectionNumbering :: Bool
+    { rcPageSize            :: PageSize
+    , rcPageNumbering       :: PageNumbering
+    , rcSectionSpacing      :: Spacing
+    , rcParagraphSpacing    :: Spacing
+    , rcListSpacing         :: Spacing
+    , rcTableSpacing        :: Spacing
+    , rcFigureSpacing       :: Spacing
+    , rcParIndent           :: Pt
+    , rcFont                :: Font
+    , rcParSize             :: Datatypes.ValidatedTokens.FontSize
+    , rcSectionSize         :: Datatypes.ValidatedTokens.FontSize
+    , rcSubsectionSize      :: Datatypes.ValidatedTokens.FontSize
+    , rcJustification       :: Datatypes.ValidatedTokens.Justification
+    , rcListStyle           :: ListStyle
+    , rcVertMargin          :: Pt
+    , rcHozMargin           :: Pt
+    , rcSectionNumbering    :: Bool
+    , rcFigureNumbering     :: Bool
     }
 
 -- Read only environment.
@@ -64,15 +65,15 @@ data RenderEnv = RenderEnv
 
 -- Read/Write environment, stores the state of the document whilst typesetting.
 data RenderState = RenderState
-    { rsCurrentY      :: Double
-    , rsCurrentPage   :: PDFReference PDFPage
-    , rsCounters      :: DocumentCounters
+    { rsCurrentY        :: Double
+    , rsCurrentPage     :: PDFReference PDFPage
+    , rsCounters        :: DocumentCounters
     }
 
 data DocumentCounters = DocumentCounters
-    { dcPage       :: Int
-    , dcSection    :: Int
-    , dcSubsection :: Int
+    { dcPage        :: Int
+    , dcSection     :: Int
+    , dcSubsection  :: Int
     }
 
 -- Typesetter monad stack, provides access to current document state as well as the underlying PDF.
@@ -85,23 +86,24 @@ type HPDFParagraph = TM StandardParagraphStyle StandardStyle ()
 -- Removes all "Just" from configuration.
 toRenderConfig :: VConfig -> RenderConfig
 toRenderConfig VConfig{..} = RenderConfig
-    { rcPageSize         = fromJust cfgPageSize
-    , rcPageNumbering    = fromJust cfgPageNumbering
-    , rcSectionSpacing   = fromJust cfgSectionSpacing
-    , rcParagraphSpacing = fromJust cfgParagraphSpacing
-    , rcListSpacing      = fromJust cfgListSpacing
-    , rcTableSpacing     = fromJust cfgTableSpacing
-    , rcFigureSpacing    = fromJust cfgFigureSpacing
-    , rcParIndent        = fromJust cfgParIndent
-    , rcFont             = fromJust cfgFont
-    , rcParSize          = fromJust cfgParSize
-    , rcSectionSize      = fromJust cfgSectionSize
-    , rcSubsectionSize   = fromJust cfgSubsectionSize
-    , rcJustification    = fromJust cfgJustification
-    , rcListStyle        = fromJust cfgListStyle
-    , rcVertMargin       = fromJust cfgVertMargin
-    , rcHozMargin        = fromJust cfgHozMargin
-    , rcSectionNumbering = fromJust cfgSectionNumbering
+    { rcPageSize            = fromJust cfgPageSize
+    , rcPageNumbering       = fromJust cfgPageNumbering
+    , rcSectionSpacing      = fromJust cfgSectionSpacing
+    , rcParagraphSpacing    = fromJust cfgParagraphSpacing
+    , rcListSpacing         = fromJust cfgListSpacing
+    , rcTableSpacing        = fromJust cfgTableSpacing
+    , rcFigureSpacing       = fromJust cfgFigureSpacing
+    , rcParIndent           = fromJust cfgParIndent
+    , rcFont                = fromJust cfgFont
+    , rcParSize             = fromJust cfgParSize
+    , rcSectionSize         = fromJust cfgSectionSize
+    , rcSubsectionSize      = fromJust cfgSubsectionSize
+    , rcJustification       = fromJust cfgJustification
+    , rcListStyle           = fromJust cfgListStyle
+    , rcVertMargin          = fromJust cfgVertMargin
+    , rcHozMargin           = fromJust cfgHozMargin
+    , rcSectionNumbering    = fromJust cfgSectionNumbering
+    , rcFigureNumbering     = fromJust cfgFigureNumbering
     }
 
 typesetDocument :: ValidatedDocument -> ResourceMap -> LoadedFonts -> FilePath -> IO ()

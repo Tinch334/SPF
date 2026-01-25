@@ -267,13 +267,18 @@ parseConfigArg = label "config option" $ choice
     , PFigurespacing    <$ string "figurespacing"
     , PSpacingglue      <$ string "spacingglue"
     , PTextglue         <$ string "textglue"
+    , PHozMargin        <$ string "parindent"
     , PFont             <$ string "font"
     , PParsize          <$ string "parsize"
     , PTitleSize        <$ string "titlesize"
     , PSectionSize      <$ string "sectionsize"
     , PSubsectionSize   <$ string "subsectionsize"
     , PJustification    <$ string "justification"
-    , PListstyle        <$ string "style" ]
+    , PListstyle        <$ string "style"
+    , PVerMargin        <$ string "vertmargin"
+    , PHozMargin        <$ string "hozmargin"
+    , PSectionNumbering <$ string "secnumbering"
+    , PFigureNumbering  <$ string "figurenumbering"]
 
 
 --------------------
@@ -333,11 +338,13 @@ parseOptionValue :: Parser POptionValue
 parseOptionValue = label "option value" $ choice
     [ try $ PNumber <$> L.float -- Goes first otherwise a float might be interpreted as a decimal number and committed, leaving a ".".
     , PNumber . int2Double <$> L.decimal -- The function "fromIntegral" is not used since it performs silent truncation.
+    , PBool <$> boolean
     , PText <$> stringLiteral
     , PText . T.pack <$> identifier
     ]
 
   where
+    boolean = string "true" *> return True <|> string "false" *> return False
     stringLiteral = between (char '"') (char '"') parseRawTextLine
     identifier = do
         t <- some letterChar

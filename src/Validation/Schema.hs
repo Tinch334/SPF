@@ -13,6 +13,7 @@ module Validation.Schema
     , requireNumberWith
     , tryNumberWith
     , ensureValidKeys
+    , requireBool
     -- Generic validators.
     , validateNumInst
     , validateSize
@@ -140,6 +141,9 @@ asNumber :: POptionValue -> Maybe Double
 asNumber (PNumber n) = Just n
 asNumber _ = Nothing
 
+asBool :: POptionValue -> Maybe Bool
+asBool (PBool b) = Just b
+asBool _ = Nothing
 
 --------------------
 -- COMBINATOR FUNCTIONS
@@ -148,10 +152,10 @@ asNumber _ = Nothing
 Combinator types:
 - Require: The key must be present.
 - Try: The key may be present, if not "Nothing" is returned.
-- With: They only accept the value associated with the key if the given function returns "Just".
+- With: They only accept the value associated with the key if the value causes the given function to return "Just <v>".
 -}
 requireText :: Text -> Schema Text
-requireText k = getRequiredWith k asText ("Expected text key for key " ++ quote k)
+requireText k = getRequiredWith k asText ("Expected text key for " ++ quote k)
 
 tryText :: Text -> Schema (Maybe Text)
 tryText k = getMaybeWith k asText (failType k)
@@ -164,13 +168,17 @@ tryTextWith k vf err = getMaybeWith k (asText >=> vf) err
 
 
 requireNumber :: Text -> Schema Double
-requireNumber k = getRequiredWith k asNumber ("Expected number key for key " ++ quote k)
+requireNumber k = getRequiredWith k asNumber ("Expected number key for " ++ quote k)
 
 requireNumberWith :: Text -> (Double -> Maybe a) -> String -> Schema a
 requireNumberWith k vf err = getRequiredWith k (asNumber >=> vf) err
 
 tryNumberWith :: Text -> (Double -> Maybe a) -> String -> Schema (Maybe a)
 tryNumberWith k vf err = getMaybeWith k (asNumber >=> vf) err
+
+
+requireBool :: Text -> Schema Bool
+requireBool k = getRequiredWith k asBool ("Expected boolean key for " ++ quote k)
 
 
 -- Ensures only valid keys are present, fails if an element not in the given key list is in the options.

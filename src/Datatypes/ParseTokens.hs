@@ -28,30 +28,12 @@ data DocumentMetadata = DocumentMetadata
 emptyMetadata :: DocumentMetadata
 emptyMetadata = DocumentMetadata Nothing Nothing Nothing
 
--- Make verbose output more legible.
-instance Show ParsedDocument where
-    show (ParsedDocument cfg meta cnt) = unlines
-        [ "\nConfiguration\n-------------"
-        , unlines (map show cfg)
-        , "\nMetadata\n--------\n"
-        , show meta
-        , "\nDocument\n--------\n"
-        , unlines (map show cnt)
-        ]
-
-instance Show DocumentMetadata where
-    show (DocumentMetadata t a d) = unlines 
-        [ "Title: " ++ maybe "None" show t
-        , "Author: " ++ maybe "None" show a
-        , "Date: " ++ maybe "None" show d
-        ]
-
-
 --------------------
 -- DATATYPE DEFINITIONS
 --------------------
-data POptionValue   = PNumber  Double
-                    | PText   Text
+data POptionValue   = PNumber   Double
+                    | PText     Text
+                    | PBool     Bool
                     deriving (Show, Eq, Ord)
 
 type POptionPair = (Text, POptionValue)
@@ -60,10 +42,6 @@ type POptionPair = (Text, POptionValue)
 data POption    = POptionMap     [POptionPair]
                 | POptionNone
                 deriving (Eq, Ord)
-
-instance Show POption where
-    show (POptionMap m) = show m
-    show POptionNone = "-"
 
 -- Different data definitions are used to reduce ambiguity and avoid representing incorrect information and. For example a metadata field with
 -- a command.
@@ -79,9 +57,6 @@ data PMeta  = PTitle       [PText]
 
 data PCommOpt = PCommOpt PComm POption
    deriving (Eq, Ord)
-
-instance Show PCommOpt where
-    show (PCommOpt comm opts) = show comm ++ "\n    " ++ show opts
 
 data PComm  = PSection     [PText]
             | PSubsection  [PText]
@@ -112,6 +87,7 @@ data PConfigArg = PSize
                 | PFigurespacing
                 | PSpacingglue
                 | PTextglue
+                | PParIndent
                 | PFont
                 | PParsize
                 | PTitleSize
@@ -119,4 +95,37 @@ data PConfigArg = PSize
                 | PSubsectionSize
                 | PJustification
                 | PListstyle
+                | PVerMargin
+                | PHozMargin
+                | PSectionNumbering
+                | PFigureNumbering
                 deriving (Show, Eq, Ord)
+
+
+--------------------
+-- SHOW INSTANCES
+--------------------
+-- Make verbose output more legible.
+instance Show ParsedDocument where
+    show (ParsedDocument cfg meta cnt) = unlines
+        [ "\nConfiguration\n-------------"
+        , unlines (map show cfg)
+        , "\nMetadata\n--------\n"
+        , show meta
+        , "\nDocument\n--------\n"
+        , unlines (map show cnt)
+        ]
+
+instance Show DocumentMetadata where
+    show (DocumentMetadata t a d) = unlines 
+        [ "Title: " ++ maybe "None" show t
+        , "Author: " ++ maybe "None" show a
+        , "Date: " ++ maybe "None" show d
+        ]
+
+instance Show POption where
+    show (POptionMap m) = show m
+    show POptionNone = "-"
+
+instance Show PCommOpt where
+    show (PCommOpt comm opts) = show comm ++ "\n    " ++ show opts

@@ -81,6 +81,7 @@ data VConfig = VConfig
     , cfgVertMargin         :: Maybe Pt
     , cfgHozMargin          :: Maybe Pt
     , cfgSectionNumbering   :: Maybe Bool
+    , cfgFigureNumbering    :: Maybe Bool
     } deriving (Show, Eq, Ord)
 
 -- Empty config for easy instantiation.
@@ -106,6 +107,7 @@ emptyVConfig = VConfig
     , cfgVertMargin         = Nothing
     , cfgHozMargin          = Nothing
     , cfgSectionNumbering   = Nothing
+    , cfgFigureNumbering    = Nothing
     }
 
 -- Default configuration values for commands, determined manually, to make the document aesthetically pleasant.
@@ -131,6 +133,7 @@ defaultVConfig = VConfig
     , cfgVertMargin         = Just $ Pt 45
     , cfgHozMargin          = Just $ Pt 50
     , cfgSectionNumbering   = Just True
+    , cfgFigureNumbering    = Just True
     }
     
 

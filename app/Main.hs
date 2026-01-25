@@ -4,8 +4,6 @@
 module Main (main) where
 
 
-import Lib
-
 import qualified Common                     as C
 import qualified Datatypes.Located          as L
 import qualified Datatypes.ValidatedTokens  as VT

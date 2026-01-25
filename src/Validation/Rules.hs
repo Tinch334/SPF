@@ -189,8 +189,9 @@ configErrorString arg = case arg of
     PListspacing -> "Expected two numeric values (before: pt, after: pt)" 
     PTablespacing -> "Expected two numeric values (before: pt, after: pt)" 
     PFigurespacing -> "Expected two numeric values (before: pt, after: pt)" 
-    PSpacingglue -> "Expected two numeric values (stretchability: pt, shrinkability: pt)" 
-    PTextglue -> "Expected two numeric values (stretchability: pt, shrinkability: pt)" 
+    PSpacingglue -> "Expected two numeric values (stretch: pt, shrink: pt)" 
+    PTextglue -> "Expected two numeric values (stretch: pt, shrink: pt)" 
+    PParIndent -> "Expected a numeric value (indent: pt)"
     PFont -> "Expected field " ++ quote "font" ++ " to be one of " ++ quoteList ["helvetica", "courier", "times"] ++ "."
     PParsize -> "Expected a numeric value (size: pt)"
     PTitleSize -> "Expected a numeric value (size: pt)"
@@ -198,6 +199,10 @@ configErrorString arg = case arg of
     PSubsectionSize -> "Expected a numeric value (size: pt)"
     PJustification -> "Expected field " ++ quote "justification" ++ " to be one of " ++ quoteList ["left", "right", "centred", "full"]
     PListstyle -> "Expected field " ++ quote "style" ++ " to be one of " ++ quoteList ["bullet", "square", "arrow", "number"]
+    PVerMargin -> "Expected a numeric value (margin: pt)"
+    PHozMargin -> "Expected a numeric value (margin: pt)"
+    PSectionNumbering -> "Expected a boolean value (numbering: bool)"
+    PFigureNumbering -> "Expected a boolean value (numbering: bool)"
 
 validateConfig :: Located PConfig -> Validation [LocatedError] (Located VConfig)
 validateConfig (Located pos (PConfig arg opt)) = withPos pos $ vc arg opt
@@ -218,6 +223,10 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $ vc arg opt
     sSubTitleSz s = emptyVConfig { cfgSubsectionSize = Just s }
     sJust j = emptyVConfig { cfgJustification = Just j }
     sListSt s = emptyVConfig { cfgListStyle = Just s }
+    sVertMrg m = emptyVConfig { cfgVertMargin = Just m}
+    sHozMrg m = emptyVConfig { cfgHozMargin = Just m}
+    sSecNum b = emptyVConfig { cfgSectionNumbering = Just b }
+    sFigNum b = emptyVConfig { cfgFigureNumbering = Just b }
 
     -- Command validation.
     vc PSize (POptionMap m) = runSchema
@@ -239,6 +248,9 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $ vc arg opt
     vc PSpacingglue o = validateConfigOption PSpacingglue o "Spacing glue requires arguments. " ["stretch", "shrink"] (namedGlueSchema sSpGlue)
     vc PTextglue o = validateConfigOption PTextglue o "Text glue requires arguments. " ["stretch", "shrink"] (namedGlueSchema sTxtGlue)
     
+    vc PParIndent o = validateConfigOption PHozMargin o "Paragraph indentation requires arguments. " ["indent"] 
+        (withVal sVertMrg $ requireNumberWith "indent" (validateNumInst (> 0) Pt) ("Unknown indent. " ++ configErrorString PJustification))
+
     vc PFont o = validateConfigOption PFont o "Font type requires arguments. " ["font"] 
         (withVal sFont $ requireTextWith "font" validateFont ("Unknown font. " ++ configErrorString PFont))
     
@@ -252,3 +264,12 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $ vc arg opt
     
     vc PListstyle o = validateConfigOption PListstyle o "List style requires arguments. " ["style"]
         (withVal sListSt $ requireTextWith "style" validateListStyle ("Unknown style. " ++ configErrorString PListstyle))
+
+    vc PVerMargin o = validateConfigOption PVerMargin o "Vertical margin requires arguments. " ["margin"] 
+        (withVal sVertMrg $ requireNumberWith "margin" (validateNumInst (> 0) Pt) ("Unknown margin. " ++ configErrorString PJustification))
+    vc PHozMargin o = validateConfigOption PHozMargin o "Horizontal margin requires arguments. " ["margin"] 
+        (withVal sHozMrg $ requireNumberWith "margin" (validateNumInst (> 0) Pt) ("Unknown margin. " ++ configErrorString PJustification))
+    vc PSectionNumbering o = validateConfigOption PSectionNumbering o "Section numbering requires arguments. " ["numbering"]
+        (withVal sSecNum $ requireBool "numbering")
+    vc PFigureNumbering o = validateConfigOption PSectionNumbering o "Figure numbering requires arguments. " ["numbering"]
+        (withVal sSecNum $ requireBool "numbering")
