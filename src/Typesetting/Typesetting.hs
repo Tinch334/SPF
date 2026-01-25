@@ -102,6 +102,9 @@ typesetElements elements = do
             VFigure path width caption -> do
                 typesetFigure path width caption
 
+            VTable table columns ->
+                typesetTable table columns
+
             VList list style -> do
                 typesetList list style
 
@@ -414,3 +417,90 @@ typesetList items mStyle = do
     typesetContent (Right list) font size JustifyLeft 0 beforeSpace afterSpace
 
     return ()
+
+-- Typesets the given table.
+typesetTable :: [[[VText]]] -> TableColumns -> Typesetter ()
+typesetTable tableContents (TableColumns columns) = do
+    RenderState{..} <- get
+
+    let font = fromJust $ cfgFont config 
+    let cSize = convertFontSize (fromJust $ cfgParSize config)
+
+    -- Calculate width of each column
+    let marginX = fromPt (fromJust $ cfgHozMargin config)
+    let marginY = fromPt (fromJust $ cfgVertMargin config)
+    let colWidth = (pageX - marginX * 2) / (int2Double columns) 
+
+    -- Helper function to layout a single row without committing state changes yet.
+    -- Returns: (The combined drawing action, The lowest Y point of the row, Did it fit?)
+    let layoutRow rowItems startY = do
+            -- Process each cell in the row.
+            results <- forM (zip rowItems [0..(columns - 1)]) $ \(cell, index) -> do
+                let tText = do
+                        setJustification Centered
+                        paragraph $ do
+                            -- Convert all text into HPDF paragraphs.
+                            forM_ cell $ \(VText txtContent style) -> do
+                                -- Apply styling to segment.
+                                let styledFont = getFont loadedFonts font style
+                                setStyle (Font (PDFFont styledFont cSize) black black)
+                                txt txtContent
+
+                -- Calculate cell position.
+                let cellX = marginX + (int2Double index * colWidth)
+                let height = startY - marginY
+
+                -- Create container for this cell.
+                let container = mkContainer cellX startY colWidth height 0
+                let verState = defaultVerState NormalParagraph
+
+                -- Make boxes and fill container.
+                let boxes = getBoxes NormalParagraph (Font (PDFFont (getFont loadedFonts font Normal) cSize) black black) tText
+                let (action, usedContainer, remaining) = fillContainer verState container boxes
+                
+                -- Determine the bottom Y of this specific cell
+                let (Rectangle (_ :+ bottomY) _) = containerContentRectangle usedContainer
+                
+                return (action, bottomY, null remaining, usedContainer)
+
+            let allFit = all (\(_, _, fit, _) -> fit) results
+            -- The new Y is the minimum of all cell bottom Ys.
+            let lowestY = minimum $ map(\(_, by, _, _) -> by) results
+            -- Get all draw actions from row.
+            let rowActions = sequence_ $ map
+                    (\(act, _, _, uc) -> do
+                        -- Typeset rectangle for cell.
+                        let (Rectangle (leftX :+ _) topRight) = containerContentRectangle uc
+                        strokeColor black
+                        stroke $ Rectangle (leftX :+ lowestY) topRight
+                        -- Typeset cell
+                        act)
+                    results
+                    
+            return (rowActions, lowestY, allFit)
+
+    -- Iterate through the table rows
+    forM_ tableContents $ \row -> do
+        RenderState{..} <- get
+        -- Attempt to layout the row on the current page.
+        (drawAction, nextY, fits) <- layoutRow row currentY
+
+        -- If table didn't fit create a new page and typeset again.
+        if fits
+            then do
+                -- It fits, draw it and update the cursor position.
+                lift $ drawWithPage (currentPage) drawAction
+                modify $ \s -> s { currentY = nextY }
+            else do
+                -- It does not fit, create a new page.
+                makeNewPage
+                
+                -- Get the new state, to have the updated Y cursor.
+                RenderState{..} <- get
+
+                -- Layout the row again on the new page.
+                (drawActionNew, nextYNew, _) <- layoutRow row currentY
+                
+                -- Typeset it on the new page.
+                lift $ drawWithPage currentPage drawActionNew
+                modify $ \s -> s { currentY = nextYNew }

@@ -213,7 +213,7 @@ textTypeToParser (TextType n c) = do
 parseSpecialText :: Parser PText
 parseSpecialText = do
     -- Forces parsePText to stop if a structural command is encountered.
-    notFollowedBy (choice [string "\\item", string "\\end"])
+    notFollowedBy (choice [string "\\item", string "\\end", string "\\break"])
     -- Parse text.
     void (char '\\') <?> "escape for special text"
     choice (map (try . textTypeToParser) textTypesTable) <|> unknown where
@@ -228,7 +228,7 @@ parseRawText = label "raw paragraph" $ do
     return (foldl mappend "" l) -- Additional spaces are not trimmed, this is done later depending on the type of text.
 
 controlChars :: [Char]
-controlChars = ['\\', '{', '}', '"', '/', '\n', '\r', '\036']
+controlChars = ['\\', '{', '}', '"', '/', '|', '\n', '\r', '\036']
 
 parseRawTextLine :: Parser Text
 parseRawTextLine = T.pack <$> some (try escapedChar <|> normalChar)
@@ -287,7 +287,11 @@ parseFilepath = label "filepath" $ do
 
 -- The elements in a table row are separated by "|". A line ending is denoted by a "\\", that is two "\" characters.
 parseTable :: Parser [[[PText]]]
-parseTable = label "table" $ sepEndBy1 (sepBy1 parsePText (symbol "|")) (symbol "\\\\")
+parseTable = label "table" $ sepEndBy1
+    (sepBy1 parsePText (symbol "|"))
+    (do
+        void $ symbol "\\break"
+        void $ optional (string "{}"))
 
 parseList :: Parser [[PText]]
 parseList = label "list" $ many $ do
