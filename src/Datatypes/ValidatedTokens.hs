@@ -23,32 +23,24 @@ data ValidatedMetadata = ValidatedMetadata
     , vmDate   :: Maybe VMeta
     } deriving (Eq)
 
-instance Show ValidatedDocument where
-    show (ValidatedDocument cfg meta cnt) = 
-        "\nConfiguration\n-------------\n" ++ show cfg ++
-        "\nMetadata\n--------\n" ++ show meta ++ 
-        "\nDocument\n--------\n" ++ concatMap (\e -> show e <> "\n") cnt
-
-instance Show ValidatedMetadata where
-    show (ValidatedMetadata t a d) = let padding = replicate 4 ' ' in
-        "Title: " ++ maybe "None" show t ++ "\n" ++
-        "Author: " ++ maybe "None" show a ++ "\n" ++
-        "Date: " ++ maybe "None" show d ++ "\n"
-
 
 --------------------
 -- DATATYPE DEFINITIONS
 --------------------
 -- Standard size units.
 newtype Pt = Pt Double
-    deriving (Show, Eq, Ord)
+    deriving (Show, Eq, Ord) -- Derive Num and Fractional instances for easier calculations.
+
 newtype PageWidth = PageWidth Double
     deriving (Show, Eq, Ord)
-newtype FontSize = FontSize Pt
+
+newtype FontSize = FontSize Double
     deriving (Show, Eq, Ord)
 
--- Metadata data, whilst there are options they cannot be specified by the user, this is because the values are drawn directly from the
--- configuration when typesetting.
+type Caption = Text
+type TableColumns = Int
+
+
 data VMeta  = VTitle       [VText] (Maybe Font) (Maybe FontSize)
             | VAuthor      [VText] (Maybe Font) (Maybe FontSize)
             | VDate        [VText] (Maybe Font) (Maybe FontSize)
@@ -116,11 +108,11 @@ emptyVConfig = VConfig
     , cfgSectionNumbering   = Nothing
     }
 
--- Default configuration values for commands, determined by hand, to make the document aesthetically pleasant.
+-- Default configuration values for commands, determined manually, to make the document aesthetically pleasant.
 defaultVConfig :: VConfig
 defaultVConfig = VConfig
-    { cfgPageSize           = Just $ SizeA4
-    , cfgPageNumbering      = Just $ NumberingArabic
+    { cfgPageSize           = Just SizeA4
+    , cfgPageNumbering      = Just NumberingArabic
     , cfgSectionSpacing     = Just $ Spacing (Pt 15) (Pt 7.5)
     , cfgParagraphSpacing   = Just $ Spacing (Pt 10) (Pt 15)
     , cfgListSpacing        = Just $ Spacing (Pt 5) (Pt 5)
@@ -129,20 +121,20 @@ defaultVConfig = VConfig
     , cfgSpacingGlue        = Just $ Glue (Pt 2) (Pt 2)
     , cfgTextGlue           = Just $ Glue (Pt 2) (Pt 2)
     , cfgParIndent          = Just $ Pt 20
-    , cfgFont               = Just $ Times
-    , cfgParSize            = Just $ FontSize (Pt 12)
-    , cfgTitleSize          = Just $ FontSize (Pt 22)
-    , cfgSectionSize        = Just $ FontSize (Pt 18)
-    , cfgSubsectionSize     = Just $ FontSize (Pt 16)
-    , cfgJustification      = Just $ JustifyLeft
-    , cfgListStyle          = Just $ ListBullet
+    , cfgFont               = Just Times
+    , cfgParSize            = Just $ FontSize 12
+    , cfgTitleSize          = Just $ FontSize 22
+    , cfgSectionSize        = Just $ FontSize 18
+    , cfgSubsectionSize     = Just $ FontSize 16
+    , cfgJustification      = Just JustifyLeft
+    , cfgListStyle          = Just ListBullet
     , cfgVertMargin         = Just $ Pt 45
     , cfgHozMargin          = Just $ Pt 50
     , cfgSectionNumbering   = Just True
     }
     
 
--- General data types, meant for reusability, to avoid repetition.
+-- General data types.
 data PageSize   = SizeA4
                 | SizeA3
                 | SizeLegal
@@ -167,18 +159,27 @@ data TextStyle = Normal | Bold | Italic | Emphasised
 data Justification = JustifyLeft | JustifyRight | JustifyCenter | JustifyFull
     deriving (Show, Eq, Ord)
 
+data ListStyle = ListBullet | ListSquare | ListArrow | ListNumber
+    deriving (Show, Eq, Ord)
+
 -- Text definition.
 data VText = VText
     { textCnt  :: Text
     , style :: TextStyle
     } deriving (Show, Eq, Ord)
 
--- Command specific types.
-newtype TableColumns = TableColumns Int
-    deriving (Show, Eq, Ord)
 
-data ListStyle = ListBullet | ListSquare | ListArrow | ListNumber
-    deriving (Show, Eq, Ord)
+--------------------
+-- SHOW INSTANCES
+--------------------
+instance Show ValidatedDocument where
+    show (ValidatedDocument cfg meta cnt) = 
+        "\nConfiguration\n-------------\n" ++ show cfg ++
+        "\nMetadata\n--------\n" ++ show meta ++ 
+        "\nDocument\n--------\n" ++ concatMap (\e -> show e <> "\n") cnt
 
-newtype Caption = Caption Text
-    deriving (Show, Eq, Ord)
+instance Show ValidatedMetadata where
+    show (ValidatedMetadata t a d) = let padding = replicate 4 ' ' in
+        "Title: " ++ maybe "None" show t ++ "\n" ++
+        "Author: " ++ maybe "None" show a ++ "\n" ++
+        "Date: " ++ maybe "None" show d ++ "\n"

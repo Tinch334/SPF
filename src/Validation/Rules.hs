@@ -40,8 +40,8 @@ convertText = map cnvInner
     cnvInner (PItalic t)     = VText {textCnt = t, style = Italic}
     cnvInner (PEmphasised t) = VText {textCnt = t, style = Emphasised}
 
-namedFontSizeSchema :: Schema (Maybe Pt)
-namedFontSizeSchema = tryNumberWith "size" (validateNumInst (> 0) Pt) "Font size must be positive"
+namedFontWithSizeSchema :: Schema (Maybe FontSize)
+namedFontWithSizeSchema = tryNumberWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive"
 
 namedFontNameSchema :: Schema (Maybe Font)
 namedFontNameSchema =
@@ -56,7 +56,7 @@ namedFontWithSize c t (POptionMap o) =
     ( ensureValidKeys
         ("Expected some of fields " ++ quoteList ["font", "size"])
         ["font", "size"]
-        (c (convertText t) <$> namedFontNameSchema <*> ((fmap FontSize) <$> namedFontSizeSchema))
+        (c (convertText t) <$> namedFontNameSchema <*> namedFontWithSizeSchema)
     ) o
 namedFontWithSize c t POptionNone = Success $ c (convertText t) Nothing Nothing
 
@@ -73,7 +73,7 @@ namedFigure p (POptionMap o) =
         ["width", "caption"]
         ( VFigure p
             <$> requireNumberWith "width" (validateNumInst (\n -> n > 0 && n <= 1) PageWidth) "Figure width must be between 0 and 1"
-            <*> (fmap Caption <$> tryText "caption")
+            <*> (tryText "caption")
         )
       ) o
     else Failure ["Invalid filepath " ++ quote (T.pack p)]
@@ -88,9 +88,9 @@ validateTableMatrix c rLen =
 
 namedTable :: [[[PText]]] -> POption -> CommandValidationType
 namedTable cnt (POptionMap o) =
-  let columnCount = runSchema (ensureValidKeys "Expected one numeric value (columns)" ["columns"] (requireNumberWith "columns" (validateNumInst (> 0) (\d -> TableColumns (double2Int d))) "Column number must be positive")) o
+  let columnCount = runSchema (ensureValidKeys "Expected one numeric value (columns)" ["columns"] (requireNumberWith "columns" (validateNumInst (> 0) (\d -> double2Int d)) "Column number must be positive")) o
     in case columnCount of
-        Success t@(TableColumns tc) -> VTable <$> validateTableMatrix cnt tc <*> pure t
+        Success tc -> VTable <$> validateTableMatrix cnt tc <*> pure tc
         Failure e -> Failure e
 namedTable _ POptionNone = Failure ["Expected one numeric value (columns)"]
 
@@ -114,7 +114,7 @@ namedParagraph txt (POptionMap o) =
         ["font", "size", "justification"]
         ( VParagraph (convertText txt)
             <$> namedFontNameSchema
-            <*> (fmap FontSize <$> namedFontSizeSchema)
+            <*> namedFontWithSizeSchema
             <*> tryTextWith "justification" validateJustification ("Expected field " ++ quote "justification" ++ " to be one of " ++ quoteList ["left", "right", "centred", "full"])
         )
     ) o
@@ -171,7 +171,7 @@ namedGlueSchema c = c <$> (Glue <$>
     <*> requireNumberWith "shrink"  (validateNumInst (> 0) Pt) "Shrink must be positive")
 
 namedFontsizeSchema :: (FontSize -> VConfig) -> Schema VConfig
-namedFontsizeSchema c = c <$> (FontSize <$> requireNumberWith "size" (validateNumInst (> 0) Pt) "Font size must be positive")
+namedFontsizeSchema c = c <$> (requireNumberWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive")
 
 
 -- All configuration options fail with no arguments, an auxiliary function avoids repetition.

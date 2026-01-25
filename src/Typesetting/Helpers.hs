@@ -5,8 +5,9 @@ module Typesetting.Helpers where
 import Datatypes.ValidatedTokens
 
 import Data.Text (Text)
-import GHC.Float (double2Int)
+import qualified Data.Text as T
 
+import GHC.Float (double2Int)
 import Graphics.PDF
 
 
@@ -17,73 +18,46 @@ import Graphics.PDF
 mergeVText :: [VText] -> Text
 mergeVText = foldl (\s vt -> s <> textCnt vt) ""
 
+-- Converts a page size token to it's size in points.
 pageSizeToRect :: PageSize -> PDFRect
 pageSizeToRect SizeA4 = PDFRect 0 0 595 842
 pageSizeToRect SizeA3 = PDFRect 0 0 841 1190
 pageSizeToRect SizeLegal = PDFRect 0 0 612 1009
 pageSizeToRect (SizeCustom (Pt w) (Pt h)) = PDFRect 0 0 w h
 
+-- HPDF only accepts integer font sizes.
 convertFontSize :: Datatypes.ValidatedTokens.FontSize -> Int
-convertFontSize (FontSize (Pt pt)) = double2Int pt
+convertFontSize (FontSize pt) = double2Int pt
 
+-- Scale the given font size.
 convertAdjustFontSize :: Datatypes.ValidatedTokens.FontSize -> Double -> Int
-convertAdjustFontSize (FontSize (Pt pt)) a = double2Int (pt * a)
+convertAdjustFontSize (FontSize pt) a = double2Int (pt * a)
 
 fromPt :: Pt -> Double
 fromPt (Pt s) = s
 
--- Arabic numbers to Roman numerals mapping.
-romanMap :: [(Int, String)]
-romanMap = 
-  [ (1000, "M")
-  , (900,  "CM")
-  , (500,  "D")
-  , (400,  "CD")
-  , (100,  "C")
-  , (90,   "XC")
-  , (50,   "L")
-  , (40,   "XL")
-  , (10,   "X")
-  , (9,    "IX")
-  , (5,    "V")
-  , (4,    "IV")
-  , (1,    "I")
-  ]
-
 -- Converts and integer to a Roman numeral.
 toRoman :: Int -> String
-toRoman n = convert n romanMap
-  where
-    convert :: Int -> [(Int, String)] -> String
-    convert _ [] = ""
-    convert val ((threshold, symbol):rest)
-      | val >= threshold = symbol ++ convert (val - threshold) ((threshold, symbol):rest)
-      | otherwise        = convert val rest
+toRoman 0 = ""
+toRoman x
+    | x >= 1000 = "M"  ++ toRoman (x - 1000)
+    | x >= 900  = "CM" ++ toRoman (x - 900)
+    | x >= 500  = "D"  ++ toRoman (x - 500)
+    | x >= 400  = "CD" ++ toRoman (x - 400)
+    | x >= 100  = "C"  ++ toRoman (x - 100)
+    | x >= 90   = "XC" ++ toRoman (x - 90)
+    | x >= 50   = "L"  ++ toRoman (x - 50)
+    | x >= 40   = "XL" ++ toRoman (x - 40)
+    | x >= 10   = "X"  ++ toRoman (x - 10)
+    | x >= 9    = "IX" ++ toRoman (x - 9)
+    | x >= 5    = "V"  ++ toRoman (x - 5)
+    | x >= 4    = "IV" ++ toRoman (x - 4)
+    | x >= 1    = "I"  ++ toRoman (x - 1)
+    | otherwise = ""
 
 ------------------------
 -- ELEMENT MAKER FUNCTIONS
 ------------------------
-makeTestBlock :: TM StandardParagraphStyle StandardStyle ()
-makeTestBlock = do
-    paragraph $ do
-        --setStyle $ Font (PDFFont (hbi lf) 10) black black
-        txt $ "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor "
-        txt $ "incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud "
-        txt $ "exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
-        txt $ "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor "
-        txt $ "incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud "
-        txt $ "exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
-        txt $ "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor "
-        txt $ "incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud "
-        txt $ "exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
-        txt $ "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor "
-        txt $ "incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud "
-        txt $ "exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
-        txt $ "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor "
-        txt $ "incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud "
-        txt $ "exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
-
-
 -- Generates the document information from the metadata.
 generateDocInfo :: ValidatedMetadata -> PDFDocumentInfo
 generateDocInfo meta = let

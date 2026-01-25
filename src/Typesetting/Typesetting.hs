@@ -12,99 +12,135 @@ import Resources (getFont)
 
 import Control.Applicative ((<|>))
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.Reader
+import Control.Monad.State.Lazy
 
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, fromMaybe)
 
 import GHC.Float (int2Double)
 
 import Graphics.PDF
 import Graphics.PDF.Typesetting
 
-import qualified Debug.Trace as DT
 
-
--- Stores the current state of the sections.
-data DocumentState = DocumentState
-    { pageNumber        :: Int
-    , currentSection    :: Int
-    , currentSubsection :: Int
-    , currentFigure     :: Int
+------------------------
+-- TYPES AND STATE
+------------------------
+-- Replaces VConfig for internal use, to avoid having "fromJust" everywhere.
+data RenderConfig = RenderConfig
+    { rcPageSize         :: PageSize
+    , rcPageNumbering    :: PageNumbering
+    , rcSectionSpacing   :: Spacing
+    , rcParagraphSpacing :: Spacing
+    , rcListSpacing      :: Spacing
+    , rcTableSpacing     :: Spacing
+    , rcFigureSpacing    :: Spacing
+    , rcParIndent        :: Pt
+    , rcFont             :: Font
+    , rcParSize          :: Datatypes.ValidatedTokens.FontSize
+    , rcSectionSize      :: Datatypes.ValidatedTokens.FontSize
+    , rcSubsectionSize   :: Datatypes.ValidatedTokens.FontSize
+    , rcJustification    :: Datatypes.ValidatedTokens.Justification
+    , rcListStyle        :: ListStyle
+    , rcVertMargin       :: Pt
+    , rcHozMargin        :: Pt
+    , rcSectionNumbering :: Bool
     }
 
+-- Read only environment.
+data RenderEnv = RenderEnv
+    { envConfig     :: RenderConfig
+    , envFonts      :: LoadedFonts
+    , envResources  :: ResourceMap
+    , envPageWidth  :: Double
+    , envPageHeight :: Double
+    , envVertMargin :: (Double, Double) -- Top, Bottom
+    }
+
+-- Read/Write environment, stores the state of the document whilst typesetting.
 data RenderState = RenderState
-    { currentY      :: Double                   -- Vertical cursor position.
-    , currentPage   :: PDFReference PDFPage     -- The page currently being typeset.
-    , config        :: VConfig                  -- Configuration.
-    , loadedFonts   :: LoadedFonts              -- Loaded fonts.
-    , resources     :: ResourceMap              -- All loaded resources, with their associated path.
-    , pageX         :: Double                   -- Page dimensions are needed for state resetting, the PDF monad doesn't provide access.
-    , pageY         :: Double
-    , vertMargin    :: (Double, Double)         -- The value of the vertical margin can be different, depending on page numbers and titles.
-    , documentState  :: DocumentState
+    { rsCurrentY      :: Double
+    , rsCurrentPage   :: PDFReference PDFPage
+    , rsCounters      :: DocumentCounters
     }
 
--- Provides access to all rendering information, additionally it handles the current state of the PDF monad.
-type Typesetter a = StateT RenderState PDF a
+data DocumentCounters = DocumentCounters
+    { dcPage       :: Int
+    , dcSection    :: Int
+    , dcSubsection :: Int
+    }
+
+-- Typesetter monad stack, provides access to current document state as well as the underlying PDF.
+type Typesetter a = ReaderT RenderEnv (StateT RenderState PDF) a
 type HPDFParagraph = TM StandardParagraphStyle StandardStyle ()
 
--- Helper function to run the typesetter.
-runTypesetter :: RenderState -> Typesetter a -> PDF a
-runTypesetter initial action = evalStateT action initial
+------------------------
+-- INITIALIZATION FUNCTIONS
+------------------------
+-- Removes all "Just" from configuration.
+toRenderConfig :: VConfig -> RenderConfig
+toRenderConfig VConfig{..} = RenderConfig
+    { rcPageSize         = fromJust cfgPageSize
+    , rcPageNumbering    = fromJust cfgPageNumbering
+    , rcSectionSpacing   = fromJust cfgSectionSpacing
+    , rcParagraphSpacing = fromJust cfgParagraphSpacing
+    , rcListSpacing      = fromJust cfgListSpacing
+    , rcTableSpacing     = fromJust cfgTableSpacing
+    , rcFigureSpacing    = fromJust cfgFigureSpacing
+    , rcParIndent        = fromJust cfgParIndent
+    , rcFont             = fromJust cfgFont
+    , rcParSize          = fromJust cfgParSize
+    , rcSectionSize      = fromJust cfgSectionSize
+    , rcSubsectionSize   = fromJust cfgSubsectionSize
+    , rcJustification    = fromJust cfgJustification
+    , rcListStyle        = fromJust cfgListStyle
+    , rcVertMargin       = fromJust cfgVertMargin
+    , rcHozMargin        = fromJust cfgHozMargin
+    , rcSectionNumbering = fromJust cfgSectionNumbering
+    }
 
 typesetDocument :: ValidatedDocument -> ResourceMap -> LoadedFonts -> FilePath -> IO ()
 typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath = do
-    let pageRect = pageSizeToRect (fromJust $ cfgPageSize cfg)
-    let (PDFRect _ _ px py) = pageRect
-    let startY = py - fromPt (fromJust $ cfgVertMargin cfg)
-    let vm = calculateVertMargin cfg
-    let documentState = DocumentState 0 0 0 0
+    let rConfig = toRenderConfig cfg
 
+    let pageRect@(PDFRect _ _ px py) = pageSizeToRect (fromJust $ cfgPageSize cfg)
+    let (Pt topMargin) = rcVertMargin rConfig
+    let startY = py - topMargin
+    
+    -- Get bottom margin based on page numbering.
+    let bottomMarginRaw = topMargin
+    let bottomMargin = bottomMarginRaw + case rcPageNumbering rConfig of
+            NumberingNone -> 0.0
+            _             -> 16.0
+
+    -- Static environment setup.
+    let env = RenderEnv 
+            { envConfig = rConfig
+            , envFonts = fonts
+            , envResources = res
+            , envPageWidth = px
+            , envPageHeight = py
+            , envVertMargin = (topMargin, bottomMargin)
+            }
+
+    let initialState = RenderState 
+            { rsCurrentY = startY
+            , rsCurrentPage = error "INTERNAL: First page accessed before creation"
+            , rsCounters = DocumentCounters 0 0 0
+            }
+
+    -- Typeset PDF and store result in "outPath".
     runPdf outPath (generateDocInfo meta) pageRect $ do
+        evalStateT (runReaderT (makeNewPage >> typesetElements cnt) env) initialState
 
-        -- Initialize render state.
-        let initialState = RenderState {
-          currentY = startY
-        , currentPage = error "INTERNAL: Attempted to access currentPage before the first page was created."
-        , config = cfg
-        , loadedFonts = fonts
-        , resources = res
-        , vertMargin = vm
-        , pageX = px
-        , pageY = py
-        , documentState = documentState
-        }
-
-        evalStateT 
-            (do
-                makeNewPage -- Create first page.
-                typesetElements cnt)
-            initialState
-
-
--- Calculates the vertical margin based on what kind of page numbering was chosen.
-calculateVertMargin :: VConfig -> (Double, Double)
-calculateVertMargin config = do
-
-    let (Pt margin) = fromJust $ cfgVertMargin config
-    let numbering = fromJust $ cfgPageNumbering config
-    let cSize = convertFontSize (fromJust $ cfgParSize config)
-
-    -- Calculate bottom margin based on numbering.
-    let bottom = margin + 
-            case numbering of
-                NumberingNone -> 0.0
-                _ -> 16
-
-    (margin, bottom)
-
+pdfLift = lift . lift
 ------------------------
--- BOOKMARKS NOT WORKING; THEY TAKE YOU TO THE START OF THE FILE.
+-- TYPESETTING LOOP
 ------------------------
 typesetElements :: [Located VComm] -> Typesetter ()
 typesetElements elements = do
@@ -134,136 +170,146 @@ typesetElements elements = do
             VHLine ->
                 drawHLine
 
+        -- Check for overflow after typesetting every element.
         cs <- checkSpace
-        if cs then makeNewPage else return ()
+        when cs makeNewPage
 
 
 ------------------------
 -- AUXILIARY FUNCTIONS
 ------------------------
--- Checks if the cursor is below the bottom margin, if so returns "True".
+-- Checks if the cursor is below the bottom margin.
 checkSpace :: Typesetter (Bool)
 checkSpace = do
-    RenderState{..} <- get
+    currentY <- gets rsCurrentY
+    (_, bottom) <- asks envVertMargin
 
-    let (_, marginY) = vertMargin
-
-    return $ currentY < marginY
+    return $ currentY < bottom
 
 -- Creates a new page.
 makeNewPage :: Typesetter ()
 makeNewPage = do
-    RenderState{..} <- get
-    -- Create new page of standard size in PDF Monad.
-    newPage <- lift $ addPage Nothing
+    -- Create new page of standard size in PDF monad.
+    newPage <- pdfLift $ addPage Nothing
 
-    let (marginY, _) = vertMargin
-    let currentPage = pageNumber documentState
+    (topMargin, _) <- asks envVertMargin
+    pageHeight <- asks envPageHeight
     
-    -- Reset state, since we are in a new page.
+    -- Update state, since we are in a new page.
     modify $ \s -> s { 
-        currentPage = newPage, 
-        currentY = pageY - marginY,
-        documentState = documentState { pageNumber = currentPage + 1 }
+        rsCurrentPage = newPage, 
+        rsCurrentY = pageHeight - topMargin,
+        rsCounters = (rsCounters s) { dcPage = dcPage (rsCounters s) + 1 }
     }
 
+    RenderConfig{..} <- asks envConfig
     -- Typeset line number onto new page.
-    typesetLineNumber (fromJust $ cfgPageNumbering config)
+    unless (rcPageNumbering == NumberingNone) $ typesetPageNumber rcPageNumbering
 
   where
-    typesetLineNumber NumberingNone = return ()
-    typesetLineNumber numbering = do
+    typesetPageNumber numbering = do
+        RenderEnv{..} <- ask
         RenderState{..} <- get
 
-        let font = fromJust $ cfgFont config
-        let (Pt hMargin) = fromJust $ cfgHozMargin config
-        let (_, marginY) = vertMargin
+        let (Pt hMargin) = rcHozMargin envConfig
+        let (_, bottomMargin) = envVertMargin
         -- Get the page number centred in the bottom area of the margin.
-        let rect = Rectangle (hMargin :+ (marginY * 0.2)) ((pageX - hMargin) :+ (marginY * 0.6))
+        let rect = Rectangle (hMargin :+ (bottomMargin * 0.2)) ((envPageWidth - hMargin) :+ (bottomMargin * 0.6))
+        let font = getFont envFonts (rcFont envConfig) Normal
 
+        let pageNumber = dcPage rsCounters
         let pnStr = case numbering of
-                NumberingArabic -> show $ pageNumber documentState
-                NumberingRoman  -> toRoman $ pageNumber documentState
+                NumberingArabic -> show pageNumber
+                NumberingRoman  -> toRoman pageNumber
 
         -- Whilst this function doesn't handle overflows from the render area well they should never happen; Since a number would have to be
         -- as wide as the page for that to be a problem.
-        lift $ drawWithPage currentPage $ do
-            displayFormattedText rect NormalParagraph (Font (PDFFont (getFont loadedFonts font Normal) 12) black black) $ do
+        pdfLift $ drawWithPage rsCurrentPage $ do
+            displayFormattedText rect NormalParagraph (Font (PDFFont font 12) black black) $ do
                 setJustification Centered
-                paragraph $ do
-                    txt $ T.pack pnStr
+                paragraph $ txt (T.pack pnStr)
 
-showRect (Rectangle (bx :+ by) (tx :+ ty)) = show bx ++ " - " ++ show by ++ " - " ++ show tx ++ " - " ++ show ty
 
+------------------------
+-- CONTENT TYPESETTING FUNCTIONS
+------------------------
 drawHLine :: Typesetter ()
 drawHLine = do
-    RenderState{..} <- get
+    y <- gets rsCurrentY
+    p <- gets rsCurrentPage
+    w <- asks envPageWidth
 
     -- Get horizontal start and end position.
     let lineSpan = 0.9
-    let xStart = (1 - lineSpan) * pageX
-    let xEnd = lineSpan * pageX
+    let xStart = (1 - lineSpan) * w
+    let xEnd = lineSpan * w
 
-    lift $ drawWithPage currentPage $ do
+    pdfLift $ drawWithPage p $ do
         strokeColor black
-        stroke $ Line xStart currentY xEnd currentY
+        stroke $ Line xStart y xEnd y
 
 -- Typesets the given VText or paragraph, with the given options. Note that justification and indentation only have an effect in VText mode.
-typesetContent :: (Either [VText] HPDFParagraph) -> Font -> Datatypes.ValidatedTokens.FontSize -> Datatypes.ValidatedTokens.Justification -> Double -> Double -> Double -> Typesetter ()
+typesetContent :: (Either [VText] HPDFParagraph)
+                -> Font
+                -> Datatypes.ValidatedTokens.FontSize
+                -> Datatypes.ValidatedTokens.Justification
+                -> Double -> Double -> Double -> Typesetter ()
 typesetContent content font size just indent beforeSpace afterSpace = do
+    RenderEnv{..} <- ask
     RenderState{..} <- get
 
     -- Maps VText tokens to PDF typesetting instructions. Defined with in function so we can use "let" defined variables.
     let textGenerator vText = do
             let cSize = convertFontSize size
-            -- Get justification and convert to PDF data.
-            let cJust = case just of
+
+            -- Set justification and convert to PDF data.
+            setJustification $ case just of
                     JustifyLeft   -> LeftJustification
                     JustifyRight  -> RightJustification
                     JustifyCenter -> Centered
                     JustifyFull   -> FullJustification
-
-            setJustification cJust
+ 
             paragraph $ do
                 kern indent
                 -- Convert all text into HPDF paragraphs.
                 forM_ vText $ \(VText txtContent style) -> do
                     -- Apply styling to segment.
-                    let styledFont = getFont loadedFonts font style
+                    let styledFont = getFont envFonts font style
                     setStyle (Font (PDFFont styledFont cSize) black black)
                     txt txtContent
 
     -- The content is converted into a list of renderable boxes. The style 'NormalParagraph' is used as the baseline context.
     let cnt = case content of
             Left text -> textGenerator text
-            Right para -> para
-    let boxes = getBoxes NormalParagraph (Font (PDFFont (getFont loadedFonts font Normal) (convertFontSize size)) black black) cnt
+            Right block -> block
+    let boxes = getBoxes NormalParagraph (Font (PDFFont (getFont envFonts font Normal) (convertFontSize size)) black black) cnt
 
     fillBoxLoop boxes
   where
     -- Fills containers page by page.
     fillBoxLoop [] = return () -- Done
     fillBoxLoop boxes = do
+        RenderEnv{..} <- ask
         RenderState{..} <- get
             
         -- Calculate available height from currentY down to the bottom margin and make a container with that size, taking into account the
         -- given spacing.
-        let marginX = fromPt (fromJust $ cfgHozMargin config)
-        let (_, marginY) = vertMargin
-        let width   = pageX - (marginX * 2) 
-        let height  = currentY - marginY 
+        let (Pt marginX) = rcHozMargin envConfig
+        let (_, bottomMargin) = envVertMargin
+        let width   = envPageWidth - (marginX * 2) 
+        let height  = rsCurrentY - bottomMargin 
 
         -- The mkContainer function defines a container based on it's top left point.
-        let container = mkContainer marginX (currentY - beforeSpace) width height 0
+        let container = mkContainer marginX (rsCurrentY - beforeSpace) width height 0
         let verState = defaultVerState NormalParagraph
 
         -- Fill container.
         let (drawAction, usedContainer, remainingBoxes) = fillContainer verState container boxes
 
         -- Execute the resulting draw action on the current page.
-        lift $ drawWithPage currentPage drawAction
+        pdfLift $ drawWithPage rsCurrentPage drawAction
 
-        lift $ drawWithPage currentPage $ do
+        pdfLift $ drawWithPage rsCurrentPage $ do
             strokeColor blue
             stroke $ containerContentRectangle usedContainer
 
@@ -271,24 +317,25 @@ typesetContent content font size just indent beforeSpace afterSpace = do
         let (Rectangle (_ :+ newBottomY) _) = containerContentRectangle usedContainer
             
         if null remainingBoxes
-            then do
+            then
                 -- Text fits on page, update cursor to the bottom of the placed text plus paragraph spacing.
-                modify $ \s -> s { currentY = newBottomY - afterSpace }
+                modify $ \s -> s { rsCurrentY = newBottomY - afterSpace }
             else do
                 -- Overflow, force new page and render remaining boxes.
                 makeNewPage
                 fillBoxLoop remainingBoxes
 
 -- Typesets the given paragraph.
-typesetParagraph :: [VText] -> Maybe Font -> Maybe Datatypes.ValidatedTokens.FontSize -> Maybe Datatypes.ValidatedTokens.Justification -> Typesetter ()
+typesetParagraph :: [VText] -> Maybe Font ->
+                    Maybe Datatypes.ValidatedTokens.FontSize -> Maybe Datatypes.ValidatedTokens.Justification -> Typesetter ()
 typesetParagraph vText mFont mSize mJust = do
-    cfg <- gets config
+    cfg <- asks envConfig
 
-    let font = fromJust $ mFont <|> cfgFont cfg
-    let size = fromJust $ mSize <|> cfgParSize cfg
-    let just = fromJust $ mJust <|> cfgJustification cfg
-    let (Pt indent) = fromJust $ cfgParIndent cfg
-    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgParagraphSpacing cfg
+    let font = fromMaybe (rcFont cfg) mFont
+    let size = fromMaybe (rcParSize cfg) mSize
+    let just = fromMaybe (rcJustification cfg) mJust
+    let (Pt indent) = rcParIndent cfg
+    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = rcParagraphSpacing cfg
 
     typesetContent (Left vText) font size just indent beforeSpace afterSpace
 
@@ -296,69 +343,69 @@ typesetParagraph vText mFont mSize mJust = do
 typesetHeader :: [VText] -> Maybe Font -> Maybe Datatypes.ValidatedTokens.FontSize -> Bool -> Typesetter ()
 typesetHeader vText mFont mSize isSection = do
     RenderState{..} <- get
-    let DocumentState{..} = documentState
+    cfg <- asks envConfig
 
-    let font = fromJust $ mFont <|> cfgFont config
-    let sectionSize = fromJust $ mSize <|> cfgSectionSize config
-    let subsectionSize = fromJust $ mSize <|> cfgSubsectionSize config
-    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgSectionSpacing config
-    let numberingEnabled = fromJust $ cfgSectionNumbering config
+    let font = fromMaybe (rcFont cfg) mFont
+    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = rcSectionSpacing cfg
+    let numberingEnabled = rcSectionNumbering cfg
 
-    let (label, newSecState, finalSize) = if isSection
+    let (size, newCounters, label) = if isSection
         then
-            let nextSec = currentSection + 1
-                lbl = show nextSec
-            in (lbl, documentState { currentSection = nextSec, currentSubsection = 0}, sectionSize)
+            let next = dcSection rsCounters + 1
+            in ( fromMaybe (rcSectionSize cfg) mSize
+                , rsCounters { dcSection = next, dcSubsection = 0}
+                , show next )
         else
-            let nextSub = currentSubsection + 1
-                lbl = show currentSection ++ "." ++ show nextSub
-            in (lbl, documentState { currentSection = currentSection, currentSubsection = nextSub}, subsectionSize)
+            let next = dcSection rsCounters + 1
+            in ( fromMaybe (rcSubsectionSize cfg) mSize
+                , rsCounters { dcSubsection = next}
+                , show (dcSection rsCounters) ++ "." ++ show next )
 
-    -- Update section state.
-    modify $ \s -> s { documentState = newSecState }
+    -- Update counter state.
+    modify $ \s -> s { rsCounters = newCounters }
 
     let numbering = if numberingEnabled then T.pack $ label ++ ". " else ""
     let fullText = if numberingEnabled then (VText numbering Bold):vText else vText
 
     -- Create bookmark in PDF.
-    lift $ newSectionWithPage (numbering <> mergeVText vText) Nothing Nothing currentPage (return ())
+    pdfLift $ newSectionWithPage (numbering <> mergeVText vText) Nothing Nothing rsCurrentPage (return ())
 
     -- Typeset section text.
-    typesetContent (Left fullText) font finalSize JustifyLeft 0 beforeSpace afterSpace
+    typesetContent (Left fullText) font size JustifyLeft 0 beforeSpace afterSpace
 
 -- Typesets the given figure, with it's caption if present.
 typesetFigure :: FilePath -> PageWidth -> Maybe Caption -> Typesetter ()
 typesetFigure path (PageWidth givenWidth) mCap = do
+    RenderEnv{..} <- ask
     RenderState{..} <- get
 
     -- Validation guarantees that all paths have a valid resource.
-    let (FileInfo bs w h) = fromJust $ M.lookup path resources
+    let (FileInfo bs w h) = fromJust $ M.lookup path envResources
     -- Get figure spacing.
-    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgFigureSpacing config
+    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = rcFigureSpacing envConfig
 
     -- This function expects raw pixel values; Or so I think, from reading the source code.
-    img <- lift $ createPDFRawImageFromByteString w h True NoFilter bs
+    img <- pdfLift $ createPDFRawImageFromByteString w h True NoFilter bs
 
     -- Calculate image scale and position.
     let imageRatio = (int2Double w) / (int2Double h)
-    let figureWidth = pageX * givenWidth
+    let figureWidth = envPageWidth * givenWidth
     let figureHeight = figureWidth / imageRatio
 
-    let figureX = (pageX - figureWidth) / 2
-    let figureY = currentY - figureHeight - beforeSpace
+    let figureX = (envPageWidth - figureWidth) / 2
+    let figureY = rsCurrentY - figureHeight - beforeSpace
 
     let figureScaleX = (1 / (int2Double w)) * figureWidth
     let figureScaleY = (1 / (int2Double h)) * figureHeight
 
-    let drawFigure =
-            lift (drawWithPage currentPage $ do -- Indented clearly past 'drawFigure'
-                withNewContext $ do
-                    applyMatrix (translate (figureX :+ figureY))
-                    applyMatrix (scale figureScaleX figureScaleY)
-                    drawXObject img)
+    let drawFigure = pdfLift (drawWithPage rsCurrentPage $ do
+            withNewContext $ do
+                applyMatrix (translate (figureX :+ figureY))
+                applyMatrix (scale figureScaleX figureScaleY)
+                drawXObject img)
 
-    -- Update cursor by the height of the figure, spacing after it is added later..
-    modify $ \s -> s { currentY = figureY }
+    -- Update cursor by the height of the figure, spacing after it is added later.
+    modify $ \s -> s { rsCurrentY = figureY }
     cs <- checkSpace
 
     -- Check if there's enough space to fit the figure, if there's not create a new page and typeset it there.
@@ -368,27 +415,35 @@ typesetFigure path (PageWidth givenWidth) mCap = do
             typesetFigure path (PageWidth givenWidth) mCap
         else -- Draw image and potentially caption.
             case mCap of
-                Just (Caption caption) -> do
-                    mkRes <- makeFigureCaption caption afterSpace
+                Just caption -> do
+                    (captionFits, drawCaption) <- makeFigureCaption caption afterSpace
                     -- Check if there's enough space to fit the figure and caption, if there's not create a new page and typeset it there.
-                    if mkRes then drawFigure else typesetFigure path (PageWidth givenWidth) (Just $ Caption caption)
+                    -- Note that this does not guarantee that the image and caption fit properly, it could by that they just will never
+                    -- fit in the page.
+                    if captionFits
+                        then do
+                            drawFigure
+                            pdfLift $ drawWithPage rsCurrentPage drawCaption
+                        else do
+                            makeNewPage
+                            drawFigure 
+                            pdfLift $ drawWithPage rsCurrentPage drawCaption
 
-                -- No caption, draw figure and spacing directly..
+                -- No caption, draw figure and spacing directly.
                 Nothing -> do
-                    modify $ \s -> s { currentY = currentY - afterSpace }
+                    modify $ \s -> s { rsCurrentY = rsCurrentY - afterSpace }
                     drawFigure
-
-    return ()
   where
     -- The signature is required, otherwise Haskell complains about inferring a concrete type.
-    makeFigureCaption :: Text -> Double -> Typesetter Bool
+    makeFigureCaption :: Text -> Double -> Typesetter (Bool, Draw ())
     makeFigureCaption caption afterSpace = do
+        RenderEnv{..} <- ask
         RenderState{..} <- get
 
-        let font = fromJust $ cfgFont config
+        let font = rcFont envConfig
 
         -- Generate and format the text, then put it in a box.
-        let boxes = getBoxes NormalParagraph (Font (PDFFont (getFont loadedFonts font Normal) 12) black black) $ do
+        let boxes = getBoxes NormalParagraph (Font (PDFFont (getFont envFonts font Normal) 12) black black) $ do
                 setJustification Centered
                 paragraph $ do 
                     txt caption
@@ -397,13 +452,13 @@ typesetFigure path (PageWidth givenWidth) mCap = do
         let figureCaptionSpacing = 10
         -- Calculate available height from currentY down to the bottom margin and make a container with that size, taking into account the
         -- given spacing.
-        let marginX = fromPt (fromJust $ cfgHozMargin config)
-        let (_, marginY) = vertMargin
-        let width   = pageX - (marginX * 2) 
-        let height  = currentY - marginY
+        let (Pt marginX) = rcHozMargin envConfig
+        let (_, bottomMargin) = envVertMargin
+        let width = envPageWidth - (marginX * 2) 
+        let height = rsCurrentY - bottomMargin
 
         -- The mkContainer function defines a container based on it's top left point.
-        let container = mkContainer marginX (currentY - figureCaptionSpacing) width height 0
+        let container = mkContainer marginX (rsCurrentY - figureCaptionSpacing) width height 0
         let verState = defaultVerState NormalParagraph
 
         -- Fill container.
@@ -415,25 +470,25 @@ typesetFigure path (PageWidth givenWidth) mCap = do
         if null remainingBoxes
             then do
                 -- Text fits on page, add caption; Then update cursor to the bottom of the placed text plus paragraph spacing.
-                lift $ drawWithPage currentPage drawAction
-                modify $ \s -> s { currentY = newBottomY - afterSpace }
+                modify $ \s -> s { rsCurrentY = newBottomY - afterSpace }
 
-                return True
+                return (True, drawAction)
             else
-                return False
+                return (False, drawAction)
 
 -- Typesets the given list.
 typesetList :: [[VText]] -> Maybe ListStyle -> Typesetter ()
 typesetList items mStyle = do
-    RenderState{..} <- get
+    cfg <- asks envConfig
+    fonts <- asks envFonts
 
-    let size = fromJust $ cfgParSize config
-    let font = fromJust $ cfgFont config
-    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgListSpacing config
+    let size = rcParSize cfg
+    let font = rcFont cfg
+    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = rcListSpacing cfg
 
     -- Get list style and convert it to a character.
-    let styleToken = fromJust $ mStyle <|> cfgListStyle config
-    let styleZap = setStyle (Font (PDFFont (zapf loadedFonts) (convertAdjustFontSize size 0.6)) black black)
+    let styleToken = fromMaybe (rcListStyle cfg) mStyle
+    let styleZap = setStyle (Font (PDFFont (zapf fonts) (convertAdjustFontSize size 0.6)) black black)
 
     -- The style is a function that takes the item's position in the list and returns the element to typeset.
     let styleFunction = case styleToken of
@@ -447,9 +502,10 @@ typesetList items mStyle = do
                 styleZap
                 txt $ "➤"
             ListNumber -> \n -> do
-                setStyle (Font (PDFFont (getFont loadedFonts font Normal) (convertFontSize size)) black black)
+                setStyle (Font (PDFFont (getFont fonts font Normal) (convertFontSize size)) black black)
                 txt $ T.pack $ show n ++ "."
 
+    -- Typeset list.
     let list = do
             setJustification LeftJustification
             paragraph $ do
@@ -461,37 +517,35 @@ typesetList items mStyle = do
                     -- Convert all text into HPDF paragraphs.
                     forM_ line $ \(VText txtContent style) -> do
                         -- Apply styling to segment.
-                        let styledFont = getFont loadedFonts font style
+                        let styledFont = getFont fonts font style
                         setStyle (Font (PDFFont styledFont (convertFontSize size)) black black)
                         txt txtContent
                         forceNewLine
 
     typesetContent (Right list) font size JustifyLeft 0 beforeSpace afterSpace
 
-    return ()
-
 -- Typesets the given table.
 typesetTable :: [[[VText]]] -> TableColumns -> Typesetter ()
-typesetTable tableContents (TableColumns columns) = do
+typesetTable tableContents columns = do
     RenderState{..} <- get
+    RenderEnv{..} <- ask
 
     -- Get table spacing and update cursor to reflect it, this is done because the row typesetting function gets the state to get the cursor.
-    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgTableSpacing config
-    modify $ \s -> s { currentY = currentY - beforeSpace }
+    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = rcTableSpacing envConfig
+    modify $ \s -> s { rsCurrentY = rsCurrentY - beforeSpace }
 
-    let font = fromJust $ cfgFont config 
-    let cSize = convertFontSize (fromJust $ cfgParSize config)
+    let font = rcFont envConfig
+    let cSize = convertFontSize (rcParSize envConfig)
 
     -- Calculate width of each column
-    let marginX = fromPt (fromJust $ cfgHozMargin config)
-    let (_, marginY) = vertMargin
-    let colWidth = (pageX - marginX * 2) / (int2Double columns) 
+    let (Pt marginX) = rcHozMargin envConfig
+    let (_, bottomMargin) = envVertMargin
+    let colWidth = (envPageWidth - marginX * 2) / (int2Double columns) 
 
     let cellBeforeSpacing = (int2Double cSize) * 0.4
     let cellAfterSpacing = (int2Double cSize) * 0.35
 
     -- Helper function to layout a single row without committing state changes yet.
-    -- Returns: (The combined drawing action, The lowest Y point of the row, Did it fit?)
     let layoutRow rowItems startY = do
             -- Process each cell in the row.
             results <- forM (zip rowItems [0..(columns - 1)]) $ \(cell, index) -> do
@@ -501,27 +555,27 @@ typesetTable tableContents (TableColumns columns) = do
                             -- Convert all text into HPDF paragraphs.
                             forM_ cell $ \(VText txtContent style) -> do
                                 -- Apply styling to segment.
-                                let styledFont = getFont loadedFonts font style
+                                let styledFont = getFont envFonts font style
                                 setStyle (Font (PDFFont styledFont cSize) black black)
                                 txt txtContent
 
                 -- Calculate cell position.
                 let cellX = marginX + (int2Double index * colWidth)
                 let cellY = startY - cellBeforeSpacing -- Used to lower the text from the table cell.
-                let height = cellY - marginY
+                let height = cellY - bottomMargin
 
                 -- Create container for this cell.
                 let container = mkContainer cellX cellY colWidth height 0
                 let verState = defaultVerState NormalParagraph
 
                 -- Make boxes and fill container.
-                let boxes = getBoxes NormalParagraph (Font (PDFFont (getFont loadedFonts font Normal) cSize) black black) tText
+                let boxes = getBoxes NormalParagraph (Font (PDFFont (getFont envFonts font Normal) cSize) black black) tText
                 let (action, usedContainer, remaining) = fillContainer verState container boxes
                 
                 -- Determine the bottom Y of this specific cell
                 let (Rectangle (bottomX :+ bottomY) (topX :+ _)) = containerContentRectangle usedContainer
 
-                lift $ drawWithPage currentPage $ do
+                lift $ drawWithPage rsCurrentPage $ do
                     strokeColor red
                     stroke $ containerContentRectangle usedContainer
                 
@@ -545,15 +599,16 @@ typesetTable tableContents (TableColumns columns) = do
     -- Iterate through the table rows.
     forM_ tableContents $ \row -> do
         RenderState{..} <- get
+
         -- Attempt to layout the row on the current page.
-        (drawAction, nextY, fits) <- layoutRow row currentY
+        (drawAction, nextY, fits) <- lift $ layoutRow row rsCurrentY
 
         -- If table didn't fit create a new page and typeset again.
         if fits
             then do
                 -- It fits, draw it and update the cursor position.
-                lift $ drawWithPage (currentPage) drawAction
-                modify $ \s -> s { currentY = nextY - afterSpace}
+                pdfLift $ drawWithPage rsCurrentPage drawAction
+                modify $ \s -> s { rsCurrentY = nextY - afterSpace}
             else do
                 -- It does not fit, create a new page and typeset it there.
                 makeNewPage
@@ -561,8 +616,8 @@ typesetTable tableContents (TableColumns columns) = do
                 RenderState{..} <- get
 
                 -- Layout the row again on the new page.
-                (drawActionNew, nextYNew, _) <- layoutRow row currentY
+                (drawActionNew, nextYNew, _) <- lift $ layoutRow row rsCurrentY
                 -- Typeset it on the new page. It's worth noting that there are no guarantees that the table will fit on an empty page, it
                 -- could simply be to big.
-                lift $ drawWithPage currentPage drawActionNew
-                modify $ \s -> s { currentY = nextYNew - afterSpace}
+                pdfLift $ drawWithPage rsCurrentPage drawActionNew
+                modify $ \s -> s { rsCurrentY = nextYNew - afterSpace}
