@@ -31,6 +31,35 @@ convertAdjustFontSize (FontSize (Pt pt)) a = double2Int (pt * a)
 
 fromPt :: Pt -> Double
 fromPt (Pt s) = s
+
+-- Arabic numbers to Roman numerals mapping.
+romanMap :: [(Int, String)]
+romanMap = 
+  [ (1000, "M")
+  , (900,  "CM")
+  , (500,  "D")
+  , (400,  "CD")
+  , (100,  "C")
+  , (90,   "XC")
+  , (50,   "L")
+  , (40,   "XL")
+  , (10,   "X")
+  , (9,    "IX")
+  , (5,    "V")
+  , (4,    "IV")
+  , (1,    "I")
+  ]
+
+-- Converts and integer to a Roman numeral.
+toRoman :: Int -> String
+toRoman n = convert n romanMap
+  where
+    convert :: Int -> [(Int, String)] -> String
+    convert _ [] = ""
+    convert val ((threshold, symbol):rest)
+      | val >= threshold = symbol ++ convert (val - threshold) ((threshold, symbol):rest)
+      | otherwise        = convert val rest
+
 ------------------------
 -- ELEMENT MAKER FUNCTIONS
 ------------------------

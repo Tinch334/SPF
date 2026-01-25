@@ -111,9 +111,10 @@ printLocatedError fileContents (L.LocatedError pos err) = do
 
 -- Haskell definition of "show" for "IO error" does not follow the style of the rest of the program.
 showIOError :: IOError -> String
-showIOError e = let reason = "\nReason: " ++ show (IIE.ioe_type e) in case IIE.ioe_filename e of
-    Nothing -> "An IO error occurred" ++ reason
-    Just f -> "The file " ++ C.quote (T.pack f) ++ " could not be accessed" ++ reason
+showIOError e = let reason = "\nReason: " ++ show (IIE.ioe_type e) in
+    case IIE.ioe_filename e of
+        Nothing -> "An IO error occurred" ++ reason
+        Just f -> "The file " ++ C.quote (T.pack f) ++ " could not be accessed" ++ reason
 
 
 --------------------
@@ -122,7 +123,7 @@ showIOError e = let reason = "\nReason: " ++ show (IIE.ioe_type e) in case IIE.i
 main :: IO ()
 main = do
     -- No commands used, second argument can be discarded.
-    (opts, ()) <- OPS.simpleOptions "0.1.2.0" "SPF" "A simple document preparation system, using a DSL inspired in LaTeX" optionParser empty 
+    (opts, ()) <- OPS.simpleOptions "0.1.4.3" "SPF" "A simple document preparation system, using a DSL inspired in LaTeX" optionParser empty 
     runCompiler opts
 
 

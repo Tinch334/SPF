@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Typesetting.Typesetting (typesetDocument) where
 
@@ -29,9 +30,11 @@ import qualified Debug.Trace as DT
 
 
 -- Stores the current state of the sections.
-data SectionState = SectionState
-    { currentSection    :: Int
+data DocumentState = DocumentState
+    { pageNumber        :: Int
+    , currentSection    :: Int
     , currentSubsection :: Int
+    , currentFigure     :: Int
     }
 
 data RenderState = RenderState
@@ -42,8 +45,8 @@ data RenderState = RenderState
     , resources     :: ResourceMap              -- All loaded resources, with their associated path.
     , pageX         :: Double                   -- Page dimensions are needed for state resetting, the PDF monad doesn't provide access.
     , pageY         :: Double
-    , remainingText :: [VText]                  -- Any text that cannot fit on the current page gets stored here.
-    , sectionState  :: SectionState
+    , vertMargin    :: (Double, Double)         -- The value of the vertical margin can be different, depending on page numbers and titles.
+    , documentState  :: DocumentState
     }
 
 -- Provides access to all rendering information, additionally it handles the current state of the PDF monad.
@@ -59,30 +62,47 @@ typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath = do
     let pageRect = pageSizeToRect (fromJust $ cfgPageSize cfg)
     let (PDFRect _ _ px py) = pageRect
     let startY = py - fromPt (fromJust $ cfgVertMargin cfg)
-    let sectionState = SectionState 0 0
+    let vm = calculateVertMargin cfg
+    let documentState = DocumentState 0 0 0 0
 
     runPdf outPath (generateDocInfo meta) pageRect $ do
-        initialPage <- addPage Nothing
 
         -- Initialize render state.
         let initialState = RenderState {
           currentY = startY
-        , currentPage = initialPage -- makeNewPage cannot be used, since there needs to be a reference when initializing the state.
+        , currentPage = error "INTERNAL: Attempted to access currentPage before the first page was created."
         , config = cfg
         , loadedFonts = fonts
         , resources = res
+        , vertMargin = vm
         , pageX = px
         , pageY = py
-        , remainingText = []
-        , sectionState = sectionState
+        , documentState = documentState
         }
 
+        evalStateT 
+            (do
+                makeNewPage -- Create first page.
+                typesetElements cnt)
+            initialState
 
-        evalStateT (typesetElements cnt) initialState
 
-------------------------
--- COMPLETE COMMANDS; NO LONGER DONE IN Main.hs!!!!!!!!!!
-------------------------
+-- Calculates the vertical margin based on what kind of page numbering was chosen.
+calculateVertMargin :: VConfig -> (Double, Double)
+calculateVertMargin config = do
+
+    let (Pt margin) = fromJust $ cfgVertMargin config
+    let numbering = fromJust $ cfgPageNumbering config
+    let cSize = convertFontSize (fromJust $ cfgParSize config)
+
+    -- Calculate bottom margin based on numbering.
+    let bottom = margin + 
+            case numbering of
+                NumberingNone -> 0.0
+                _ -> 16
+
+    (margin, bottom)
+
 ------------------------
 -- BOOKMARKS NOT WORKING; THEY TAKE YOU TO THE START OF THE FILE.
 ------------------------
@@ -126,7 +146,7 @@ checkSpace :: Typesetter (Bool)
 checkSpace = do
     RenderState{..} <- get
 
-    let marginY = fromPt (fromJust $ cfgVertMargin config)
+    let (_, marginY) = vertMargin
 
     return $ currentY < marginY
 
@@ -136,12 +156,44 @@ makeNewPage = do
     RenderState{..} <- get
     -- Create new page of standard size in PDF Monad.
     newPage <- lift $ addPage Nothing
+
+    let (marginY, _) = vertMargin
+    let currentPage = pageNumber documentState
     
     -- Reset state, since we are in a new page.
     modify $ \s -> s { 
         currentPage = newPage, 
-        currentY = pageY - fromPt (fromJust $ cfgVertMargin config)
+        currentY = pageY - marginY,
+        documentState = documentState { pageNumber = currentPage + 1 }
     }
+
+    -- Typeset line number onto new page.
+    typesetLineNumber (fromJust $ cfgPageNumbering config)
+
+  where
+    typesetLineNumber NumberingNone = return ()
+    typesetLineNumber numbering = do
+        RenderState{..} <- get
+
+        let font = fromJust $ cfgFont config
+        let (Pt hMargin) = fromJust $ cfgHozMargin config
+        let (_, marginY) = vertMargin
+        -- Get the page number centred in the bottom area of the margin.
+        let rect = Rectangle (hMargin :+ (marginY * 0.2)) ((pageX - hMargin) :+ (marginY * 0.6))
+
+        let pnStr = case numbering of
+                NumberingArabic -> show $ pageNumber documentState
+                NumberingRoman  -> toRoman $ pageNumber documentState
+
+        -- Whilst this function doesn't handle overflows from the render area well they should never happen; Since a number would have to be
+        -- as wide as the page for that to be a problem.
+        lift $ drawWithPage currentPage $ do
+            displayFormattedText rect NormalParagraph (Font (PDFFont (getFont loadedFonts font Normal) 12) black black) $ do
+                setJustification Centered
+                paragraph $ do
+                    txt $ T.pack pnStr
+
+showRect (Rectangle (bx :+ by) (tx :+ ty)) = show bx ++ " - " ++ show by ++ " - " ++ show tx ++ " - " ++ show ty
 
 drawHLine :: Typesetter ()
 drawHLine = do
@@ -197,7 +249,7 @@ typesetContent content font size just indent beforeSpace afterSpace = do
         -- Calculate available height from currentY down to the bottom margin and make a container with that size, taking into account the
         -- given spacing.
         let marginX = fromPt (fromJust $ cfgHozMargin config)
-        let marginY = fromPt (fromJust $ cfgVertMargin config)
+        let (_, marginY) = vertMargin
         let width   = pageX - (marginX * 2) 
         let height  = currentY - marginY 
 
@@ -244,7 +296,7 @@ typesetParagraph vText mFont mSize mJust = do
 typesetHeader :: [VText] -> Maybe Font -> Maybe Datatypes.ValidatedTokens.FontSize -> Bool -> Typesetter ()
 typesetHeader vText mFont mSize isSection = do
     RenderState{..} <- get
-    let SectionState{..} = sectionState
+    let DocumentState{..} = documentState
 
     let font = fromJust $ mFont <|> cfgFont config
     let sectionSize = fromJust $ mSize <|> cfgSectionSize config
@@ -256,14 +308,14 @@ typesetHeader vText mFont mSize isSection = do
         then
             let nextSec = currentSection + 1
                 lbl = show nextSec
-            in (lbl, SectionState nextSec 0, sectionSize)
+            in (lbl, documentState { currentSection = nextSec, currentSubsection = 0}, sectionSize)
         else
             let nextSub = currentSubsection + 1
                 lbl = show currentSection ++ "." ++ show nextSub
-            in (lbl, SectionState currentSection nextSub, subsectionSize)
+            in (lbl, documentState { currentSection = currentSection, currentSubsection = nextSub}, subsectionSize)
 
     -- Update section state.
-    modify $ \s -> s { sectionState = newSecState }
+    modify $ \s -> s { documentState = newSecState }
 
     let numbering = if numberingEnabled then T.pack $ label ++ ". " else ""
     let fullText = if numberingEnabled then (VText numbering Bold):vText else vText
@@ -346,7 +398,7 @@ typesetFigure path (PageWidth givenWidth) mCap = do
         -- Calculate available height from currentY down to the bottom margin and make a container with that size, taking into account the
         -- given spacing.
         let marginX = fromPt (fromJust $ cfgHozMargin config)
-        let marginY = fromPt (fromJust $ cfgVertMargin config)
+        let (_, marginY) = vertMargin
         let width   = pageX - (marginX * 2) 
         let height  = currentY - marginY
 
@@ -423,13 +475,20 @@ typesetTable :: [[[VText]]] -> TableColumns -> Typesetter ()
 typesetTable tableContents (TableColumns columns) = do
     RenderState{..} <- get
 
+    -- Get table spacing and update cursor to reflect it, this is done because the row typesetting function gets the state to get the cursor.
+    let (Spacing (Pt beforeSpace) (Pt afterSpace)) = fromJust $ cfgTableSpacing config
+    modify $ \s -> s { currentY = currentY - beforeSpace }
+
     let font = fromJust $ cfgFont config 
     let cSize = convertFontSize (fromJust $ cfgParSize config)
 
     -- Calculate width of each column
     let marginX = fromPt (fromJust $ cfgHozMargin config)
-    let marginY = fromPt (fromJust $ cfgVertMargin config)
+    let (_, marginY) = vertMargin
     let colWidth = (pageX - marginX * 2) / (int2Double columns) 
+
+    let cellBeforeSpacing = (int2Double cSize) * 0.4
+    let cellAfterSpacing = (int2Double cSize) * 0.35
 
     -- Helper function to layout a single row without committing state changes yet.
     -- Returns: (The combined drawing action, The lowest Y point of the row, Did it fit?)
@@ -448,10 +507,11 @@ typesetTable tableContents (TableColumns columns) = do
 
                 -- Calculate cell position.
                 let cellX = marginX + (int2Double index * colWidth)
-                let height = startY - marginY
+                let cellY = startY - cellBeforeSpacing -- Used to lower the text from the table cell.
+                let height = cellY - marginY
 
                 -- Create container for this cell.
-                let container = mkContainer cellX startY colWidth height 0
+                let container = mkContainer cellX cellY colWidth height 0
                 let verState = defaultVerState NormalParagraph
 
                 -- Make boxes and fill container.
@@ -459,27 +519,30 @@ typesetTable tableContents (TableColumns columns) = do
                 let (action, usedContainer, remaining) = fillContainer verState container boxes
                 
                 -- Determine the bottom Y of this specific cell
-                let (Rectangle (_ :+ bottomY) _) = containerContentRectangle usedContainer
+                let (Rectangle (bottomX :+ bottomY) (topX :+ _)) = containerContentRectangle usedContainer
+
+                lift $ drawWithPage currentPage $ do
+                    strokeColor red
+                    stroke $ containerContentRectangle usedContainer
                 
-                return (action, bottomY, null remaining, usedContainer)
+                return (action, bottomY, null remaining, (bottomX, topX))
 
             let allFit = all (\(_, _, fit, _) -> fit) results
-            -- The new Y is the minimum of all cell bottom Ys.
-            let lowestY = minimum $ map(\(_, by, _, _) -> by) results
+            -- The new Y is the minimum of all cell bottom Ys, minus the padding.
+            let lowestY = (minimum $ map(\(_, by, _, _) -> by) results) - cellAfterSpacing
             -- Get all draw actions from row.
             let rowActions = sequence_ $ map
-                    (\(act, _, _, uc) -> do
+                    (\(act, _, _, (bx, tx)) -> do
                         -- Typeset rectangle for cell.
-                        let (Rectangle (leftX :+ _) topRight) = containerContentRectangle uc
                         strokeColor black
-                        stroke $ Rectangle (leftX :+ lowestY) topRight
-                        -- Typeset cell
+                        stroke $ Rectangle (bx :+ lowestY) (tx :+ startY)
+                        -- Typeset cell.
                         act)
                     results
                     
             return (rowActions, lowestY, allFit)
 
-    -- Iterate through the table rows
+    -- Iterate through the table rows.
     forM_ tableContents $ \row -> do
         RenderState{..} <- get
         -- Attempt to layout the row on the current page.
@@ -490,17 +553,16 @@ typesetTable tableContents (TableColumns columns) = do
             then do
                 -- It fits, draw it and update the cursor position.
                 lift $ drawWithPage (currentPage) drawAction
-                modify $ \s -> s { currentY = nextY }
+                modify $ \s -> s { currentY = nextY - afterSpace}
             else do
-                -- It does not fit, create a new page.
+                -- It does not fit, create a new page and typeset it there.
                 makeNewPage
-                
                 -- Get the new state, to have the updated Y cursor.
                 RenderState{..} <- get
 
                 -- Layout the row again on the new page.
                 (drawActionNew, nextYNew, _) <- layoutRow row currentY
-                
-                -- Typeset it on the new page.
+                -- Typeset it on the new page. It's worth noting that there are no guarantees that the table will fit on an empty page, it
+                -- could simply be to big.
                 lift $ drawWithPage currentPage drawActionNew
-                modify $ \s -> s { currentY = nextYNew }
+                modify $ \s -> s { currentY = nextYNew - afterSpace}

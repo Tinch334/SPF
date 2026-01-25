@@ -109,7 +109,7 @@ solved; and in fact METAFONT will automatically solve simultaneous
 linear equations, so it is easy to compute the intersection of lines in
 METAFONT programs.
 
-\figure{AspectRatio.jpg}[width: 0.75, caption: "Look at this \"calibration image\"!!!!"]
+\figure{Color and ratio.jpg}[width: 0.75, caption: "Look at this \"calibration image\"!!!!"]
 
 It turned out that it was not hard to achieve this level of quality
 with respect to the formatting of text, after about two years of work.
@@ -120,3 +120,21 @@ with respect to the formatting of text, after about two years of work.
 \item{} We are up to threeee
 \item{} This is the last one :(
 \end{list}
+
+When I looked at them, I was sure that there must be a bug either
+in IDEAL or in the troff processor that typeset the IDEAL output, be-
+cause the long shafts of the arrows did not properly bisect the angle
+made by the two short lines of the arrowheads. The shafts seemed to
+be drawn one pixel too high or too low. Chris spent many hours to-
+gether with Brian Kernighan trying to find out what was wrong, but
+no errors could be pinned down. Eventually his thesis was printed on
+a high-resolution phototypesetter, and the problem became much less
+noticeable than it had been on the laserprinted proofs. There still was
+a glitch, but I decided not to hold up Chris’s graduation for the sake of
+a misplaced pixel.
+
+\begin{table}[columns: 3]
+    Some text, like a really long amount of text. This is just to force a linebreak. | Some more text | Even more \break
+    Some text 2 | Some more text 2 | Even more 2 \break
+    Some text 3 | Some more text 3 | Even more 3 \break
+\end{table}
