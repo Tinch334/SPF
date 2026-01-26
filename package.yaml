@@ -1,5 +1,5 @@
 name:                SPF
-version:             0.1.0.0
+version:             0.1.5.4
 github:              "Tinch334/SPF"
 license:             GPL-3
 author:              "Martín Goñi"
@@ -7,7 +7,6 @@ copyright:           "Martín Goñi"
 
 extra-source-files:
 - README.md
-- CHANGELOG.md
 
 # Metadata used when publishing your package
 # synopsis:            Short description of your package
@@ -22,10 +21,7 @@ dependencies:
 - base >= 4.7 && < 5
 - HPDF
 - text 
-- random #Check necessity
-- vector #Check necessity
-- array #Check necessity
-- network-uri #Check necessity
+- vector
 - filepath
 - megaparsec >= 9.0
 - optparse-applicative

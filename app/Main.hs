@@ -176,4 +176,4 @@ runCompiler Options{..} = do
 
                 TS.typesetDocument vParsed resources fonts outPath debug
                 
-                putStrLn $ "Compilation succeeded, result in " ++ (C.quote $ T.pack completePath)
+                putStrLn $ "Compilation succeeded, result in " ++ (C.quote $ T.pack outPath)

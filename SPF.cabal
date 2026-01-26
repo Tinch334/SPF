@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           SPF
-version:        0.1.0.0
+version:        0.1.5.4
 description:    Please see the README on GitHub at <https://github.com/Tinch334/SPF#readme>
 homepage:       https://github.com/Tinch334/SPF#readme
 bug-reports:    https://github.com/Tinch334/SPF/issues
@@ -17,7 +17,6 @@ license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
-    CHANGELOG.md
 
 source-repository head
   type: git
@@ -45,7 +44,6 @@ library
   build-depends:
       HPDF
     , JuicyPixels
-    , array
     , async
     , base >=4.7 && <5
     , bytestring
@@ -55,10 +53,8 @@ library
     , ghc-internal
     , megaparsec >=9.0
     , mtl
-    , network-uri
     , optparse-applicative
     , optparse-simple
-    , random
     , safe-coloured-text
     , text
     , validation
@@ -76,7 +72,6 @@ executable SPF-exe
       HPDF
     , JuicyPixels
     , SPF
-    , array
     , async
     , base >=4.7 && <5
     , bytestring
@@ -86,10 +81,8 @@ executable SPF-exe
     , ghc-internal
     , megaparsec >=9.0
     , mtl
-    , network-uri
     , optparse-applicative
     , optparse-simple
-    , random
     , safe-coloured-text
     , text
     , validation
@@ -108,7 +101,6 @@ test-suite SPF-test
       HPDF
     , JuicyPixels
     , SPF
-    , array
     , async
     , base >=4.7 && <5
     , bytestring
@@ -118,10 +110,8 @@ test-suite SPF-test
     , ghc-internal
     , megaparsec >=9.0
     , mtl
-    , network-uri
     , optparse-applicative
     , optparse-simple
-    , random
     , safe-coloured-text
     , text
     , validation
