@@ -13,9 +13,9 @@ import Data.Validation (Validation(..))
 validateDocument :: ParsedDocument -> Validation [LocatedError] ValidatedDocument
 validateDocument (ParsedDocument cfg meta cnt) =
     let cfgOrErr = mergeOpts <$> traverse validateConfig cfg
-        metaOrErr = validateMeta meta
+        cnvMeta = convertMeta meta
         cntOrErr = traverse validateCommand cnt in
-        ValidatedDocument <$> cfgOrErr <*> metaOrErr <*> cntOrErr
+        ValidatedDocument <$> cfgOrErr <*> cnvMeta <*> cntOrErr
 
 
 -- Receives a list of commands and returns a single "VConfig" with the merged options of all configuration commands.

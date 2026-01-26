@@ -2,6 +2,8 @@
 \config{paragraphspacing}[before: 5, after: 12.5]
 
 \title{Computers and Typesetting}
+\author{Donald E. Knuth}
+\date{1999}
 
 
 With a suitable setting of the parameters, we can even imitate a

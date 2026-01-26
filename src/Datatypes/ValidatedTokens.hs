@@ -18,11 +18,10 @@ data ValidatedDocument = ValidatedDocument
 
 -- Once the metadata has been validated location data is no longer needed.
 data ValidatedMetadata = ValidatedMetadata
-    { vmTitle  :: Maybe VMeta
-    , vmAuthor :: Maybe VMeta
-    , vmDate   :: Maybe VMeta
+    { vmTitle  :: Maybe [VText]
+    , vmAuthor :: Maybe [VText]
+    , vmDate   :: Maybe [VText]
     } deriving (Eq)
-
 
 --------------------
 -- DATATYPE DEFINITIONS
@@ -39,12 +38,6 @@ newtype FontSize = FontSize Double
 
 type Caption = Text
 type TableColumns = Int
-
-
-data VMeta  = VTitle       [VText] (Maybe Font) (Maybe FontSize)
-            | VAuthor      [VText] (Maybe Font) (Maybe FontSize)
-            | VDate        [VText] (Maybe Font) (Maybe FontSize)
-            deriving (Show, Eq, Ord)
 
 -- The maybe in the options indicates that they are optional. If found they are added with "Just", otherwise "Nothing" is used.
 -- The Nothing's are then replaced with the default values for those arguments.
@@ -125,7 +118,7 @@ defaultVConfig = VConfig
     , cfgParIndent          = Just $ Pt 20
     , cfgFont               = Just Times
     , cfgParSize            = Just $ FontSize 12
-    , cfgTitleSize          = Just $ FontSize 22
+    , cfgTitleSize          = Just $ FontSize 32
     , cfgSectionSize        = Just $ FontSize 18
     , cfgSubsectionSize     = Just $ FontSize 16
     , cfgJustification      = Just JustifyLeft

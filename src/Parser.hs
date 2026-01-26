@@ -97,15 +97,15 @@ parseLanguage = do
 -- Parse metadata commands, ensuring at most one of each kind is present.
 parseMeta :: Parser DocumentMetadata
 parseMeta = DocumentMetadata
-    <$> meta "title"  PTitle
-    <*> meta "author" PAuthor
-    <*> meta "date"   PDate where
-        meta n c = optional $ withPos $ do
-            void (string $ "\\" <> n)
-            arg <- braces parsePText
-            maybeOp <- optional $ lexeme parseOptions
-            void sc -- There might be blank space between metadata definitions.
-            return $ PMetaOpt (c arg) (maybe POptionNone id maybeOp)
+    <$> meta "title"
+    <*> meta "author"
+    <*> meta "date"
+  where
+    meta n = optional $ do
+        void (string $ "\\" <> n)
+        arg <- braces parsePText
+        void sc -- There might be blank space between metadata definitions.
+        return arg
 
 parseDocument :: Parser [Located PCommOpt]
 parseDocument = sepEndBy1 documentOptions sc where

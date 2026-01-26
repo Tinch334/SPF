@@ -18,15 +18,13 @@ data ParsedDocument = ParsedDocument
     , pdContent     :: [Located PCommOpt]   -- The body of the document.
     } deriving (Eq)
 
-
+-- Location information is not included since there's no options to validate.
 data DocumentMetadata = DocumentMetadata
-    { mdTitle   :: Maybe (Located PMetaOpt) 
-    , mdAuthor  :: Maybe (Located PMetaOpt)
-    , mdDate    :: Maybe (Located PMetaOpt)
+    { mdTitle  :: Maybe [PText]
+    , mdAuthor :: Maybe [PText]
+    , mdDate   :: Maybe [PText]
     } deriving (Eq)
 
-emptyMetadata :: DocumentMetadata
-emptyMetadata = DocumentMetadata Nothing Nothing Nothing
 
 --------------------
 -- DATATYPE DEFINITIONS
@@ -47,13 +45,6 @@ data POption    = POptionMap     [POptionPair]
 -- a command.
 data PConfig = PConfig PConfigArg POption
     deriving (Show, Eq, Ord)
-
-data PMetaOpt = PMetaOpt PMeta POption
-    deriving (Show, Eq)
-data PMeta  = PTitle       [PText]
-            | PAuthor      [PText]
-            | PDate        [PText]
-            deriving (Show, Eq, Ord)
 
 data PCommOpt = PCommOpt PComm POption
    deriving (Eq, Ord)

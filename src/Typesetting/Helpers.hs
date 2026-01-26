@@ -63,8 +63,8 @@ generateDocInfo :: ValidatedMetadata -> PDFDocumentInfo
 generateDocInfo meta = let
     baseInfo = standardDocInfo {compressed = False}
     withAuthor = case vmAuthor meta of
-        Just (VAuthor a _ _) -> baseInfo {author = mergeVText a}
+        Just a -> baseInfo {author = mergeVText a}
         Nothing -> baseInfo
     withSubject = case vmTitle meta of
-        Just (VTitle t _ _) -> withAuthor {subject = mergeVText t}
+        Just t -> withAuthor {subject = mergeVText t}
         Nothing -> withAuthor in withSubject

@@ -202,20 +202,17 @@ checkSpace = do
 -- Creates a new page, if the flag is set adds a number to that page.
 makeNewPage :: Bool -> Typesetter ()
 makeNewPage makeNumbering = do
+    RenderConfig{..} <- asks envConfig
+    
     -- Create new page of standard size in PDF monad.
     newPage <- pdfLift $ addPage Nothing
 
     (topMargin, _) <- asks envVertMargin
     pageHeight <- asks envPageHeight
     
-    -- Update state, since we are in a new page.
-    modify $ \s -> s { 
-        rsCurrentPage = newPage, 
-        rsCurrentY = pageHeight - topMargin,
-        rsCounters = (rsCounters s) { dcPage = dcPage (rsCounters s) + 1 }
-    }
+    -- Update state.
+    modify $ \s -> s { rsCurrentPage = newPage, rsCurrentY = pageHeight - topMargin }
 
-    RenderConfig{..} <- asks envConfig
     -- Typeset line number onto new page.
     unless (rcPageNumbering == NumberingNone || not makeNumbering) $ typesetPageNumber rcPageNumbering
 
@@ -224,16 +221,19 @@ makeNewPage makeNumbering = do
         RenderEnv{..} <- ask
         RenderState{..} <- get
 
+        let newPageNumber = dcPage rsCounters + 1
+        -- Update page number.
+        modify $ \s -> s { rsCounters = rsCounters { dcPage = newPageNumber } }
+
         let (Pt hMargin) = rcHozMargin envConfig
         let (_, bottomMargin) = envVertMargin
         -- Get the page number centred in the bottom area of the margin.
         let rect = Rectangle (hMargin :+ (bottomMargin * 0.2)) ((envPageWidth - hMargin) :+ (bottomMargin * 0.6))
         let font = getFont envFonts (rcFont envConfig) Normal
 
-        let pageNumber = dcPage rsCounters
         let pnStr = case numbering of
-                NumberingArabic -> show pageNumber
-                NumberingRoman  -> toRoman pageNumber
+                NumberingArabic -> show newPageNumber
+                NumberingRoman  -> toRoman newPageNumber
 
         -- Whilst this function doesn't handle overflows from the render area well they should never happen; Since a number would have to be
         -- as wide as the page for that to be a problem.
@@ -331,27 +331,27 @@ typesetTitlepage = do
 
     when (hasTitleElems envMeta) $ do
         -- Move the cursor down to separate any title elements.
-        modify $ \s -> s { rsCurrentY = envPageHeight * 0.8 }
+        modify $ \s -> s { rsCurrentY = envPageHeight * 0.92 }
         RenderState{..} <- get
 
         let font = rcFont envConfig
         let (FontSize cSizeTitle) = rcTitleSize envConfig
-        let cSizeRest = cSizeTitle * 0.75
+        let cSizeRest = cSizeTitle * 0.6
 
         case vmTitle envMeta of
             Nothing -> return ()
-            Just (VTitle t _ _) -> do
-                typesetContent (Left t) font (FontSize cSizeTitle) JustifyCenter 0 20 0
+            Just t -> do
+                typesetContent (Left t) font (FontSize cSizeTitle) JustifyCenter 0 0 (envPageWidth * 0.15)
 
         case vmAuthor envMeta of
             Nothing -> return ()
-            Just (VAuthor a _ _) -> do
-                typesetContent (Left a) font (FontSize cSizeRest) JustifyCenter 0 10 0
+            Just a -> do
+                typesetContent (Left a) font (FontSize cSizeRest) JustifyCenter 0 0 (envPageWidth * 0.025)
 
         case vmDate envMeta of
             Nothing -> return ()
-            Just (VDate d _ _) -> do
-                typesetContent (Left d) font (FontSize cSizeRest) JustifyCenter 0 10 0
+            Just d -> do
+                typesetContent (Left d) font (FontSize cSizeRest) JustifyCenter 0 0 0
 
         -- Make a new page after the title.
         makeNewPage True

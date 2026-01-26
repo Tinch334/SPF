@@ -3,7 +3,7 @@
 module Validation.Rules 
     ( validateCommand
     , validateConfig
-    , validateMeta
+    , convertMeta
     ) where
 
 import Validation.Schema
@@ -138,21 +138,14 @@ validateCommand (Located pos comm) =
 
 
 --------------------
--- METADATA VALIDATION
+-- METADATA CONVERSION
 --------------------
-locateMeta :: SourcePos -> Validation [String] a -> Validation [LocatedError] a
-locateMeta p v = case v of
-  Failure errs -> Failure $ map (at p) errs
-  Success s    -> Success s
-
-validateMeta :: DocumentMetadata -> Validation [LocatedError] ValidatedMetadata
-validateMeta (DocumentMetadata t a d) = ValidatedMetadata
-  <$> maybeValidate t <*> maybeValidate a <*> maybeValidate d where
-    maybeValidate (Just (Located pos (PMetaOpt (PTitle txt) op)))  = locateMeta pos $ Just <$> namedFontWithSize VTitle txt op
-    maybeValidate (Just (Located pos (PMetaOpt (PAuthor txt) op))) = locateMeta pos $ Just <$> namedFontWithSize VAuthor txt op
-    maybeValidate (Just (Located pos (PMetaOpt (PDate txt) op)))   = locateMeta pos $ Just <$> namedFontWithSize VDate txt op
-    maybeValidate Nothing = Success Nothing
-
+-- Returns a validation so it can be composed with other validations, using "<*>".
+convertMeta :: DocumentMetadata -> Validation [LocatedError] ValidatedMetadata
+convertMeta (DocumentMetadata t a d) = Success $ ValidatedMetadata
+    (maybe Nothing (Just . convertText) t)
+    (maybe Nothing (Just . convertText) a)
+    (maybe Nothing (Just . convertText) d)
 
 --------------------
 -- CONFIGURATION VALIDATION
