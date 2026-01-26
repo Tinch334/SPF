@@ -176,7 +176,7 @@ namedFontsizeSchema c = c <$> (requireNumberWith "size" (validateNumInst (> 0) F
 
 -- All configuration options fail with no arguments, an auxiliary function avoids repetition.
 validateConfigOption :: PConfigArg -> POption -> String -> [Text] -> Schema VConfig -> Validation [String] VConfig
-validateConfigOption _ (POptionMap m) err keys schema = runSchema (ensureValidKeys err keys schema) m
+validateConfigOption arg (POptionMap m) _ keys schema = runSchema (ensureValidKeys (configErrorString arg) keys schema) m
 validateConfigOption arg POptionNone err _ _ = Failure [err ++ configErrorString arg]
 
 -- Error generator.
@@ -266,9 +266,9 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $ vc arg opt
         (withVal sListSt $ requireTextWith "style" validateListStyle ("Unknown style. " ++ configErrorString PListstyle))
 
     vc PVerMargin o = validateConfigOption PVerMargin o "Vertical margin requires arguments. " ["margin"] 
-        (withVal sVertMrg $ requireNumberWith "margin" (validateNumInst (> 0) Pt) ("Unknown margin. " ++ configErrorString PJustification))
+        (withVal sVertMrg $ requireNumberWith "margin" (validateNumInst (> 0) Pt) ("Unknown margin. " ++ configErrorString PVerMargin))
     vc PHozMargin o = validateConfigOption PHozMargin o "Horizontal margin requires arguments. " ["margin"] 
-        (withVal sHozMrg $ requireNumberWith "margin" (validateNumInst (> 0) Pt) ("Unknown margin. " ++ configErrorString PJustification))
+        (withVal sHozMrg $ requireNumberWith "margin" (validateNumInst (> 0) Pt) ("Unknown margin. " ++ configErrorString PHozMargin))
     vc PSectionNumbering o = validateConfigOption PSectionNumbering o "Section numbering requires arguments. " ["numbering"]
         (withVal sSecNum $ requireBool "numbering")
     vc PFigureNumbering o = validateConfigOption PSectionNumbering o "Figure numbering requires arguments. " ["numbering"]

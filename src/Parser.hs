@@ -277,7 +277,7 @@ parseConfigArg = label "config option" $ choice
     , PListstyle        <$ string "style"
     , PVerMargin        <$ string "vertmargin"
     , PHozMargin        <$ string "hozmargin"
-    , PSectionNumbering <$ string "secnumbering"
+    , PSectionNumbering <$ string "sectionnumbering"
     , PFigureNumbering  <$ string "figurenumbering"]
 
 
@@ -337,9 +337,9 @@ parseOptionMap = label "option pair" $ do
 parseOptionValue :: Parser POptionValue
 parseOptionValue = label "option value" $ choice
     [ try $ PNumber <$> L.float -- Goes first otherwise a float might be interpreted as a decimal number and committed, leaving a ".".
-    , PNumber . int2Double <$> L.decimal -- The function "fromIntegral" is not used since it performs silent truncation.
-    , PBool <$> boolean
-    , PText <$> stringLiteral
+    , try $ PNumber . int2Double <$> L.decimal -- The function "fromIntegral" is not used since it performs silent truncation.
+    , try $ PBool <$> boolean
+    , try $ PText <$> stringLiteral
     , PText . T.pack <$> identifier
     ]
 

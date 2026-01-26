@@ -74,6 +74,7 @@ data DocumentCounters = DocumentCounters
     { dcPage        :: Int
     , dcSection     :: Int
     , dcSubsection  :: Int
+    , dcFigure      :: Int
     }
 
 -- Typesetter monad stack, provides access to current document state as well as the underlying PDF.
@@ -133,7 +134,7 @@ typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath = do
     let initialState = RenderState 
             { rsCurrentY = startY
             , rsCurrentPage = error "INTERNAL: First page accessed before creation"
-            , rsCounters = DocumentCounters 0 0 0
+            , rsCounters = DocumentCounters 0 0 0 0
             }
 
     -- Typeset PDF and store result in "outPath".
@@ -444,11 +445,17 @@ typesetFigure path (PageWidth givenWidth) mCap = do
 
         let font = rcFont envConfig
 
+        let numberingEnabled = rcFigureNumbering envConfig
+        let newNumber = (dcFigure rsCounters) + 1
+        let finalCaption = if numberingEnabled
+            then T.pack ("Figure " ++ show newNumber ++ ": ") <> caption
+            else caption
+
         -- Generate and format the text, then put it in a box.
         let boxes = getBoxes NormalParagraph (Font (PDFFont (getFont envFonts font Normal) 12) black black) $ do
                 setJustification Centered
                 paragraph $ do 
-                    txt caption
+                    txt finalCaption
         
         -- Space between figure and caption.
         let figureCaptionSpacing = 10
@@ -472,7 +479,7 @@ typesetFigure path (PageWidth givenWidth) mCap = do
         if null remainingBoxes
             then do
                 -- Text fits on page, add caption; Then update cursor to the bottom of the placed text plus paragraph spacing.
-                modify $ \s -> s { rsCurrentY = newBottomY - afterSpace }
+                modify $ \s -> s { rsCurrentY = newBottomY - afterSpace, rsCounters = rsCounters { dcFigure = newNumber } }
 
                 return (True, drawAction)
             else

@@ -138,3 +138,5 @@ a misplaced pixel.
     Some text 2 | Some more text 2 | Even more 2 \break
     Some text 3 | Some more text 3 | Even more 3 \break
 \end{table}
+
+\figure{Color and ratio.jpg}[width: 0.5, caption: "Look at this \"calibration image\"!!!!"]
