@@ -65,6 +65,7 @@ data RenderEnv = RenderEnv
     , envPageWidth  :: Double
     , envPageHeight :: Double
     , envVertMargin :: (Double, Double) -- Top, Bottom
+    , envDebug      :: Bool
     }
 
 -- Read/Write environment, stores the state of the document whilst typesetting.
@@ -114,8 +115,8 @@ toRenderConfig VConfig{..} = RenderConfig
     , rcFigureNumbering     = fromJust cfgFigureNumbering
     }
 
-typesetDocument :: ValidatedDocument -> ResourceMap -> LoadedFonts -> FilePath -> IO ()
-typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath = do
+typesetDocument :: ValidatedDocument -> ResourceMap -> LoadedFonts -> FilePath -> Bool -> IO ()
+typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath dbg = do
     let rConfig = toRenderConfig cfg
 
     let pageRect@(PDFRect _ _ px py) = pageSizeToRect (fromJust $ cfgPageSize cfg)
@@ -137,6 +138,7 @@ typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath = do
             , envPageWidth = px
             , envPageHeight = py
             , envVertMargin = (topMargin, bottomMargin)
+            , envDebug = dbg
             }
 
     let initialState = RenderState 
@@ -202,19 +204,25 @@ checkSpace = do
 -- Creates a new page, if the flag is set adds a number to that page.
 makeNewPage :: Bool -> Typesetter ()
 makeNewPage makeNumbering = do
-    RenderConfig{..} <- asks envConfig
-    
+    RenderEnv{..} <- ask
+
     -- Create new page of standard size in PDF monad.
     newPage <- pdfLift $ addPage Nothing
 
-    (topMargin, _) <- asks envVertMargin
-    pageHeight <- asks envPageHeight
+    let numbering = rcPageNumbering envConfig
+    let (topMargin, bottomMargin) = envVertMargin
     
     -- Update state.
-    modify $ \s -> s { rsCurrentPage = newPage, rsCurrentY = pageHeight - topMargin }
+    modify $ \s -> s { rsCurrentPage = newPage, rsCurrentY = envPageHeight - topMargin }
+
+    -- If appropriate, print debug information.
+    when envDebug (pdfLift $ drawWithPage newPage $ do
+            strokeColor $ Rgb 1 0.8 0.1
+            let (Pt hozMargin) = rcHozMargin envConfig
+            stroke $ Rectangle (hozMargin :+ bottomMargin) ((envPageWidth - hozMargin) :+ (envPageHeight - topMargin)))
 
     -- Typeset line number onto new page.
-    unless (rcPageNumbering == NumberingNone || not makeNumbering) $ typesetPageNumber rcPageNumbering
+    unless (numbering == NumberingNone || not makeNumbering) $ typesetPageNumber numbering
 
   where
     typesetPageNumber numbering = do
@@ -307,9 +315,10 @@ typesetContent content font size just indent beforeSpace afterSpace = do
         -- Execute the resulting draw action on the current page.
         pdfLift $ drawWithPage rsCurrentPage drawAction
 
-        pdfLift $ drawWithPage rsCurrentPage $ do
+        -- If appropriate, print debug information.
+        when envDebug (pdfLift $ drawWithPage rsCurrentPage $ do
             strokeColor blue
-            stroke $ containerContentRectangle usedContainer
+            stroke $ containerContentRectangle usedContainer)
 
         -- Update State, containerContentRectangle tells us the bounds of the text explicitly placed.
         let (Rectangle (_ :+ newBottomY) _) = containerContentRectangle usedContainer
@@ -513,9 +522,14 @@ typesetFigure path (PageWidth givenWidth) mCap = do
                 -- Text fits on page, add caption; Then update cursor to the bottom of the placed text plus paragraph spacing.
                 modify $ \s -> s { rsCurrentY = newBottomY - afterSpace, rsCounters = rsCounters { dcFigure = newNumber } }
 
+                -- If appropriate, print debug information.
+                when envDebug (pdfLift $ drawWithPage rsCurrentPage $ do
+                    strokeColor green
+                    stroke $ containerContentRectangle usedContainer)
+
                 return (True, drawAction)
             else
-                return (False, drawAction)
+                return (False, return ())
 
 -- Typesets the given list.
 typesetList :: [[VText]] -> Maybe ListStyle -> Typesetter ()
@@ -616,9 +630,10 @@ typesetTable tableContents columns = do
                 -- Determine the bottom Y of this specific cell
                 let (Rectangle (bottomX :+ bottomY) (topX :+ _)) = containerContentRectangle usedContainer
 
-                lift $ drawWithPage rsCurrentPage $ do
+                -- If appropriate, print debug information.
+                when envDebug (lift $ drawWithPage rsCurrentPage $ do
                     strokeColor red
-                    stroke $ containerContentRectangle usedContainer
+                    stroke $ containerContentRectangle usedContainer)
                 
                 return (action, bottomY, null remaining, (bottomX, topX))
 
@@ -649,7 +664,7 @@ typesetTable tableContents columns = do
             then do
                 -- It fits, draw it and update the cursor position.
                 pdfLift $ drawWithPage rsCurrentPage drawAction
-                modify $ \s -> s { rsCurrentY = nextY - afterSpace}
+                modify $ \s -> s { rsCurrentY = nextY }
             else do
                 -- It does not fit, create a new page and typeset it there.
                 makeNewPage True
@@ -661,7 +676,11 @@ typesetTable tableContents columns = do
                 -- Typeset it on the new page. It's worth noting that there are no guarantees that the table will fit on an empty page, it
                 -- could simply be to big.
                 pdfLift $ drawWithPage rsCurrentPage drawActionNew
-                modify $ \s -> s { rsCurrentY = nextYNew - afterSpace}
+                modify $ \s -> s { rsCurrentY = nextYNew }
+
+    -- Get updated cursor and space after the table.
+    RenderState{..} <- get
+    modify $ \s -> s { rsCurrentY = rsCurrentY - afterSpace }
 
 -- Draw a horizontal line at the cursors current position.
 drawHLine :: Typesetter ()

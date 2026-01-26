@@ -29,8 +29,8 @@ import qualified Options.Applicative.Simple as OPS
 
 
 data Options = Options
-    { debug     :: Bool
-    , verbose   :: Bool
+    { verbose   :: Bool
+    , debug     :: Bool
     , inFile    :: FilePath
     , outFile   :: Maybe FilePath
     }
@@ -47,7 +47,7 @@ verboseParser = switch ( long "verbose"
 debugParser :: Parser Bool
 debugParser = switch ( long "debug"
     <> short 'd'
-    <> help "Display debug information on PDF" )
+    <> help "Display debug bounds on PDF" )
 
 inFileParser :: Parser FilePath
 inFileParser = argument str ( metavar "FILENAME"
@@ -168,13 +168,12 @@ runCompiler Options{..} = do
                 printError "Some resources could not be loaded:"
                 mapM_ (printLocatedError contents) errs
             V.Success resources -> do
+                -- Font loading cannot fail, save for an internal error.
                 fonts <- R.loadFonts
                 logStepMap verbose resources "Loaded resources\n================" "Resources loaded"
 
-                let outPath = maybe (addExtension (dropExtension inFile) C.outputExtension) id outFile -- Get output filepath.
-                    completePath = C.completePath inFile outPath
+                let outPath = maybe (addExtension (dropExtension inFile) C.outputExtension) id outFile
 
-                -- Fix output path
-                TS.typesetDocument vParsed resources fonts outPath
+                TS.typesetDocument vParsed resources fonts outPath debug
                 
                 putStrLn $ "Compilation succeeded, result in " ++ (C.quote $ T.pack completePath)
