@@ -40,8 +40,11 @@ data RenderConfig = RenderConfig
     , rcListSpacing         :: Spacing
     , rcTableSpacing        :: Spacing
     , rcFigureSpacing       :: Spacing
+    , rcSpacingGlue         :: Glue
+    , rcTextGlue            :: Glue
     , rcParIndent           :: Pt
     , rcFont                :: Font
+    , rcTitleSize           :: Datatypes.ValidatedTokens.FontSize
     , rcParSize             :: Datatypes.ValidatedTokens.FontSize
     , rcSectionSize         :: Datatypes.ValidatedTokens.FontSize
     , rcSubsectionSize      :: Datatypes.ValidatedTokens.FontSize
@@ -55,7 +58,8 @@ data RenderConfig = RenderConfig
 
 -- Read only environment.
 data RenderEnv = RenderEnv
-    { envConfig     :: RenderConfig
+    { envMeta       :: ValidatedMetadata
+    , envConfig     :: RenderConfig
     , envFonts      :: LoadedFonts
     , envResources  :: ResourceMap
     , envPageWidth  :: Double
@@ -94,8 +98,11 @@ toRenderConfig VConfig{..} = RenderConfig
     , rcListSpacing         = fromJust cfgListSpacing
     , rcTableSpacing        = fromJust cfgTableSpacing
     , rcFigureSpacing       = fromJust cfgFigureSpacing
+    , rcSpacingGlue         = fromJust cfgSpacingGlue
+    , rcTextGlue            = fromJust cfgTextGlue
     , rcParIndent           = fromJust cfgParIndent
     , rcFont                = fromJust cfgFont
+    , rcTitleSize           = fromJust cfgTitleSize
     , rcParSize             = fromJust cfgParSize
     , rcSectionSize         = fromJust cfgSectionSize
     , rcSubsectionSize      = fromJust cfgSubsectionSize
@@ -123,7 +130,8 @@ typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath = do
 
     -- Static environment setup.
     let env = RenderEnv 
-            { envConfig = rConfig
+            { envMeta = meta
+            , envConfig = rConfig
             , envFonts = fonts
             , envResources = res
             , envPageWidth = px
@@ -139,9 +147,8 @@ typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath = do
 
     -- Typeset PDF and store result in "outPath".
     runPdf outPath (generateDocInfo meta) pageRect $ do
-        evalStateT (runReaderT (makeNewPage >> typesetElements cnt) env) initialState
+        evalStateT (runReaderT (makeNewPage False >> typesetTitlepage >> typesetElements cnt) env) initialState
 
-pdfLift = lift . lift
 ------------------------
 -- TYPESETTING LOOP
 ------------------------
@@ -168,19 +175,22 @@ typesetElements elements = do
                 typesetList list style
 
             VNewpage ->
-                makeNewPage
+                makeNewPage True
 
             VHLine ->
                 drawHLine
 
         -- Check for overflow after typesetting every element.
         cs <- checkSpace
-        when cs makeNewPage
+        when cs $ makeNewPage True
 
 
 ------------------------
 -- AUXILIARY FUNCTIONS
 ------------------------
+pdfLift :: (MonadTrans t1, MonadTrans t2, Monad m, Monad (t2 m)) => m a -> t1 (t2 m) a
+pdfLift = lift . lift
+
 -- Checks if the cursor is below the bottom margin.
 checkSpace :: Typesetter (Bool)
 checkSpace = do
@@ -189,9 +199,9 @@ checkSpace = do
 
     return $ currentY < bottom
 
--- Creates a new page.
-makeNewPage :: Typesetter ()
-makeNewPage = do
+-- Creates a new page, if the flag is set adds a number to that page.
+makeNewPage :: Bool -> Typesetter ()
+makeNewPage makeNumbering = do
     -- Create new page of standard size in PDF monad.
     newPage <- pdfLift $ addPage Nothing
 
@@ -207,7 +217,7 @@ makeNewPage = do
 
     RenderConfig{..} <- asks envConfig
     -- Typeset line number onto new page.
-    unless (rcPageNumbering == NumberingNone) $ typesetPageNumber rcPageNumbering
+    unless (rcPageNumbering == NumberingNone || not makeNumbering) $ typesetPageNumber rcPageNumbering
 
   where
     typesetPageNumber numbering = do
@@ -236,21 +246,6 @@ makeNewPage = do
 ------------------------
 -- CONTENT TYPESETTING FUNCTIONS
 ------------------------
-drawHLine :: Typesetter ()
-drawHLine = do
-    y <- gets rsCurrentY
-    p <- gets rsCurrentPage
-    w <- asks envPageWidth
-
-    -- Get horizontal start and end position.
-    let lineSpan = 0.9
-    let xStart = (1 - lineSpan) * w
-    let xEnd = lineSpan * w
-
-    pdfLift $ drawWithPage p $ do
-        strokeColor black
-        stroke $ Line xStart y xEnd y
-
 -- Typesets the given VText or paragraph, with the given options. Note that justification and indentation only have an effect in VText mode.
 typesetContent :: (Either [VText] HPDFParagraph)
                 -> Font
@@ -325,8 +320,45 @@ typesetContent content font size just indent beforeSpace afterSpace = do
                 modify $ \s -> s { rsCurrentY = newBottomY - afterSpace }
             else do
                 -- Overflow, force new page and render remaining boxes.
-                makeNewPage
+                makeNewPage True
                 fillBoxLoop remainingBoxes
+
+-- Generates the title-page.
+typesetTitlepage :: Typesetter ()
+typesetTitlepage = do
+    RenderEnv{..} <- ask
+    RenderState{..} <- get
+
+    when (hasTitleElems envMeta) $ do
+        -- Move the cursor down to separate any title elements.
+        modify $ \s -> s { rsCurrentY = envPageHeight * 0.8 }
+        RenderState{..} <- get
+
+        let font = rcFont envConfig
+        let (FontSize cSizeTitle) = rcTitleSize envConfig
+        let cSizeRest = cSizeTitle * 0.75
+
+        case vmTitle envMeta of
+            Nothing -> return ()
+            Just (VTitle t _ _) -> do
+                typesetContent (Left t) font (FontSize cSizeTitle) JustifyCenter 0 20 0
+
+        case vmAuthor envMeta of
+            Nothing -> return ()
+            Just (VAuthor a _ _) -> do
+                typesetContent (Left a) font (FontSize cSizeRest) JustifyCenter 0 10 0
+
+        case vmDate envMeta of
+            Nothing -> return ()
+            Just (VDate d _ _) -> do
+                typesetContent (Left d) font (FontSize cSizeRest) JustifyCenter 0 10 0
+
+        -- Make a new page after the title.
+        makeNewPage True
+
+  where
+    hasTitleElems (ValidatedMetadata Nothing Nothing Nothing) = False
+    hasTitleElems _ = True
 
 -- Typesets the given paragraph.
 typesetParagraph :: [VText] -> Maybe Font ->
@@ -414,7 +446,7 @@ typesetFigure path (PageWidth givenWidth) mCap = do
     -- Check if there's enough space to fit the figure, if there's not create a new page and typeset it there.
     if cs
         then do
-            makeNewPage
+            makeNewPage True
             typesetFigure path (PageWidth givenWidth) mCap
         else -- Draw image and potentially caption.
             case mCap of
@@ -428,7 +460,7 @@ typesetFigure path (PageWidth givenWidth) mCap = do
                             drawFigure
                             pdfLift $ drawWithPage rsCurrentPage drawCaption
                         else do
-                            makeNewPage
+                            makeNewPage True
                             drawFigure 
                             pdfLift $ drawWithPage rsCurrentPage drawCaption
 
@@ -473,7 +505,7 @@ typesetFigure path (PageWidth givenWidth) mCap = do
         -- Fill container.
         let (drawAction, usedContainer, remainingBoxes) = fillContainer verState container boxes
 
-        -- Update State, containerContentRectangle tells us the bounds of the text explicitly placed.
+        -- Update state, containerContentRectangle returns the bounds of the text explicitly placed.
         let (Rectangle (_ :+ newBottomY) _) = containerContentRectangle usedContainer
         
         if null remainingBoxes
@@ -620,7 +652,7 @@ typesetTable tableContents columns = do
                 modify $ \s -> s { rsCurrentY = nextY - afterSpace}
             else do
                 -- It does not fit, create a new page and typeset it there.
-                makeNewPage
+                makeNewPage True
                 -- Get the new state, to have the updated Y cursor.
                 RenderState{..} <- get
 
@@ -630,3 +662,19 @@ typesetTable tableContents columns = do
                 -- could simply be to big.
                 pdfLift $ drawWithPage rsCurrentPage drawActionNew
                 modify $ \s -> s { rsCurrentY = nextYNew - afterSpace}
+
+-- Draw a horizontal line at the cursors current position.
+drawHLine :: Typesetter ()
+drawHLine = do
+    y <- gets rsCurrentY
+    p <- gets rsCurrentPage
+    w <- asks envPageWidth
+
+    -- Get horizontal start and end position.
+    let lineSpan = 0.9
+    let xStart = (1 - lineSpan) * w
+    let xEnd = lineSpan * w
+
+    pdfLift $ drawWithPage p $ do
+        strokeColor black
+        stroke $ Line xStart y xEnd y

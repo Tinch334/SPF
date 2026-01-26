@@ -29,9 +29,10 @@ import qualified Options.Applicative.Simple as OPS
 
 
 data Options = Options
-    {   verbose :: Bool
-    ,   inFile  :: FilePath
-    ,   outFile :: Maybe FilePath
+    { debug     :: Bool
+    , verbose   :: Bool
+    , inFile    :: FilePath
+    , outFile   :: Maybe FilePath
     }
 
 
@@ -43,20 +44,26 @@ verboseParser = switch ( long "verbose"
     <> short 'v'
     <> help "Show additional information during file compilation" )
 
+debugParser :: Parser Bool
+debugParser = switch ( long "debug"
+    <> short 'd'
+    <> help "Display debug information on PDF" )
+
 inFileParser :: Parser FilePath
 inFileParser = argument str ( metavar "FILENAME"
-    <> help "File to be compiled")
+    <> help "File to be compiled" )
 
 outFileParser :: Parser (Maybe FilePath)
 outFileParser = optional $ strOption ( metavar "FILENAME"
     <> long "output"
     <> short 'o'
-    <> help "File where the compiled PDF will be stored")
+    <> help "File where the compiled PDF will be stored" )
 
 optionParser :: Parser Options
 optionParser =
   Options
     <$> verboseParser
+    <*> debugParser
     <*> inFileParser
     <*> outFileParser
 
@@ -66,11 +73,11 @@ optionParser =
 --------------------
 -- Prints contents based on the verbose flag, the first string is used in the verbose case.
 logStep :: Show a => Bool -> a -> String -> String -> IO ()
-logStep True items header _ = do
-    putStrLn header
-    print items
+logStep True m sv _ = do
+    putStrLn sv
+    print m
     putStrLn ""
-logStep False _ _ msg = putStrLn msg
+logStep False _ _ snv = putStrLn snv
 
 -- Prints the keys of maps with "String" keys.
 logStepMap :: Bool -> Map String b -> String -> String -> IO ()
@@ -86,7 +93,7 @@ printColourText :: TC.Colour -> TC.Colour -> T.Text -> IO ()
 printColourText fg bg t = let ct = TC.fore fg (TC.back bg $ TC.chunk t) in
     TC.putChunksUtf8With TC.With8Colours [ct]
 
--- Print the text "ERROR" in red
+-- Print the text "ERROR" in red followed by the given error message.
 printError :: String -> IO ()
 printError e = printColourText TC.red TC.black "ERROR" *> putStrLn (" - " ++ e)
 
@@ -121,9 +128,8 @@ showIOError e = let reason = "\nReason: " ++ show (IIE.ioe_type e) in
 main :: IO ()
 main = do
     -- No commands used, second argument can be discarded.
-    (opts, ()) <- OPS.simpleOptions "0.1.4.3" "SPF" "A simple document preparation system, using a DSL inspired in LaTeX" optionParser empty 
+    (opts, ()) <- OPS.simpleOptions "0.1.5.2" "SPF" "A simple document preparation system, using a DSL inspired by LaTeX" optionParser empty 
     runCompiler opts
-
 
 runCompiler :: Options -> IO ()
 runCompiler Options{..} = do
