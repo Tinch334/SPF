@@ -126,7 +126,7 @@ typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath dbg = do
     let bottomMarginRaw = topMargin
     let bottomMargin = bottomMarginRaw + case rcPageNumbering rConfig of
             NumberingNone -> 0.0
-            _             -> 16.0
+            _             -> 10.0
 
     -- Static environment setup.
     let env = RenderEnv 
@@ -254,8 +254,13 @@ makeNewPage makeNumbering = do
                 NumberingArabic -> show newPageNumber
                 NumberingRoman  -> toRoman newPageNumber
 
-        -- Whilst this function doesn't handle overflows from the render area well they should never happen; Since a number would have to be
-        -- as wide as the page for that to be a problem.
+        -- If appropriate, print debug information.
+        when envDebug (pdfLift $ drawWithPage rsCurrentPage $ do
+            strokeColor green
+            stroke rect)        
+
+        -- Whilst this function doesn't handle overflows from the render area properly they should never happen; Since a number would have to
+        -- be as wide as the page area for that to be a problem.
         pdfLift $ drawWithPage rsCurrentPage $ do
             displayFormattedText rect NormalParagraph (Font (PDFFont font 12) black black) $ do
                 setJustification Centered
@@ -527,7 +532,7 @@ typesetFigure path (PageWidth givenWidth) mCap = do
 
                 -- If appropriate, print debug information.
                 when envDebug (pdfLift $ drawWithPage rsCurrentPage $ do
-                    strokeColor green
+                    strokeColor red
                     stroke $ containerContentRectangle usedContainer)
 
                 return (True, drawAction)

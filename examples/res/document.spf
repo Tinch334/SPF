@@ -53,17 +53,12 @@ text.I discussed this recently with Alan Perlis, who pointed out that a
 central issue arising whenever we try to automate something properly is
 what he calls “the art of making constant things variable.”
 
-/*
-LOOK INTO IT!!!!!!!!!!!
-Causes weird line breaking artifacts:
-
 In the case
 of letter design, we don’t merely want to take a particular drawing and
 come up with some mathematics to describe it; we really want to find
 the principles underlying the drawing, so that we can generate infinitely
 many drawings (including the given one) as a function of appropriate
 parameters.
-*/
 
 After looking at these Renaissance constructions and a lot of mod-
 ern S shapes, I came to the conclusion that the main stroke of the
@@ -139,7 +134,7 @@ a misplaced pixel.
 
 \begin{table}[columns: 3]
     Some text, like a really long amount of text. This is just to force a linebreak. | Some more text | Even more \break
-    Some text 2 | Some more text 2 | Even more 2 \break
+    Some text 2 | Some more text 2, there is quite a lot of \| text \| | Even more 2 \break
     Some text 3 | Some more text 3 | Even more 3 \break
 \end{table}
 
