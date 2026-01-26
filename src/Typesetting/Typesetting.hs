@@ -190,8 +190,8 @@ typesetElements elements = do
             VNewpage ->
                 makeNewPage True
 
-            VHLine ->
-                drawHLine
+            VHLine width thick ->
+                drawHLine width thick
 
         -- Check for overflow after typesetting every element.
         cs <- checkSpace
@@ -691,17 +691,24 @@ typesetTable tableContents columns = do
     modify $ \s -> s { rsCurrentY = rsCurrentY - afterSpace }
 
 -- Draw a horizontal line at the cursors current position.
-drawHLine :: Typesetter ()
-drawHLine = do
+drawHLine :: PageWidth -> Maybe Pt -> Typesetter ()
+drawHLine (PageWidth width) mThick = do
     y <- gets rsCurrentY
     p <- gets rsCurrentPage
     w <- asks envPageWidth
 
     -- Get horizontal start and end position.
-    let lineSpan = 0.9
-    let xStart = (1 - lineSpan) * w
-    let xEnd = lineSpan * w
+    let xStart = (1 - width) * w
+    let xEnd = width * w
+
+    let thickness = case mThick of
+            Just (Pt t) -> t
+            Nothing -> 1
 
     pdfLift $ drawWithPage p $ do
+        setWidth thickness
         strokeColor black
         stroke $ Line xStart y xEnd y
+
+    -- Update cursor taking into account line thickness
+    modify $ \s -> s { rsCurrentY = y + thickness}

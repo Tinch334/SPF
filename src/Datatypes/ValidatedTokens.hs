@@ -47,7 +47,7 @@ data VComm  = VSection      [VText] (Maybe Font) (Maybe FontSize)
             | VTable        [[[VText]]] TableColumns
             | VList         [[VText]] (Maybe ListStyle)
             | VParagraph    [VText] (Maybe Font) (Maybe FontSize) (Maybe Justification)
-            | VHLine       
+            | VHLine        PageWidth (Maybe Pt)
             | VNewpage
             deriving (Show, Eq, Ord)
 

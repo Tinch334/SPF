@@ -120,6 +120,20 @@ namedParagraph txt (POptionMap o) =
     ) o
 namedParagraph txt POptionNone = Success $ VParagraph (convertText txt) Nothing Nothing Nothing
 
+namedHLine :: POption -> CommandValidationType
+namedHLine (POptionMap o) =
+  runSchema
+    ( ensureValidKeys
+        ("Expected some of fields" ++ quoteList ["width", "thickness"])
+        ["width", "thickness"]
+        ( VHLine
+            <$> requireNumberWith "width" (validateNumInst (\n -> n > 0 && n <= 1) PageWidth) "HLine width must be between 0 and 1"
+            <*> tryNumberWith "thickness" (validateNumInst (> 0) Pt) "HLine thickness must be positive"
+        )
+    ) o
+
+namedHLine POptionNone = Failure $ ["Expected one numeric value (width)"]
+
 -- Validates the given command.
 validateCommand :: Located PCommOpt -> Validation [LocatedError] (Located VComm)
 validateCommand (Located pos comm) =
@@ -130,10 +144,9 @@ validateCommand (Located pos comm) =
     PCommOpt (PTable rows) opts       -> namedTable rows opts
     PCommOpt (PList lst) opts         -> namedList lst opts
     PCommOpt (PParagraph txt) opts    -> namedParagraph txt opts
+    PCommOpt PHLine opts              -> namedHLine opts
     PCommOpt PNewpage POptionNone     -> Success VNewpage
     PCommOpt PNewpage _               -> Failure ["The command " ++ quote "newpage" ++ " does not accept any options"]
-    PCommOpt PHLine POptionNone       -> Success VHLine
-    PCommOpt PHLine _                 -> Failure ["The command " ++ quote "hline" ++ " does not accept any options"]
     _                                 -> error "INTERNAL: Attempt to validate unknown command"
 
 

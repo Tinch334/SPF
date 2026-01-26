@@ -11,7 +11,7 @@ typewriter with its fixed width letters, as shown in Figure 13e. There
 is also a provision to slant the letters as in Figure 13f; here the pen
 position is varied, but the actual shape of the pen is not being slanted, so circular dots remain circles.
 
-\hline
+\hline[width: 0.9]
 
 Finally, Figure 13i illustrates the variations you can get by giving weirder settings to the parameters. \bold{In other words, there is a unique tangent at every point of the curve.} \italic{This chapter and the next are for readers who share my fascination with original source documents.} \emph{The draft report I wrote during the first third of May was entitled TEXDR.AFT}
 
