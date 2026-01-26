@@ -108,7 +108,7 @@ defaultVConfig :: VConfig
 defaultVConfig = VConfig
     { cfgPageSize           = Just SizeA4
     , cfgPageNumbering      = Just NumberingArabic
-    , cfgSectionSpacing     = Just $ Spacing (Pt 15) (Pt 7.5)
+    , cfgSectionSpacing     = Just $ Spacing (Pt 5) (Pt 7.5)
     , cfgParagraphSpacing   = Just $ Spacing (Pt 10) (Pt 15)
     , cfgListSpacing        = Just $ Spacing (Pt 5) (Pt 5)
     , cfgTableSpacing       = Just $ Spacing (Pt 10) (Pt 10)

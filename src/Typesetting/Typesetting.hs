@@ -58,8 +58,7 @@ data RenderConfig = RenderConfig
 
 -- Read only environment.
 data RenderEnv = RenderEnv
-    { envMeta       :: ValidatedMetadata
-    , envConfig     :: RenderConfig
+    { envConfig     :: RenderConfig
     , envFonts      :: LoadedFonts
     , envResources  :: ResourceMap
     , envPageWidth  :: Double
@@ -131,8 +130,7 @@ typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath dbg = do
 
     -- Static environment setup.
     let env = RenderEnv 
-            { envMeta = meta
-            , envConfig = rConfig
+            { envConfig = rConfig
             , envFonts = fonts
             , envResources = res
             , envPageWidth = px
@@ -147,9 +145,22 @@ typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath dbg = do
             , rsCounters = DocumentCounters 0 0 0 0
             }
 
+    -- Generate typesetting action based on if there are title elements.
+    let action = if hasTitleElems meta
+        then do
+            makeNewPage False
+            typesetTitlepage meta
+            makeNewPage True
+        else do
+            makeNewPage True
+
     -- Typeset PDF and store result in "outPath".
     runPdf outPath (generateDocInfo meta) pageRect $ do
-        evalStateT (runReaderT (makeNewPage False >> typesetTitlepage >> typesetElements cnt) env) initialState
+        evalStateT (runReaderT (action >> typesetElements cnt) env) initialState
+
+  where
+    hasTitleElems (ValidatedMetadata Nothing Nothing Nothing) = False
+    hasTitleElems _ = True
 
 ------------------------
 -- TYPESETTING LOOP
@@ -333,41 +344,33 @@ typesetContent content font size just indent beforeSpace afterSpace = do
                 fillBoxLoop remainingBoxes
 
 -- Generates the title-page.
-typesetTitlepage :: Typesetter ()
-typesetTitlepage = do
+typesetTitlepage :: ValidatedMetadata -> Typesetter ()
+typesetTitlepage meta = do
     RenderEnv{..} <- ask
     RenderState{..} <- get
 
-    when (hasTitleElems envMeta) $ do
-        -- Move the cursor down to separate any title elements.
-        modify $ \s -> s { rsCurrentY = envPageHeight * 0.92 }
-        RenderState{..} <- get
+    -- Move the cursor down to separate any title elements.
+    modify $ \s -> s { rsCurrentY = envPageHeight * 0.92 }
+    RenderState{..} <- get
 
-        let font = rcFont envConfig
-        let (FontSize cSizeTitle) = rcTitleSize envConfig
-        let cSizeRest = cSizeTitle * 0.6
+    let font = rcFont envConfig
+    let (FontSize cSizeTitle) = rcTitleSize envConfig
+    let cSizeRest = cSizeTitle * 0.6
 
-        case vmTitle envMeta of
-            Nothing -> return ()
-            Just t -> do
-                typesetContent (Left t) font (FontSize cSizeTitle) JustifyCenter 0 0 (envPageWidth * 0.15)
+    case vmTitle meta of
+        Nothing -> return ()
+        Just t -> do
+            typesetContent (Left t) font (FontSize cSizeTitle) JustifyCenter 0 0 (envPageWidth * 0.15)
 
-        case vmAuthor envMeta of
-            Nothing -> return ()
-            Just a -> do
-                typesetContent (Left a) font (FontSize cSizeRest) JustifyCenter 0 0 (envPageWidth * 0.025)
+    case vmAuthor meta of
+        Nothing -> return ()
+        Just a -> do
+            typesetContent (Left a) font (FontSize cSizeRest) JustifyCenter 0 0 (envPageWidth * 0.025)
 
-        case vmDate envMeta of
-            Nothing -> return ()
-            Just d -> do
-                typesetContent (Left d) font (FontSize cSizeRest) JustifyCenter 0 0 0
-
-        -- Make a new page after the title.
-        makeNewPage True
-
-  where
-    hasTitleElems (ValidatedMetadata Nothing Nothing Nothing) = False
-    hasTitleElems _ = True
+    case vmDate meta of
+        Nothing -> return ()
+        Just d -> do
+            typesetContent (Left d) font (FontSize cSizeRest) JustifyCenter 0 0 0
 
 -- Typesets the given paragraph.
 typesetParagraph :: [VText] -> Maybe Font ->

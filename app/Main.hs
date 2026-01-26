@@ -128,7 +128,7 @@ showIOError e = let reason = "\nReason: " ++ show (IIE.ioe_type e) in
 main :: IO ()
 main = do
     -- No commands used, second argument can be discarded.
-    (opts, ()) <- OPS.simpleOptions "0.1.5.2" "SPF" "A simple document preparation system, using a DSL inspired by LaTeX" optionParser empty 
+    (opts, ()) <- OPS.simpleOptions "0.1.5.4" "SPF" "A simple document preparation system, using a DSL inspired by LaTeX" optionParser empty 
     runCompiler opts
 
 runCompiler :: Options -> IO ()
