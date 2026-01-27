@@ -12,18 +12,18 @@ import qualified Resources                  as R
 import qualified Typesetting.Typesetting    as TS
 import qualified Validation.Document        as VD
 
-import System.IO.Error (IOError, tryIOError)
-import System.FilePath (addExtension, dropExtension)
-import GHC.Internal.IO.Exception as IIE
+import System.IO.Error                      (tryIOError)
+import System.FilePath                      (addExtension, dropExtension)
+import GHC.Internal.IO.Exception            as IIE
 
-import           Data.Map             (Map)
-import qualified Data.Map             as M
-import qualified Data.Text            as T
-import qualified Data.Text.IO         as TIO
-import qualified Data.Validation      as V
+import           Data.Map                   (Map)
+import qualified Data.Map                   as M
+import qualified Data.Text                  as T
+import qualified Data.Text.IO               as TIO
+import qualified Data.Validation            as V
 
-import qualified Text.Colour          as TC
-import qualified Text.Megaparsec      as MP
+import qualified Text.Colour                as TC
+import qualified Text.Megaparsec            as MP
 import           Options.Applicative
 import qualified Options.Applicative.Simple as OPS
 
@@ -47,7 +47,7 @@ verboseParser = switch ( long "verbose"
 debugParser :: Parser Bool
 debugParser = switch ( long "debug"
     <> short 'd'
-    <> help "Display debug bounds on PDF" )
+    <> help "Display element bounds on PDF" )
 
 inFileParser :: Parser FilePath
 inFileParser = argument str ( metavar "FILENAME"

@@ -32,6 +32,7 @@ library
       Parser
       Resources
       Typesetting.Helpers
+      Typesetting.Structures
       Typesetting.Typesetting
       Validation.Document
       Validation.Rules

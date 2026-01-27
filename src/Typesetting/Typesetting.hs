@@ -8,6 +8,7 @@ import Datatypes.ValidatedTokens
 import Datatypes.Located
 import Datatypes.Resources
 import Typesetting.Helpers
+import Typesetting.Structures
 import Resources (getFont)
 
 import Control.Applicative ((<|>))
@@ -27,63 +28,6 @@ import GHC.Float (int2Double)
 import Graphics.PDF
 import Graphics.PDF.Typesetting
 
-
-------------------------
--- TYPES AND STATE
-------------------------
--- Replaces VConfig for internal use, to avoid having "fromJust" everywhere.
-data RenderConfig = RenderConfig
-    { rcPageSize            :: PageSize
-    , rcPageNumbering       :: PageNumbering
-    , rcSectionSpacing      :: Spacing
-    , rcParagraphSpacing    :: Spacing
-    , rcListSpacing         :: Spacing
-    , rcTableSpacing        :: Spacing
-    , rcFigureSpacing       :: Spacing
-    , rcSpacingGlue         :: Glue
-    , rcTextGlue            :: Glue
-    , rcParIndent           :: Pt
-    , rcFont                :: Font
-    , rcTitleSize           :: Datatypes.ValidatedTokens.FontSize
-    , rcParSize             :: Datatypes.ValidatedTokens.FontSize
-    , rcSectionSize         :: Datatypes.ValidatedTokens.FontSize
-    , rcSubsectionSize      :: Datatypes.ValidatedTokens.FontSize
-    , rcJustification       :: Datatypes.ValidatedTokens.Justification
-    , rcListStyle           :: ListStyle
-    , rcVertMargin          :: Pt
-    , rcHozMargin           :: Pt
-    , rcSectionNumbering    :: Bool
-    , rcFigureNumbering     :: Bool
-    }
-
--- Read only environment.
-data RenderEnv = RenderEnv
-    { envConfig     :: RenderConfig
-    , envFonts      :: LoadedFonts
-    , envResources  :: ResourceMap
-    , envPageWidth  :: Double
-    , envPageHeight :: Double
-    , envVertMargin :: (Double, Double) -- Top, Bottom
-    , envDebug      :: Bool
-    }
-
--- Read/Write environment, stores the state of the document whilst typesetting.
-data RenderState = RenderState
-    { rsCurrentY        :: Double
-    , rsCurrentPage     :: PDFReference PDFPage
-    , rsCounters        :: DocumentCounters
-    }
-
-data DocumentCounters = DocumentCounters
-    { dcPage        :: Int
-    , dcSection     :: Int
-    , dcSubsection  :: Int
-    , dcFigure      :: Int
-    }
-
--- Typesetter monad stack, provides access to current document state as well as the underlying PDF.
-type Typesetter a = ReaderT RenderEnv (StateT RenderState PDF) a
-type HPDFParagraph = TM StandardParagraphStyle StandardStyle ()
 
 ------------------------
 -- INITIALIZATION FUNCTIONS
@@ -705,6 +649,7 @@ drawHLine (PageWidth width) mThick = do
             Just (Pt t) -> t
             Nothing -> 1
 
+    -- Typeset line.
     pdfLift $ drawWithPage p $ do
         setWidth thickness
         strokeColor black

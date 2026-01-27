@@ -1,6 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Typesetting.Helpers where
+module Typesetting.Helpers
+    ( mergeVText
+    , pageSizeToRect
+    , convertFontSize
+    , convertAdjustFontSize
+    , fromPt
+    , toRoman
+    , generateDocInfo )
+    where
 
 import Datatypes.ValidatedTokens
 

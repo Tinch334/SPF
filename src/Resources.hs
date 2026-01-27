@@ -3,7 +3,7 @@
 module Resources 
     ( loadResources
     , loadFonts
-    , getFont)
+    , getFont )
     where
 
 import Datatypes.ValidatedTokens
@@ -11,27 +11,21 @@ import Datatypes.Located
 import Datatypes.Resources
 import Common
 
-import Control.Applicative
-import Control.Monad
 import Control.Concurrent.Async (mapConcurrently)
 
 import Data.Validation
-import Data.Map (Map)
 import qualified Data.Map as M
 
-import Data.Maybe
+import Data.Maybe (mapMaybe)
 import Data.List (nub)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Vector.Storable as V
-import Data.ByteString (ByteString)
 import qualified Data.Text as T
 
 import System.FilePath
 import System.Directory (doesFileExist)
 
 import Codec.Picture
-import Codec.Picture.Saving
-import Graphics.PDF.Image
 import Graphics.PDF.Fonts.Font (AnyFont)
 import qualified Graphics.PDF.Fonts.StandardFont as SF
 
@@ -57,21 +51,21 @@ getResource _ = Nothing
 
 -- Tries to get the data from the given filepath, if successful returns both.
 loadResource :: (Located FilePath, Located FilePath) -> IO (Validation [LocatedError] (FilePath, FileInfo))
-loadResource (Located pos completePath, Located _ originalPath) = do
-    let ext = takeExtension completePath
-    exists <- doesFileExist completePath
+loadResource (Located pos fullPath, Located _ originalPath) = do
+    let ext = takeExtension fullPath
+    exists <- doesFileExist fullPath
     
     if not exists
-        then return $ Failure [at pos $ "File does not exist: " ++ quote (T.pack completePath)]
+        then return $ Failure [at pos $ "File does not exist: " ++ quote (T.pack fullPath)]
         else handleFile ext
         where
             handleFile ext =
                 case ext of
                 e | Prelude.elem e [".bmp", ".png", ".jpg", ".jpeg"] -> do
-                    res <- readImage completePath
+                    res <- readImage fullPath
                     case res of
                         -- The default error does not follow the style of the rest of the program.
-                        Left _ -> return $ Failure [at pos $ "The file " ++ quote (T.pack completePath) ++ " could not be accessed"]
+                        Left _ -> return $ Failure [at pos $ "The file " ++ quote (T.pack fullPath) ++ " could not be accessed"]
                         Right img -> do
                             -- Handles colour space by forcing conversion to RGB8.
                             let rgbImage = convertRGB8 img

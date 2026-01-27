@@ -1,11 +1,18 @@
-module Common where
+module Common 
+    ( quote
+    , quoteList
+    , filterMap
+    , completePath
+    , fileExtension
+    , outputExtension )
+    where
 
-import qualified Data.Text as T
-import qualified Data.List as L
-import qualified Data.Validation as V
-import qualified Data.Map as M
+import qualified Data.Text          as T
+import qualified Data.List          as L
+import qualified Data.Validation    as V
+import qualified Data.Map           as M
 
-import qualified System.FilePath as SF
+import qualified System.FilePath    as SF
 
 
 --------------------

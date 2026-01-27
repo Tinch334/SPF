@@ -13,7 +13,6 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Char as DC
 import GHC.Float (int2Double)
-import Data.Functor (($>))
 
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -120,9 +119,6 @@ data CommandSpec = CommandSpec
     , cmdParser :: Parser PCommOpt  -- The parser for the command.
     }
 
-parseBackslash :: Parser ()
-parseBackslash = void (char '\\') <?> "backslash before command"
-
 -- Helper for a command with an argument "\comm{arg}[opts].
 mkSimpleCommand :: Text -> Parser a -> (a -> PComm) -> CommandSpec
 mkSimpleCommand n p c = CommandSpec n $ do
@@ -143,13 +139,13 @@ mkNoArgCommand n c = CommandSpec n $ do
 mkBeginEndCommand :: Text -> Parser a -> (a -> PComm) -> CommandSpec
 mkBeginEndCommand n p c = CommandSpec n $ do
     void (string "\\begin") <?> "\\begin"
-    braces (string n) <?> mkErrStr "" n " for begin"
+    void (braces (string n)) <?> mkErrStr "" n " for begin"
 
     op <- lexeme $ optional parseOptions
     b <- p <?> mkErrStr "" n " content"
 
     void (string "\\end") <?> "\\end"
-    braces (string n) <?> mkErrStr "" n " for end"
+    void (braces (string n)) <?> mkErrStr "" n " for end"
 
     return $ PCommOpt (c b) (maybe POptionNone id op)
 
@@ -225,19 +221,19 @@ parseSpecialText = do
 parseRawText :: Parser Text
 parseRawText = label "raw paragraph" $ do
     l <- sepEndBy1 parseRawTextLine singleNewline
-    return (foldl mappend "" l) -- Additional spaces are not trimmed, this is done later depending on the type of text.
+    return (foldl (\e1 e2 -> e1 <> " " <> e2) "" l) -- Space is added to account for the one that's ignored when a newline is consumed.
 
 controlChars :: [Char]
-controlChars = ['\\', '{', '}', '"', '/', '|', '\n', '\r', '\036']
+controlChars = ['\\', '{', '}', '[', ']', '"', '/', '|', '\n', '\r', '\036']
 
 parseRawTextLine :: Parser Text
-parseRawTextLine = T.pack <$> some (try escapedChar <|> normalChar)
+parseRawTextLine = T.concat <$> some (try (T.singleton <$> escapedChar) <|> textBlock)
   where
+    -- Consumes blocks of non control characters efficiently.
+    textBlock = takeWhile1P (Just "text") (`notElem` controlChars)
     -- Allows for character escaping, matches a '\' then accepts a control character that couldn't have been read normally. Otherwise
     -- commands would never match, since they would be treated as an escaped character.
     escapedChar = char '\\' *> oneOf controlChars <?> "escaped character"
-    -- Matches any char except control ones.
-    normalChar = noneOf controlChars
 
 -- Succeeds when a single newline is present.
 singleNewline :: Parser ()
@@ -314,7 +310,7 @@ parseList = label "list" $ many $ do
 -- Parses the options of a command. To avoid a errors the map parser must go first, otherwise in the case of a map the value parser would
 --read the key, commit it as "OVText" and then try to read a ":" causing an error.
 parseOptions :: Parser POption
-parseOptions = label "options" $ between (symbol "[") (symbol "]") $ do
+parseOptions = label "options" $ brackets $ do
     l <- parseOptionList
     return $ POptionMap l
 

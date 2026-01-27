@@ -15,20 +15,6 @@ position is varied, but the actual shape of the pen is not being slanted, so cir
 
 Finally, Figure 13i illustrates the variations you can get by giving weirder settings to the parameters. \bold{In other words, there is a unique tangent at every point of the curve.} \italic{This chapter and the next are for readers who share my fascination with original source documents.} \emph{The draft report I wrote during the first third of May was entitled TEXDR.AFT}
 
-Several years ago when I began to look at the problem of designing suit-
-able alphabets for use with modern printing equipment, I found that
-25 of the letters were comparatively easy to deal with. The other letter
-was S. For three days and nights I had a terrible time trying to under-
-stand how a proper S could really be defined. The solution I finally came
-up with turned out to involve some interesting mathematics, and I be-
-lieve that students of calculus and analytic geometry may enjoy looking
-into the question as I did. The purpose of this paper is to explain what
-I now consider to be the “right” mathematics underlying printed S’s,
-and also to give an example of the METAFONT language I have recently
-been developing.* (A complete description of METAFONT, which is a
-computer system and language intended to aid in the design of letter
-shapes, appears in [3, part 3].)
-
 \section{First part}
 Before getting into a technical discussion, I should probably mention
 why I started worrying about such things in the first place. The central
@@ -143,3 +129,21 @@ reprinted on a Penguin, with minor corrections, in the Digital Press
 book mentioned earlier.
 
 \figure{Color and ratio.jpg}[width: 0.5, caption: "Look at this \"calibration image\"!!!!"]
+
+\begin{paragraph}[font: courier, size:20]
+Let me state at the outset that I do not foresee the problem ever
+becoming simple. Indeed, when I ponder what lessons I have learned so
+far, the main lesson turns out to be that the problem is quite difficult!
+In a way, this is not surprising. For more than thirty years, computers
+have been oversold by salesmen who claim that computing machines are
+easy to use, while the truth is quite the opposite: Computer program-
+ming requires more attention to detail than anything else that human
+beings have ever done. Moreover, the problems of letterform design are
+extremely subtle, much more complex than most people think, because
+our machines and our eyes interact with the shapes in complicated ways.
+I am convinced that digital alphabet design is an extremely challenging
+problem, and that it is significant enough to deserve the attention of our
+best scientific minds and our best artistic skills and sensitivities. Fur-
+thermore, I believe that the world will be a better place to live in after
+we learn more about the subject.
+\end{paragraph}
