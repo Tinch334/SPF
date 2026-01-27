@@ -1,6 +1,20 @@
 {-# LANGUAGE StrictData #-}
 
-module Datatypes.ParseTokens where
+module Datatypes.ParseTokens 
+    ( -- Top level structure.
+      ParsedDocument(..)
+    , DocumentMetadata(..)
+
+      -- Data types.
+    , POptionValue(..)
+    , POptionPair
+    , POption(..)
+    , PConfig(..)
+    , PCommOpt(..)
+    , PComm(..)
+    , PText(..)
+    , PConfigArg(..)
+    ) where
 
 import Datatypes.Located (Located(..))
 import Data.Text (Text)
@@ -32,7 +46,7 @@ data DocumentMetadata = DocumentMetadata
 data POptionValue   = PNumber   Double
                     | PText     Text
                     | PBool     Bool
-                    deriving (Show, Eq, Ord)
+                    deriving (Eq, Ord)
 
 type POptionPair = (Text, POptionValue)
 
@@ -44,7 +58,7 @@ data POption    = POptionMap     [POptionPair]
 -- Different data definitions are used to reduce ambiguity and avoid representing incorrect information and. For example a metadata field with
 -- a command.
 data PConfig = PConfig PConfigArg POption
-    deriving (Show, Eq, Ord)
+    deriving (Eq, Ord)
 
 data PCommOpt = PCommOpt PComm POption
    deriving (Eq, Ord)
@@ -60,14 +74,14 @@ data PComm  = PSection     [PText]
             | PParagraph   [PText] -- Used for both regular paragraphs and those enclosed in begin/end.
             | PNewpage
             | PHLine
-            deriving (Show, Eq, Ord)
+            deriving (Eq, Ord)
 
 
 data PText  = PNormal      Text
             | PBold        Text
             | PItalic      Text
             | PEmphasised  Text
-            deriving (Show, Eq, Ord)
+            deriving (Eq, Ord)
 
 data PConfigArg = PSize
                 | PPagenumbering
@@ -96,11 +110,15 @@ data PConfigArg = PSize
 --------------------
 -- SHOW INSTANCES
 --------------------
+-- Flattens a list of PText into a single string for display.
+showPTextList :: [PText] -> String
+showPTextList = unwords . map show
+
 -- Make verbose output more legible.
 instance Show ParsedDocument where
     show (ParsedDocument cfg meta cnt) = unlines
         [ "\nConfiguration\n-------------"
-        , unlines (map show cfg)
+        , if null cfg then "  (No Configuration)" else unlines (map (("  • " ++) . show) cfg)
         , "\nMetadata\n--------\n"
         , show meta
         , "\nDocument\n--------\n"
@@ -109,14 +127,44 @@ instance Show ParsedDocument where
 
 instance Show DocumentMetadata where
     show (DocumentMetadata t a d) = unlines 
-        [ "Title: " ++ maybe "None" show t
-        , "Author: " ++ maybe "None" show a
-        , "Date: " ++ maybe "None" show d
+        [ "  Title:  " ++ formatMaybe t
+        , "  Author: " ++ formatMaybe a
+        , "  Date:   " ++ formatMaybe d
         ]
+      where 
+        formatMaybe Nothing = "(None)"
+        formatMaybe (Just txts) = showPTextList txts
 
 instance Show POption where
-    show (POptionMap m) = show m
-    show POptionNone = "-"
+    show (POptionMap opts) = "{" ++ intercalate ", " (map showPair opts) ++ "}"
+      where showPair (k, v) = T.unpack k ++ ": " ++ show v
+    show POptionNone = "(No Options)"
+
+instance Show POptionValue where
+    show (PNumber n) = show n
+    show (PText t)   = show t
+    show (PBool b)   = show b
+
+instance Show PConfig where
+    show (PConfig arg opt) = show arg ++ " " ++ show opt
 
 instance Show PCommOpt where
-    show (PCommOpt comm opts) = show comm ++ "\n    " ++ show opts
+    show (PCommOpt comm opts) = case opts of
+        POptionNone -> show comm
+        _           -> show comm ++ " " ++ show opts
+
+instance Show PComm where
+    show (PSection txt)    = "\n[SECTION] " ++ showPTextList txt
+    show (PSubsection txt) = "\n  [SUB] " ++ showPTextList txt
+    show (PFigure path)    = "  [FIG] Path: " ++ path
+    show (PTable rows)     = "  [TABLE] (" ++ show (length rows) ++ " rows)"
+    show (PList items)     = "  [LIST]\n" ++ unlines (map (\i -> "    - " ++ showPTextList i) items)
+    show (PParagraph txt)  = "  [PAR] " ++ showPTextList txt
+    show PNewpage          = "  [NEWPAGE]"
+    show PHLine            = "  [HLINE]"
+
+instance Show PText where
+    show (PNormal t)     = T.unpack t
+    show (PBold t)       = "*" ++ T.unpack t ++ "*"
+    show (PItalic t)     = "_" ++ T.unpack t ++ "_"
+    show (PEmphasised t) = "!" ++ T.unpack t ++ "!"

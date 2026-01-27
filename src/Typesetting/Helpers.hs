@@ -13,7 +13,6 @@ module Typesetting.Helpers
 import Datatypes.ValidatedTokens
 
 import Data.Text (Text)
-import qualified Data.Text as T
 
 import GHC.Float (double2Int)
 import Graphics.PDF

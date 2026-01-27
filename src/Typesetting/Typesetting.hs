@@ -11,14 +11,11 @@ import Typesetting.Helpers
 import Typesetting.Structures
 import Resources (getFont)
 
-import Control.Applicative ((<|>))
 import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.State.Lazy
 
-import Data.Map (Map)
 import qualified Data.Map as M
-import Data.ByteString (ByteString)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Maybe (fromJust, fromMaybe)
@@ -26,7 +23,6 @@ import Data.Maybe (fromJust, fromMaybe)
 import GHC.Float (int2Double)
 
 import Graphics.PDF
-import Graphics.PDF.Typesetting
 
 
 ------------------------

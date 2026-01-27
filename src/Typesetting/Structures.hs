@@ -14,7 +14,6 @@ import Control.Monad.Reader
 import Control.Monad.State.Lazy
 
 import Graphics.PDF
-import Graphics.PDF.Typesetting
 
 
 ------------------------

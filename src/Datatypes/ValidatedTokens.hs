@@ -1,10 +1,41 @@
 {-# LANGUAGE StrictData #-}
 
-module Datatypes.ValidatedTokens where
+module Datatypes.ValidatedTokens
+    ( -- Top level structure.
+      ValidatedDocument(..)
+    , ValidatedMetadata(..)
+
+    -- Units and synonyms.
+    , Pt(..)
+    , PageWidth(..)
+    , FontSize(..)
+    , Caption
+    , TableColumns
+
+    -- Main data types.
+    , VComm(..)
+    , VConfig(..)
+    , VText(..)
+
+    -- Configuration values.
+    , emptyVConfig
+    , defaultVConfig
+
+    -- Enums and attributes.
+    , PageSize(..)
+    , PageNumbering(..)
+    , Spacing(..)
+    , Glue(..)
+    , Font(..)
+    , TextStyle(..)
+    , Justification(..)
+    , ListStyle(..)
+    ) where
 
 import Datatypes.Located (Located(..))
 
 import Data.Text (Text)
+import qualified Data.Text as T
 
 
 --------------------
@@ -28,13 +59,13 @@ data ValidatedMetadata = ValidatedMetadata
 --------------------
 -- Standard size units.
 newtype Pt = Pt Double
-    deriving (Show, Eq, Ord) -- Derive Num and Fractional instances for easier calculations.
+    deriving (Eq, Ord) -- Derive Num and Fractional instances for easier calculations.
 
 newtype PageWidth = PageWidth Double
-    deriving (Show, Eq, Ord)
+    deriving (Eq, Ord)
 
 newtype FontSize = FontSize Double
-    deriving (Show, Eq, Ord)
+    deriving (Eq, Ord)
 
 type Caption = Text
 type TableColumns = Int
@@ -49,7 +80,7 @@ data VComm  = VSection      [VText] (Maybe Font) (Maybe FontSize)
             | VParagraph    [VText] (Maybe Font) (Maybe FontSize) (Maybe Justification)
             | VHLine        PageWidth (Maybe Pt)
             | VNewpage
-            deriving (Show, Eq, Ord)
+            deriving (Eq, Ord)
 
 
 -- Options for configuration commands.
@@ -162,20 +193,55 @@ data ListStyle = ListBullet | ListSquare | ListArrow | ListNumber
 data VText = VText
     { textCnt  :: Text
     , style :: TextStyle
-    } deriving (Show, Eq, Ord)
+    } deriving (Eq, Ord)
 
 
 --------------------
 -- SHOW INSTANCES
 --------------------
+-- Flattens a list of VText into a single string for display.
+showVTextList :: [VText] -> String
+showVTextList = unwords . map show
+
 instance Show ValidatedDocument where
-    show (ValidatedDocument cfg meta cnt) = 
-        "\nConfiguration\n-------------\n" ++ show cfg ++
-        "\nMetadata\n--------\n" ++ show meta ++ 
-        "\nDocument\n--------\n" ++ concatMap (\e -> show e <> "\n") cnt
+    show (ValidatedDocument cfg meta cnt) = unlines
+        [ "\nConfiguration\n-------------\n"
+        , show cfg
+        , "\nMetadata\n--------\n"
+        , show meta 
+        , "\nDocument\n--------\n"
+        , unlines (map show cnt)
+        ]
 
 instance Show ValidatedMetadata where
-    show (ValidatedMetadata t a d) = let padding = replicate 4 ' ' in
-        "Title: " ++ maybe "None" show t ++ "\n" ++
-        "Author: " ++ maybe "None" show a ++ "\n" ++
-        "Date: " ++ maybe "None" show d ++ "\n"
+    show (ValidatedMetadata t a d) = unlines
+        [ "  Title:  " ++ maybe "-" showVTextList t
+        , "  Author: " ++ maybe "-" showVTextList a
+        , "  Date:   " ++ maybe "-" showVTextList d
+        ]
+
+instance Show VText where
+    show (VText t style) = case style of
+        Normal      -> T.unpack t
+        Bold        -> "*" ++ T.unpack t ++ "*"
+        Italic      -> "_" ++ T.unpack t ++ "_"
+        Emphasised  -> "!" ++ T.unpack t ++ "!"
+
+instance Show VComm where
+    show (VSection txt _ _)    = "\n[SECTION] " ++ showVTextList txt
+    show (VSubsection txt _ _) = "\n  [SUB] " ++ showVTextList txt
+    show (VParagraph txt _ _ _)= "  [PAR] " ++ showVTextList txt
+    show (VFigure fp w c)      = "  [FIG] " ++ fp ++ " (Width: " ++ show w ++ ")" ++ maybe "" (\x -> " Cap: " ++ T.unpack x) c
+    show (VTable _ cols)       = "  [TABLE] (" ++ show cols ++ " columns)"
+    show (VList items _)       = "  [LIST] (" ++ show (length items) ++ " items)"
+    show (VHLine w _)          = "  [HLINE] Width: " ++ show w
+    show VNewpage              = "  [NEWPAGE]"
+
+instance Show Pt where
+    show (Pt x) = show x ++ "pt"
+
+instance Show PageWidth where
+    show (PageWidth x) = show x ++ "w"
+
+instance Show FontSize where
+    show (FontSize x) = show x ++ "pt"
