@@ -4,7 +4,6 @@ module Datatypes.ParseTokens
     ( -- Top level structure.
       ParsedDocument(..)
     , DocumentMetadata(..)
-
       -- Data types.
     , POptionValue(..)
     , POptionPair
@@ -63,15 +62,16 @@ data PConfig = PConfig PConfigArg POption
 data PCommOpt = PCommOpt PComm POption
    deriving (Eq, Ord)
 
-data PComm  = PSection     [PText]
-            | PSubsection  [PText]
-            | PFigure      FilePath
+data PComm  = PSection      [PText]
+            | PSubsection   [PText]
+            | PFigure       FilePath
             -- The \begin and \end tags can be detected during parsing, an removed in favour of a singular tag. The "document" tag is not
             -- included since there has to be only one per document.
-            | PTable       [[[PText]]] -- The type a list of lists of lists, represents the rows(a list), having multiple columns(a list) each
+            | PTable        [[[PText]]] -- The type a list of lists of lists, represents the rows(a list), having multiple columns(a list) each
                                        -- of which is a block of PText(a list).
-            | PList        [[PText]]
-            | PParagraph   [PText] -- Used for both regular paragraphs and those enclosed in begin/end.
+            | PList         [[PText]]
+            | PParagraph    [PText] -- Used for both regular paragraphs and those enclosed in begin/end.
+            | PCode         [Text]
             | PNewpage
             | PHLine
             deriving (Eq, Ord)
@@ -154,17 +154,18 @@ instance Show PCommOpt where
         _           -> show comm ++ " " ++ show opts
 
 instance Show PComm where
-    show (PSection txt)    = "\n[SECTION] " ++ showPTextList txt
-    show (PSubsection txt) = "\n  [SUB] " ++ showPTextList txt
-    show (PFigure path)    = "  [FIG] Path: " ++ path
-    show (PTable rows)     = "  [TABLE] (" ++ show (length rows) ++ " rows)"
-    show (PList items)     = "  [LIST]\n" ++ unlines (map (\i -> "    - " ++ showPTextList i) items)
-    show (PParagraph txt)  = "  [PAR] " ++ showPTextList txt
-    show PNewpage          = "  [NEWPAGE]"
-    show PHLine            = "  [HLINE]"
+    show (PSection txt)     = "\n[SECTION] " ++ showPTextList txt
+    show (PSubsection txt)  = "\n  [SUB] " ++ showPTextList txt
+    show (PFigure path)     = "  [FIG] Path: " ++ path
+    show (PTable rows)      = "  [TABLE] (" ++ show (length rows) ++ " rows)"
+    show (PList items)      = "  [LIST]\n" ++ unlines (map (\i -> "    - " ++ showPTextList i) items)
+    show (PParagraph txt)   = "  [PAR] " ++ showPTextList txt
+    show (PCode code)       = "  [CODE]\n" ++ unlines (map (\l -> "    |" ++ T.unpack l) code)
+    show PNewpage           = "  [NEWPAGE]"
+    show PHLine             = "  [HLINE]"
 
 instance Show PText where
-    show (PNormal t)     = T.unpack t
-    show (PBold t)       = "*" ++ T.unpack t ++ "*"
-    show (PItalic t)     = "_" ++ T.unpack t ++ "_"
-    show (PEmphasised t) = "!" ++ T.unpack t ++ "!"
+    show (PNormal t)        = T.unpack t
+    show (PBold t)          = "*" ++ T.unpack t ++ "*"
+    show (PItalic t)        = "_" ++ T.unpack t ++ "_"
+    show (PEmphasised t)    = "!" ++ T.unpack t ++ "!"

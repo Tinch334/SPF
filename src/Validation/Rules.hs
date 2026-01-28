@@ -120,6 +120,17 @@ namedParagraph txt (POptionMap o) =
     ) o
 namedParagraph txt POptionNone = Success $ VParagraph (convertText txt) Nothing Nothing Nothing
 
+namedCode code (POptionMap o) =
+    runSchema
+      ( ensureValidKeys
+          ("Expected field" ++ quote "background")
+          ["background"]
+          ( VCode code
+              <$> requireBool "background")
+      ) o
+
+namedCode code POptionNone = Failure ["Expected one boolean value (background)"]
+
 namedHLine :: POption -> CommandValidationType
 namedHLine (POptionMap o) =
   runSchema
@@ -138,16 +149,17 @@ namedHLine POptionNone = Failure $ ["Expected one numeric value (width)"]
 validateCommand :: Located PCommOpt -> Validation [LocatedError] (Located VComm)
 validateCommand (Located pos comm) =
   withPos pos $ case comm of
-    PCommOpt (PSection text) opts     -> namedFontWithSize VSection text opts 
-    PCommOpt (PSubsection text) opts  -> namedFontWithSize VSubsection text opts
-    PCommOpt (PFigure path) opts      -> namedFigure path opts
-    PCommOpt (PTable rows) opts       -> namedTable rows opts
-    PCommOpt (PList lst) opts         -> namedList lst opts
-    PCommOpt (PParagraph txt) opts    -> namedParagraph txt opts
-    PCommOpt PHLine opts              -> namedHLine opts
-    PCommOpt PNewpage POptionNone     -> Success VNewpage
-    PCommOpt PNewpage _               -> Failure ["The command " ++ quote "newpage" ++ " does not accept any options"]
-    _                                 -> error "INTERNAL: Attempt to validate unknown command"
+    PCommOpt (PSection text) opts       -> namedFontWithSize VSection text opts 
+    PCommOpt (PSubsection text) opts    -> namedFontWithSize VSubsection text opts
+    PCommOpt (PFigure path) opts        -> namedFigure path opts
+    PCommOpt (PTable rows) opts         -> namedTable rows opts
+    PCommOpt (PList lst) opts           -> namedList lst opts
+    PCommOpt (PParagraph txt) opts      -> namedParagraph txt opts
+    PCommOpt (PCode code) opts          -> namedCode code opts
+    PCommOpt PHLine opts                -> namedHLine opts
+    PCommOpt PNewpage POptionNone       -> Success VNewpage
+    PCommOpt PNewpage _                 -> Failure ["The command " ++ quote "newpage" ++ " does not accept any options"]
+    _                                   -> error "INTERNAL: Attempt to validate unknown command"
 
 
 --------------------
@@ -171,11 +183,6 @@ namedBeforeAndAfterSchema :: (Spacing -> VConfig) -> Schema VConfig
 namedBeforeAndAfterSchema c = c <$> (Spacing <$>
     (Pt <$> requireNumber "before") <*> (Pt <$> requireNumber "after"))
 
-namedGlueSchema :: (Glue -> VConfig) -> Schema VConfig
-namedGlueSchema c = c <$> (Glue <$> 
-    requireNumberWith "stretch" (validateNumInst (> 0) Pt) "Stretch must be positive"
-    <*> requireNumberWith "shrink"  (validateNumInst (> 0) Pt) "Shrink must be positive")
-
 namedFontsizeSchema :: (FontSize -> VConfig) -> Schema VConfig
 namedFontsizeSchema c = c <$> (requireNumberWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive")
 
@@ -195,8 +202,6 @@ configErrorString arg = case arg of
     PListspacing -> "Expected two numeric values (before: pt, after: pt)" 
     PTablespacing -> "Expected two numeric values (before: pt, after: pt)" 
     PFigurespacing -> "Expected two numeric values (before: pt, after: pt)" 
-    PSpacingglue -> "Expected two numeric values (stretch: pt, shrink: pt)" 
-    PTextglue -> "Expected two numeric values (stretch: pt, shrink: pt)" 
     PParIndent -> "Expected a numeric value (indent: pt)"
     PFont -> "Expected field " ++ quote "font" ++ " to be one of " ++ quoteList ["helvetica", "courier", "times"] ++ "."
     PParsize -> "Expected a numeric value (size: pt)"
@@ -221,8 +226,6 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $ vc arg opt
     sListSp s = emptyVConfig { cfgListSpacing = Just s }
     sTableSp s = emptyVConfig { cfgTableSpacing = Just s }
     sFigSp s = emptyVConfig { cfgFigureSpacing = Just s }
-    sSpGlue g = emptyVConfig { cfgSpacingGlue = Just g }
-    sTxtGlue g = emptyVConfig { cfgTextGlue = Just g }
     sFont f = emptyVConfig { cfgFont = Just f }
     sParSz s = emptyVConfig { cfgParSize = Just s }
     sTitleSz s = emptyVConfig { cfgSectionSize = Just s }
@@ -250,9 +253,6 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $ vc arg opt
     vc PListspacing o = validateConfigOption PListspacing o "List spacing requires arguments. " ["before", "after"] (namedBeforeAndAfterSchema sListSp)
     vc PTablespacing o = validateConfigOption PTablespacing o "Table spacing requires arguments. " ["before", "after"] (namedBeforeAndAfterSchema sTableSp)
     vc PFigurespacing o = validateConfigOption PFigurespacing o "Figure spacing requires arguments. " ["before", "after"] (namedBeforeAndAfterSchema sFigSp)
-    
-    vc PSpacingglue o = validateConfigOption PSpacingglue o "Spacing glue requires arguments. " ["stretch", "shrink"] (namedGlueSchema sSpGlue)
-    vc PTextglue o = validateConfigOption PTextglue o "Text glue requires arguments. " ["stretch", "shrink"] (namedGlueSchema sTxtGlue)
     
     vc PParIndent o = validateConfigOption PHozMargin o "Paragraph indentation requires arguments. " ["indent"] 
         (withVal sVertMrg $ requireNumberWith "indent" (validateNumInst (> 0) Pt) ("Unknown indent. " ++ configErrorString PJustification))

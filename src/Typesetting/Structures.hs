@@ -28,8 +28,6 @@ data RenderConfig = RenderConfig
     , rcListSpacing         :: Spacing
     , rcTableSpacing        :: Spacing
     , rcFigureSpacing       :: Spacing
-    , rcSpacingGlue         :: Glue
-    , rcTextGlue            :: Glue
     , rcParIndent           :: Pt
     , rcFont                :: Font
     , rcTitleSize           :: Datatypes.ValidatedTokens.FontSize

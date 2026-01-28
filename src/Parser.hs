@@ -25,6 +25,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 data CustomError    = UnknownCommand Text   -- Thrown when encountering \command, where command is invalid.
                     | UnknownText Text      -- Thrown when encountering \text-type, where text-type is invalid.
                     | InvalidOptions Text   -- Thrown when a set of options has an invalid format.
+                    | InvalidMeta Text      -- Thrown when metadata has an invalid format.
                     deriving (Eq, Ord, Show)
 
 -- To allow for easy error throwing.
@@ -37,6 +38,9 @@ unknownText = customFailure . UnknownText
 invalidOptions :: Text -> Parser a
 invalidOptions = customFailure . InvalidOptions
 
+invalidMeta :: Text -> Parser a
+invalidMeta = customFailure . InvalidMeta
+
 -- Make error labelling easier.
 mkErrStr :: String -> Text -> String -> String
 mkErrStr b t a = b ++ (T.unpack t) ++ a
@@ -46,7 +50,8 @@ instance ShowErrorComponent CustomError where
     showErrorComponent (UnknownCommand c) = "Unknown command: " ++ quote c
     showErrorComponent (UnknownText t) = "Unknown text type: " ++ quote t
     showErrorComponent (InvalidOptions o) = "Invalid format for options: " ++ T.unpack o
-        
+    showErrorComponent (InvalidMeta o) = "Invalid format for metadata: " ++ T.unpack o
+
 
 --------------------
 -- GENERAL DEFINITIONS
@@ -74,6 +79,10 @@ braces = between (char '{') (char '}')
 -- Bracket wrapper.
 brackets :: Parser a -> Parser a
 brackets = between (char '[') (char ']')
+
+-- Succeeds when a single newline is present.
+singleNewline :: Parser ()
+singleNewline = try $ eol *> notFollowedBy eol
 
 -- Avoid having to manually get position for commands
 withPos :: Parser a -> Parser (Located a)
@@ -103,8 +112,12 @@ parseMeta = DocumentMetadata
     meta n = optional $ do
         void (string $ "\\" <> n)
         arg <- braces parsePText
-        void sc -- There might be blank space between metadata definitions.
-        return arg
+        o <- optional $ parseOptions
+        case o of
+            Nothing -> do
+                void sc -- There might be blank space between metadata definitions.
+                return arg
+            Just _ -> invalidMeta "Metadata does not accept options"
 
 parseDocument :: Parser [Located PCommOpt]
 parseDocument = sepEndBy1 documentOptions sc where
@@ -170,6 +183,7 @@ documentCommandTable =
     , mkBeginEndCommand     "paragraph"     parsePText      PParagraph
     , mkBeginEndCommand     "table"         parseTable      PTable
     , mkBeginEndCommand     "list"          parseList       PList
+    , mkBeginEndCommand     "code"          parseCodeText   PCode
     , mkNoArgCommand        "newpage"       PNewpage
     , mkNoArgCommand        "hline"         PHLine
     ]
@@ -221,7 +235,7 @@ parseSpecialText = do
 parseRawText :: Parser Text
 parseRawText = label "raw paragraph" $ do
     l <- sepEndBy1 parseRawTextLine singleNewline
-    return (foldl (\e1 e2 -> e1 <> " " <> e2) "" l) -- Space is added to account for the one that's ignored when a newline is consumed.
+    return (T.unwords l) -- Space is added to account for the one that's ignored when a newline is consumed.
 
 controlChars :: [Char]
 controlChars = ['\\', '{', '}', '[', ']', '"', '/', '|', '\n', '\r', '\036']
@@ -235,10 +249,19 @@ parseRawTextLine = T.concat <$> some (try (T.singleton <$> escapedChar) <|> text
     -- commands would never match, since they would be treated as an escaped character.
     escapedChar = char '\\' *> oneOf controlChars <?> "escaped character"
 
--- Succeeds when a single newline is present.
-singleNewline :: Parser ()
-singleNewline = try $ eol *> notFollowedBy eol
+-- Parses lines containing any characters until the specified end string is found.
+parseAnyText :: Text -> Parser [Text]
+parseAnyText end = label "any text block" $ do
+    sepEndBy1 vLine eol
 
+  where
+    -- Type is needed, otherwise Haskell can't infer the type of the tokens.
+    vLine :: Parser Text
+    vLine = do
+        -- Stop parsing upon reaching and "\end" command.
+        notFollowedBy (string end)
+        -- Consume everything but newlines.
+        takeWhileP (Just "code text") (`notElem` ['\n', '\r'])
 
 --------------------
 -- CONFIGURATION PARSING FUNCTIONS
@@ -302,6 +325,9 @@ parseList = label "list" $ many $ do
     sc -- Consume trailing whitespace.
 
     return t
+
+parseCodeText :: Parser [Text]
+parseCodeText = parseAnyText "\\end"
 
 
 --------------------

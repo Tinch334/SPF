@@ -147,3 +147,19 @@ best scientific minds and our best artistic skills and sensitivities. Fur-
 thermore, I believe that the world will be a better place to live in after
 we learn more about the subject.
 \end{paragraph}
+
+\begin{code}[background: true]
+typesetDocument :: ValidatedDocument -> ResourceMap -> LoadedFonts -> FilePath -> Bool -> IO ()
+typesetDocument (ValidatedDocument cfg meta cnt) res fonts outPath dbg = do
+    let rConfig = toRenderConfig cfg
+
+    let pageRect@(PDFRect _ _ px py) = pageSizeToRect (fromJust $ cfgPageSize cfg)
+    let (Pt topMargin) = rcVertMargin rConfig
+    let startY = py - topMargin
+    
+    -- Get bottom margin based on page numbering.
+    let bottomMarginRaw = topMargin
+    let bottomMargin = bottomMarginRaw + case rcPageNumbering rConfig of
+            NumberingNone -> 0.0
+            _             -> 10.0
+\end{code}

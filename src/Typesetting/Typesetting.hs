@@ -9,6 +9,7 @@ import Datatypes.Located
 import Datatypes.Resources
 import Typesetting.Helpers
 import Typesetting.Structures
+import Typesetting.Styles
 import Resources (getFont)
 
 import Control.Monad
@@ -38,8 +39,6 @@ toRenderConfig VConfig{..} = RenderConfig
     , rcListSpacing         = fromJust cfgListSpacing
     , rcTableSpacing        = fromJust cfgTableSpacing
     , rcFigureSpacing       = fromJust cfgFigureSpacing
-    , rcSpacingGlue         = fromJust cfgSpacingGlue
-    , rcTextGlue            = fromJust cfgTextGlue
     , rcParIndent           = fromJust cfgParIndent
     , rcFont                = fromJust cfgFont
     , rcTitleSize           = fromJust cfgTitleSize
@@ -127,6 +126,9 @@ typesetElements elements = do
             VList list style -> do
                 typesetList list style
 
+            VCode code background ->
+                do typesetCode code background
+
             VNewpage ->
                 makeNewPage True
 
@@ -210,13 +212,23 @@ makeNewPage makeNumbering = do
 ------------------------
 -- CONTENT TYPESETTING FUNCTIONS
 ------------------------
+-- Wrapper of "typesetContent", hides uncommon options.
+typesetContentSimple :: [VText]
+                        -> Font
+                        -> Datatypes.ValidatedTokens.FontSize
+                        -> Datatypes.ValidatedTokens.Justification
+                        -> Double -> Double -> Typesetter ()
+typesetContentSimple vText font size just beforeSpace afterSpace =
+    typesetContent (Left vText) font size just NormalPara 0 beforeSpace afterSpace
+
 -- Typesets the given VText or paragraph, with the given options. Note that justification and indentation only have an effect in VText mode.
-typesetContent :: (Either [VText] HPDFParagraph)
+typesetContent :: (Either [VText] (TM CustomParaStyle StandardStyle ()))
                 -> Font
                 -> Datatypes.ValidatedTokens.FontSize
                 -> Datatypes.ValidatedTokens.Justification
+                -> CustomParaStyle
                 -> Double -> Double -> Double -> Typesetter ()
-typesetContent content font size just indent beforeSpace afterSpace = do
+typesetContent content font size just paraStyle indent beforeSpace afterSpace = do
     RenderEnv{..} <- ask
     RenderState{..} <- get
 
@@ -244,13 +256,14 @@ typesetContent content font size just indent beforeSpace afterSpace = do
     let cnt = case content of
             Left text -> textGenerator text
             Right block -> block
-    let boxes = getBoxes NormalParagraph (Font (PDFFont (getFont envFonts font Normal) (convertFontSize size)) black black) cnt
-
-    fillBoxLoop boxes
+    --let styleObj = NormalPara $ PDFFont (getFont envFonts font Normal) (convertFontSize size)
+    let boxes = getBoxes paraStyle (Font (PDFFont (getFont envFonts font Normal) (convertFontSize size)) black black) cnt
+    
+    fillBoxLoop boxes paraStyle
   where
     -- Fills containers page by page.
-    fillBoxLoop [] = return () -- Done
-    fillBoxLoop boxes = do
+    fillBoxLoop [] _ = return () -- Done
+    fillBoxLoop boxes paraStyle = do
         RenderEnv{..} <- ask
         RenderState{..} <- get
             
@@ -263,7 +276,9 @@ typesetContent content font size just indent beforeSpace afterSpace = do
 
         -- The mkContainer function defines a container based on it's top left point.
         let container = mkContainer marginX (rsCurrentY - beforeSpace) width height 0
-        let verState = defaultVerState NormalParagraph
+
+        -- Generate a vertical style with the given paragraph style.
+        let verState = defaultVerState paraStyle
 
         -- Fill container.
         let (drawAction, usedContainer, remainingBoxes) = fillContainer verState container boxes
@@ -286,7 +301,7 @@ typesetContent content font size just indent beforeSpace afterSpace = do
             else do
                 -- Overflow, force new page and render remaining boxes.
                 makeNewPage True
-                fillBoxLoop remainingBoxes
+                fillBoxLoop remainingBoxes paraStyle
 
 -- Generates the title-page.
 typesetTitlepage :: ValidatedMetadata -> Typesetter ()
@@ -305,17 +320,17 @@ typesetTitlepage meta = do
     case vmTitle meta of
         Nothing -> return ()
         Just t -> do
-            typesetContent (Left t) font (FontSize cSizeTitle) JustifyCenter 0 0 (envPageWidth * 0.15)
+            typesetContentSimple t font (FontSize cSizeTitle) JustifyCenter 0 (envPageWidth * 0.15)
 
     case vmAuthor meta of
         Nothing -> return ()
         Just a -> do
-            typesetContent (Left a) font (FontSize cSizeRest) JustifyCenter 0 0 (envPageWidth * 0.025)
+            typesetContentSimple a font (FontSize cSizeRest) JustifyCenter 0 (envPageWidth * 0.025)
 
     case vmDate meta of
         Nothing -> return ()
         Just d -> do
-            typesetContent (Left d) font (FontSize cSizeRest) JustifyCenter 0 0 0
+            typesetContentSimple d font (FontSize cSizeRest) JustifyCenter 0 0
 
 -- Typesets the given paragraph.
 typesetParagraph :: [VText] -> Maybe Font ->
@@ -329,7 +344,7 @@ typesetParagraph vText mFont mSize mJust = do
     let (Pt indent) = rcParIndent cfg
     let (Spacing (Pt beforeSpace) (Pt afterSpace)) = rcParagraphSpacing cfg
 
-    typesetContent (Left vText) font size just indent beforeSpace afterSpace
+    typesetContent (Left vText) font size just NormalPara indent beforeSpace afterSpace
 
 -- Typesets both sections and subsections. 
 typesetHeader :: [VText] -> Maybe Font -> Maybe Datatypes.ValidatedTokens.FontSize -> Bool -> Typesetter ()
@@ -363,7 +378,7 @@ typesetHeader vText mFont mSize isSection = do
     pdfLift $ newSectionWithPage (numbering <> mergeVText vText) Nothing Nothing rsCurrentPage (return ())
 
     -- Typeset section text.
-    typesetContent (Left fullText) font size JustifyLeft 0 beforeSpace afterSpace
+    typesetContentSimple fullText font size JustifyLeft beforeSpace afterSpace
 
 -- Typesets the given figure, with it's caption if present.
 typesetFigure :: FilePath -> PageWidth -> Maybe Caption -> Typesetter ()
@@ -525,7 +540,7 @@ typesetList items mStyle = do
                         txt txtContent
                         forceNewLine
 
-    typesetContent (Right list) font size JustifyLeft 0 beforeSpace afterSpace
+    typesetContent (Right list) font size JustifyLeft NormalPara 0 beforeSpace afterSpace
 
 -- Typesets the given table.
 typesetTable :: [[[VText]]] -> TableColumns -> Typesetter ()
@@ -629,6 +644,9 @@ typesetTable tableContents columns = do
     -- Get updated cursor and space after the table.
     RenderState{..} <- get
     modify $ \s -> s { rsCurrentY = rsCurrentY - afterSpace }
+
+typesetCode :: [Text] -> Bool -> Typesetter ()
+typesetCode code background = return ()
 
 -- Draw a horizontal line at the cursors current position.
 drawHLine :: PageWidth -> Maybe Pt -> Typesetter ()

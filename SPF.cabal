@@ -33,6 +33,7 @@ library
       Resources
       Typesetting.Helpers
       Typesetting.Structures
+      Typesetting.Styles
       Typesetting.Typesetting
       Validation.Document
       Validation.Rules

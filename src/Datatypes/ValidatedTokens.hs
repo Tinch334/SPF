@@ -4,28 +4,23 @@ module Datatypes.ValidatedTokens
     ( -- Top level structure.
       ValidatedDocument(..)
     , ValidatedMetadata(..)
-
     -- Units and synonyms.
     , Pt(..)
     , PageWidth(..)
     , FontSize(..)
     , Caption
     , TableColumns
-
     -- Main data types.
     , VComm(..)
     , VConfig(..)
     , VText(..)
-
     -- Configuration values.
     , emptyVConfig
     , defaultVConfig
-
     -- Enums and attributes.
     , PageSize(..)
     , PageNumbering(..)
     , Spacing(..)
-    , Glue(..)
     , Font(..)
     , TextStyle(..)
     , Justification(..)
@@ -78,6 +73,7 @@ data VComm  = VSection      [VText] (Maybe Font) (Maybe FontSize)
             | VTable        [[[VText]]] TableColumns
             | VList         [[VText]] (Maybe ListStyle)
             | VParagraph    [VText] (Maybe Font) (Maybe FontSize) (Maybe Justification)
+            | VCode         [Text] Bool
             | VHLine        PageWidth (Maybe Pt)
             | VNewpage
             deriving (Eq, Ord)
@@ -92,8 +88,6 @@ data VConfig = VConfig
     , cfgListSpacing        :: Maybe Spacing
     , cfgTableSpacing       :: Maybe Spacing
     , cfgFigureSpacing      :: Maybe Spacing
-    , cfgSpacingGlue        :: Maybe Glue
-    , cfgTextGlue           :: Maybe Glue
     , cfgParIndent          :: Maybe Pt
     , cfgFont               :: Maybe Font
     , cfgParSize            :: Maybe FontSize
@@ -118,8 +112,6 @@ emptyVConfig = VConfig
     , cfgListSpacing        = Nothing
     , cfgTableSpacing       = Nothing
     , cfgFigureSpacing      = Nothing
-    , cfgSpacingGlue        = Nothing
-    , cfgTextGlue           = Nothing
     , cfgParIndent          = Nothing
     , cfgFont               = Nothing
     , cfgParSize            = Nothing
@@ -144,8 +136,6 @@ defaultVConfig = VConfig
     , cfgListSpacing        = Just $ Spacing (Pt 5) (Pt 5)
     , cfgTableSpacing       = Just $ Spacing (Pt 10) (Pt 10)
     , cfgFigureSpacing      = Just $ Spacing (Pt 6) (Pt 4)
-    , cfgSpacingGlue        = Just $ Glue (Pt 2) (Pt 2)
-    , cfgTextGlue           = Just $ Glue (Pt 2) (Pt 2)
     , cfgParIndent          = Just $ Pt 20
     , cfgFont               = Just Times
     , cfgParSize            = Just $ FontSize 12
@@ -172,9 +162,6 @@ data PageNumbering = NumberingArabic | NumberingRoman | NumberingNone
     deriving (Show, Eq, Ord)
 
 data Spacing = Spacing Pt Pt
-    deriving (Show, Eq, Ord)
-
-data Glue = Glue Pt Pt
     deriving (Show, Eq, Ord)
 
 data Font = Helvetica | Courier | Times
@@ -228,14 +215,15 @@ instance Show VText where
         Emphasised  -> "!" ++ T.unpack t ++ "!"
 
 instance Show VComm where
-    show (VSection txt _ _)    = "\n[SECTION] " ++ showVTextList txt
-    show (VSubsection txt _ _) = "\n  [SUB] " ++ showVTextList txt
-    show (VParagraph txt _ _ _)= "  [PAR] " ++ showVTextList txt
-    show (VFigure fp w c)      = "  [FIG] " ++ fp ++ " (Width: " ++ show w ++ ")" ++ maybe "" (\x -> " Cap: " ++ T.unpack x) c
-    show (VTable _ cols)       = "  [TABLE] (" ++ show cols ++ " columns)"
-    show (VList items _)       = "  [LIST] (" ++ show (length items) ++ " items)"
-    show (VHLine w _)          = "  [HLINE] Width: " ++ show w
-    show VNewpage              = "  [NEWPAGE]"
+    show (VSection txt _ _)     = "\n[SECTION] " ++ showVTextList txt
+    show (VSubsection txt _ _)  = "\n  [SUB] " ++ showVTextList txt
+    show (VParagraph txt _ _ _) = "  [PAR] " ++ showVTextList txt
+    show (VFigure fp w c)       = "  [FIG] " ++ fp ++ " (Width: " ++ show w ++ ")" ++ maybe "" (\x -> " Cap: " ++ T.unpack x) c
+    show (VTable _ cols)        = "  [TABLE] (" ++ show cols ++ " columns)"
+    show (VList items _)        = "  [LIST] (" ++ show (length items) ++ " items)"
+    show (VCode code _)         = "  [CODE]\n"  ++ unlines (map (\l -> "    |" ++ T.unpack l) code)
+    show (VHLine w _)           = "  [HLINE] Width: " ++ show w
+    show VNewpage               = "  [NEWPAGE]"
 
 instance Show Pt where
     show (Pt x) = show x ++ "pt"
