@@ -133,7 +133,7 @@ typesetElements elements = do
                 makeNewPage True
 
             VHLine width thick ->
-                drawHLine width thick
+                typesetHLine width thick
 
         -- Check for overflow after typesetting every element.
         cs <- checkSpace
@@ -646,11 +646,27 @@ typesetTable tableContents columns = do
     modify $ \s -> s { rsCurrentY = rsCurrentY - afterSpace }
 
 typesetCode :: [Text] -> Bool -> Typesetter ()
-typesetCode code background = return ()
+typesetCode code background = do
+    cfg <- asks envConfig
+    fonts <- asks envFonts
+
+    let paraFormat = ColouredPara (Rgb 0.94 0.94 0.94) 5 (-3)
+
+    let formattedCode = do
+            setJustification LeftJustification
+            paragraph $ do
+                let styledFont = getFont fonts Datatypes.ValidatedTokens.Courier Normal
+                setStyle (Font (PDFFont styledFont 10) black black)
+
+                forM_ (zip code [1..(length code)]) $ \(line, i) -> do
+                    txt $ (T.pack $ show i) <> " " <> line
+                    forceNewLine
+
+    typesetContent (Right formattedCode) Datatypes.ValidatedTokens.Courier (FontSize 10) JustifyLeft paraFormat 0 10 12
 
 -- Draw a horizontal line at the cursors current position.
-drawHLine :: PageWidth -> Maybe Pt -> Typesetter ()
-drawHLine (PageWidth width) mThick = do
+typesetHLine :: PageWidth -> Maybe Pt -> Typesetter ()
+typesetHLine (PageWidth width) mThick = do
     y <- gets rsCurrentY
     p <- gets rsCurrentPage
     w <- asks envPageWidth
