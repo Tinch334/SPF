@@ -137,7 +137,7 @@ mkSimpleCommand :: Text -> Parser a -> (a -> PComm) -> CommandSpec
 mkSimpleCommand n p c = CommandSpec n $ do
     void (string $ "\\" <> n) <?> "\\" ++ T.unpack n
     arg <- braces p <?> mkErrStr "" n " argument"
-    op <- lexeme $ optional parseOptions
+    op <- optional parseOptions
 
     return $ PCommOpt (c arg) (maybe POptionNone id op)
 
@@ -145,7 +145,7 @@ mkSimpleCommand n p c = CommandSpec n $ do
 mkNoArgCommand :: Text -> PComm -> CommandSpec
 mkNoArgCommand n c = CommandSpec n $ do
     void (string $ "\\" <> n) <?> "\\" ++ T.unpack n
-    op <- lexeme $ optional parseOptions
+    op <- optional parseOptions
 
     return $ PCommOpt c (maybe POptionNone id op)
 
@@ -154,7 +154,8 @@ mkBeginEndCommand n p c = CommandSpec n $ do
     void (string "\\begin") <?> "\\begin"
     void (braces (string n)) <?> mkErrStr "" n " for begin"
 
-    op <- lexeme $ optional parseOptions
+    op <- optional parseOptions
+    void (optional eol) -- Consumes a single newline if present, avoids altering the contents inside the begin/end block.
     b <- p <?> mkErrStr "" n " content"
 
     void (string "\\end") <?> "\\end"

@@ -24,6 +24,7 @@ import Data.Maybe (fromJust, fromMaybe)
 import GHC.Float (int2Double)
 
 import Graphics.PDF
+import Graphics.PDF.Typesetting.WritingSystem
 
 
 ------------------------
@@ -650,19 +651,38 @@ typesetCode code background = do
     cfg <- asks envConfig
     fonts <- asks envFonts
 
-    let paraFormat = ColouredPara (Rgb 0.94 0.94 0.94) 5 (-3)
+    let paraFormat = ColouredPara (Rgb 0.94 0.94 0.94) 5 5
+
+    let fontSize = 10
+    let styledFont = getFont fonts Datatypes.ValidatedTokens.Courier Normal
+    let pdfFont = PDFFont styledFont fontSize
+    let lineNumberSpacing = 5
+
+    -- Get width of largest number for padding.
+    let maxLineNumStr = T.pack (show $ length code)
+    let maxLineWidth = textWidth pdfFont maxLineNumStr
+    -- Used for multi space typesetting, since txt the paragraph typesetting function collapses multiple spaces into one.
+    --let spaceCharWidth = textWidth pdfFont " "
 
     let formattedCode = do
+            -- Disable hyphenation, which collapses multiple spaces.
+            setWritingSystem UnknownWritingSystem
             setJustification LeftJustification
             paragraph $ do
-                let styledFont = getFont fonts Datatypes.ValidatedTokens.Courier Normal
-                setStyle (Font (PDFFont styledFont 10) black black)
+                
+                setStyle (Font pdfFont black black)
 
                 forM_ (zip code [1..(length code)]) $ \(line, i) -> do
-                    txt $ (T.pack $ show i) <> " " <> line
+                    let lineNum = T.pack $ show i
+                    let lineWidth = textWidth pdfFont lineNum
+
+                    -- Typeset line number, padding and line contents.
+                    txt lineNum
+                    kern $ (maxLineWidth - lineWidth) + lineNumberSpacing
+                    txt line
                     forceNewLine
 
-    typesetContent (Right formattedCode) Datatypes.ValidatedTokens.Courier (FontSize 10) JustifyLeft paraFormat 0 10 12
+    typesetContent (Right formattedCode) Datatypes.ValidatedTokens.Courier (FontSize $ int2Double fontSize) JustifyLeft paraFormat 0 10 12
 
 -- Draw a horizontal line at the cursors current position.
 typesetHLine :: PageWidth -> Maybe Pt -> Typesetter ()
