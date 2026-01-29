@@ -646,44 +646,52 @@ typesetTable tableContents columns = do
     RenderState{..} <- get
     modify $ \s -> s { rsCurrentY = rsCurrentY - afterSpace }
 
+-- Typesetting.hs
+
 typesetCode :: [Text] -> Bool -> Typesetter ()
 typesetCode code background = do
     cfg <- asks envConfig
     fonts <- asks envFonts
 
-    let paraFormat = ColouredPara (Rgb 0.94 0.94 0.94) 5 5
+    let codeFontType = Datatypes.ValidatedTokens.Courier
+    let codeFontSize = 10
+    let styledFont = getFont fonts codeFontType Normal
+    let pdfFont = PDFFont styledFont codeFontSize
 
-    let fontSize = 10
-    let styledFont = getFont fonts Datatypes.ValidatedTokens.Courier Normal
-    let pdfFont = PDFFont styledFont fontSize
-    let lineNumberSpacing = 5
+    -- Calculate numbering width.
+    let maxNumWidth = textWidth pdfFont (T.pack $ show (length code))
+    -- Gap between line number and code.
+    let gapWidth = 10.0 
+    -- Total gutter: Number width + gap
+    let totalGutter = maxNumWidth + gapWidth
 
-    -- Get width of largest number for padding.
-    let maxLineNumStr = T.pack (show $ length code)
-    let maxLineWidth = textWidth pdfFont maxLineNumStr
-    -- Used for multi space typesetting, since txt the paragraph typesetting function collapses multiple spaces into one.
-    --let spaceCharWidth = textWidth pdfFont " "
+    -- Line wrapping would be a problem if we simply typeset lines and numbers "normally", instead we use a "hanging indent". The cursor starts
+    -- where the code starts (because of linePosition). We move back to the start of the line to draw the line number.
+    let paraFormat = VerbatimPara (Rgb 0.94 0.94 0.94) 5 20 (Just $ (int2Double codeFontSize) * 0.5) totalGutter
 
     let formattedCode = do
-            -- Disable hyphenation, which collapses multiple spaces.
             setWritingSystem UnknownWritingSystem
             setJustification LeftJustification
             paragraph $ do
-                
                 setStyle (Font pdfFont black black)
 
                 forM_ (zip code [1..(length code)]) $ \(line, i) -> do
-                    let lineNum = T.pack $ show i
-                    let lineWidth = textWidth pdfFont lineNum
+                    let currentNumStr = T.pack $ show i
+                    let currentNumWidth = textWidth pdfFont currentNumStr
 
-                    -- Typeset line number, padding and line contents.
-                    txt lineNum
-                    kern $ (maxLineWidth - lineWidth) + lineNumberSpacing
+                    -- Align and draw line number.
+                    kern (-totalGutter)
+                    let numberPadding = (totalGutter - gapWidth) - currentNumWidth
+                    kern numberPadding
+                    txt currentNumStr                        
+
+                    -- Move cursor forward to the code start position. Note that the cursor is at "Padding + NumWidth", we need to reach
+                    -- "TotalGutter".
+                    kern gapWidth 
                     txt line
                     forceNewLine
 
-    typesetContent (Right formattedCode) Datatypes.ValidatedTokens.Courier (FontSize $ int2Double fontSize) JustifyLeft paraFormat 0 10 12
-
+    typesetContent (Right formattedCode) codeFontType (FontSize (fromIntegral codeFontSize)) JustifyLeft paraFormat 0 10 12
 -- Draw a horizontal line at the cursors current position.
 typesetHLine :: PageWidth -> Maybe Pt -> Typesetter ()
 typesetHLine (PageWidth width) mThick = do
