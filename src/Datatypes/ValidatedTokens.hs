@@ -73,7 +73,7 @@ data VComm  = VSection      [VText] (Maybe Font) (Maybe FontSize)
             | VTable        [[[VText]]] TableColumns
             | VList         [[VText]] (Maybe ListStyle)
             | VParagraph    [VText] (Maybe Font) (Maybe FontSize) (Maybe Justification)
-            | VCode         [Text] Bool
+            | VVerbatim     [Text] (Maybe FontSize) (Maybe Bool)
             | VHLine        PageWidth (Maybe Pt)
             | VNewpage
             deriving (Eq, Ord)
@@ -94,12 +94,14 @@ data VConfig = VConfig
     , cfgTitleSize          :: Maybe FontSize
     , cfgSectionSize        :: Maybe FontSize
     , cfgSubsectionSize     :: Maybe FontSize
+    , cfgVerbatimSize       :: Maybe FontSize
     , cfgJustification      :: Maybe Justification
     , cfgListStyle          :: Maybe ListStyle
     , cfgVertMargin         :: Maybe Pt
     , cfgHozMargin          :: Maybe Pt
     , cfgSectionNumbering   :: Maybe Bool
     , cfgFigureNumbering    :: Maybe Bool
+    , cfgVerbatimNumbering  :: Maybe Bool
     } deriving (Show, Eq, Ord)
 
 -- Empty config for easy instantiation.
@@ -118,12 +120,14 @@ emptyVConfig = VConfig
     , cfgTitleSize          = Nothing
     , cfgSectionSize        = Nothing
     , cfgSubsectionSize     = Nothing
+    , cfgVerbatimSize       = Nothing
     , cfgJustification      = Nothing
     , cfgListStyle          = Nothing
     , cfgVertMargin         = Nothing
     , cfgHozMargin          = Nothing
     , cfgSectionNumbering   = Nothing
     , cfgFigureNumbering    = Nothing
+    , cfgVerbatimNumbering  = Nothing
     }
 
 -- Default configuration values for commands, determined manually, to make the document aesthetically pleasant.
@@ -142,12 +146,14 @@ defaultVConfig = VConfig
     , cfgTitleSize          = Just $ FontSize 32
     , cfgSectionSize        = Just $ FontSize 18
     , cfgSubsectionSize     = Just $ FontSize 16
+    , cfgVerbatimSize  = Just $ FontSize 10
     , cfgJustification      = Just JustifyLeft
     , cfgListStyle          = Just ListBullet
     , cfgVertMargin         = Just $ Pt 45
     , cfgHozMargin          = Just $ Pt 50
     , cfgSectionNumbering   = Just True
     , cfgFigureNumbering    = Just True
+    , cfgVerbatimNumbering  = Just True
     }
     
 
@@ -221,7 +227,7 @@ instance Show VComm where
     show (VFigure fp w c)       = "  [FIG] " ++ fp ++ " (Width: " ++ show w ++ ")" ++ maybe "" (\x -> " Cap: " ++ T.unpack x) c
     show (VTable _ cols)        = "  [TABLE] (" ++ show cols ++ " columns)"
     show (VList items _)        = "  [LIST] (" ++ show (length items) ++ " items)"
-    show (VCode code _)         = "  [CODE]\n"  ++ unlines (map (\l -> "    |" ++ T.unpack l) code)
+    show (VVerbatim code _ _)   = "  [VERBATIM]\n"  ++ unlines (map (\l -> "    |" ++ T.unpack l) code)
     show (VHLine w _)           = "  [HLINE] Width: " ++ show w
     show VNewpage               = "  [NEWPAGE]"
 

@@ -127,8 +127,8 @@ typesetElements elements = do
             VList list style -> do
                 typesetList list style
 
-            VCode code background ->
-                do typesetCode code background
+            VVerbatim code font background ->
+                do typesetVerbatim code font background
 
             VNewpage ->
                 makeNewPage True
@@ -648,8 +648,8 @@ typesetTable tableContents columns = do
 
 -- Typesetting.hs
 
-typesetCode :: [Text] -> Bool -> Typesetter ()
-typesetCode code background = do
+typesetVerbatim :: [Text] -> Maybe Datatypes.ValidatedTokens.FontSize -> Maybe Bool -> Typesetter ()
+typesetVerbatim code mSize mBackground = do
     cfg <- asks envConfig
     fonts <- asks envFonts
 

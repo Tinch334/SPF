@@ -40,10 +40,12 @@ merge op1 op2 = VConfig
     , cfgTitleSize          = cfgTitleSize op1          <|> cfgTitleSize op2
     , cfgSectionSize        = cfgSectionSize op1        <|> cfgSectionSize op2
     , cfgSubsectionSize     = cfgSubsectionSize op1     <|> cfgSubsectionSize op2
+    , cfgVerbatimSize       = cfgVerbatimSize op1       <|> cfgVerbatimSize op2
     , cfgJustification      = cfgJustification op1      <|> cfgJustification op2
     , cfgListStyle          = cfgListStyle op1          <|> cfgListStyle op2
     , cfgVertMargin         = cfgVertMargin op1         <|> cfgVertMargin op2
     , cfgHozMargin          = cfgHozMargin op1          <|> cfgHozMargin op2
     , cfgSectionNumbering   = cfgSectionNumbering op1   <|> cfgSectionNumbering op2
     , cfgFigureNumbering    = cfgFigureNumbering op1    <|> cfgFigureNumbering op2
+    , cfgVerbatimNumbering  = cfgVerbatimNumbering op1  <|> cfgVerbatimNumbering op2
     }

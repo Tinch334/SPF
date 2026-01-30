@@ -14,6 +14,7 @@ module Validation.Schema
     , tryNumberWith
     , ensureValidKeys
     , requireBool
+    , tryBool
     -- Generic validators.
     , validateNumInst
     , validateSize
@@ -179,6 +180,9 @@ tryNumberWith k vf err = getMaybeWith k (asNumber >=> vf) err
 
 requireBool :: Text -> Schema Bool
 requireBool k = getRequiredWith k asBool ("Expected boolean key for " ++ quote k)
+
+tryBool :: Text -> Schema (Maybe Bool)
+tryBool k = getMaybeWith k asBool (failType k)
 
 
 -- Ensures only valid keys are present, fails if an element not in the given key list is in the options.

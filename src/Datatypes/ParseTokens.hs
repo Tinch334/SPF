@@ -71,7 +71,7 @@ data PComm  = PSection      [PText]
                                        -- of which is a block of PText(a list).
             | PList         [[PText]]
             | PParagraph    [PText] -- Used for both regular paragraphs and those enclosed in begin/end.
-            | PCode         [Text]
+            | PVerbatim     [Text]
             | PNewpage
             | PHLine
             deriving (Eq, Ord)
@@ -98,12 +98,14 @@ data PConfigArg = PSize
                 | PTitleSize
                 | PSectionSize
                 | PSubsectionSize
+                | PVerbatimSize
                 | PJustification
                 | PListstyle
                 | PVerMargin
                 | PHozMargin
                 | PSectionNumbering
                 | PFigureNumbering
+                | PVerbatimNumbering
                 deriving (Show, Eq, Ord)
 
 
@@ -160,7 +162,7 @@ instance Show PComm where
     show (PTable rows)      = "  [TABLE] (" ++ show (length rows) ++ " rows)"
     show (PList items)      = "  [LIST]\n" ++ unlines (map (\i -> "    - " ++ showPTextList i) items)
     show (PParagraph txt)   = "  [PAR] " ++ showPTextList txt
-    show (PCode code)       = "  [CODE]\n" ++ unlines (map (\l -> "    |" ++ T.unpack l) code)
+    show (PVerbatim code)   = "  [VERBATIM]\n" ++ unlines (map (\l -> "    |" ++ T.unpack l) code)
     show PNewpage           = "  [NEWPAGE]"
     show PHLine             = "  [HLINE]"
 

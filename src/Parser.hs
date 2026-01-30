@@ -184,7 +184,7 @@ documentCommandTable =
     , mkBeginEndCommand     "paragraph"     parsePText      PParagraph
     , mkBeginEndCommand     "table"         parseTable      PTable
     , mkBeginEndCommand     "list"          parseList       PList
-    , mkBeginEndCommand     "code"          parseCodeText   PCode
+    , mkBeginEndCommand     "verbatim"      parseVerbatim   PVerbatim
     , mkNoArgCommand        "newpage"       PNewpage
     , mkNoArgCommand        "hline"         PHLine
     ]
@@ -278,27 +278,30 @@ parseConfigCommand = label "configuration command" $ do
 -- Parses configuration arguments.
 parseConfigArg :: Parser PConfigArg
 parseConfigArg = label "config option" $ choice
-    [ PSize             <$ string "size"
-    , PPagenumbering    <$ string "pagenumbering"
-    , PSectionspacing   <$ string "sectionspacing"
-    , PParagraphspacing <$ string "paragraphspacing"
-    , PListspacing      <$ string "listspacing"
-    , PTablespacing     <$ string "tablespacing"
-    , PFigurespacing    <$ string "figurespacing"
-    , PSpacingglue      <$ string "spacingglue"
-    , PTextglue         <$ string "textglue"
-    , PHozMargin        <$ string "parindent"
-    , PFont             <$ string "font"
-    , PParsize          <$ string "parsize"
-    , PTitleSize        <$ string "titlesize"
-    , PSectionSize      <$ string "sectionsize"
-    , PSubsectionSize   <$ string "subsectionsize"
-    , PJustification    <$ string "justification"
-    , PListstyle        <$ string "style"
-    , PVerMargin        <$ string "vertmargin"
-    , PHozMargin        <$ string "hozmargin"
-    , PSectionNumbering <$ string "sectionnumbering"
-    , PFigureNumbering  <$ string "figurenumbering"]
+    [ PSize                 <$ string "size"
+    , PPagenumbering        <$ string "pagenumbering"
+    , PSectionspacing       <$ string "sectionspacing"
+    , PParagraphspacing     <$ string "paragraphspacing"
+    , PListspacing          <$ string "listspacing"
+    , PTablespacing         <$ string "tablespacing"
+    , PFigurespacing        <$ string "figurespacing"
+    , PSpacingglue          <$ string "spacingglue"
+    , PTextglue             <$ string "textglue"
+    , PHozMargin            <$ string "parindent"
+    , PFont                 <$ string "font"
+    , PParsize              <$ string "parsize"
+    , PTitleSize            <$ string "titlesize"
+    , PSectionSize          <$ string "sectionsize"
+    , PSubsectionSize       <$ string "subsectionsize"
+    , PVerbatimSize         <$ string "verbatimsize"
+    , PJustification        <$ string "justification"
+    , PListstyle            <$ string "style"
+    , PVerMargin            <$ string "vertmargin"
+    , PHozMargin            <$ string "hozmargin"
+    , PSectionNumbering     <$ string "sectionnumbering"
+    , PFigureNumbering      <$ string "figurenumbering"
+    , PVerbatimNumbering    <$ string "verbatimnumbering"
+    ]
 
 
 --------------------
@@ -327,8 +330,8 @@ parseList = label "list" $ many $ do
 
     return t
 
-parseCodeText :: Parser [Text]
-parseCodeText = parseAnyText "\\end"
+parseVerbatim :: Parser [Text]
+parseVerbatim = parseAnyText "\\end"
 
 
 --------------------

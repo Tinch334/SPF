@@ -120,16 +120,17 @@ namedParagraph txt (POptionMap o) =
     ) o
 namedParagraph txt POptionNone = Success $ VParagraph (convertText txt) Nothing Nothing Nothing
 
-namedCode code (POptionMap o) =
+namedVerbatim :: [Text] -> POption -> CommandValidationType
+namedVerbatim code (POptionMap o) =
     runSchema
       ( ensureValidKeys
-          ("Expected field" ++ quote "background")
-          ["background"]
-          ( VCode code
-              <$> requireBool "background")
+          ("Expected some of fields" ++ quoteList ["background", "size"])
+          ["background", "size"]
+          ( VVerbatim code
+              <$> tryNumberWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive")
+              <*> tryBool "background"
       ) o
-
-namedCode code POptionNone = Failure ["Expected one boolean value (background)"]
+namedVerbatim code POptionNone = Failure ["Expected one boolean value (background)"]
 
 namedHLine :: POption -> CommandValidationType
 namedHLine (POptionMap o) =
@@ -142,7 +143,6 @@ namedHLine (POptionMap o) =
             <*> tryNumberWith "thickness" (validateNumInst (> 0) Pt) "HLine thickness must be positive"
         )
     ) o
-
 namedHLine POptionNone = Failure $ ["Expected one numeric value (width)"]
 
 -- Validates the given command.
@@ -155,7 +155,7 @@ validateCommand (Located pos comm) =
     PCommOpt (PTable rows) opts         -> namedTable rows opts
     PCommOpt (PList lst) opts           -> namedList lst opts
     PCommOpt (PParagraph txt) opts      -> namedParagraph txt opts
-    PCommOpt (PCode code) opts          -> namedCode code opts
+    PCommOpt (PVerbatim code) opts      -> namedVerbatim code opts
     PCommOpt PHLine opts                -> namedHLine opts
     PCommOpt PNewpage POptionNone       -> Success VNewpage
     PCommOpt PNewpage _                 -> Failure ["The command " ++ quote "newpage" ++ " does not accept any options"]
@@ -230,12 +230,14 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $ vc arg opt
     sParSz s = emptyVConfig { cfgParSize = Just s }
     sTitleSz s = emptyVConfig { cfgSectionSize = Just s }
     sSubTitleSz s = emptyVConfig { cfgSubsectionSize = Just s }
+    sVerbSz s = emptyVConfig { cfgVerbatimSize = Just s }
     sJust j = emptyVConfig { cfgJustification = Just j }
     sListSt s = emptyVConfig { cfgListStyle = Just s }
     sVertMrg m = emptyVConfig { cfgVertMargin = Just m}
     sHozMrg m = emptyVConfig { cfgHozMargin = Just m}
     sSecNum b = emptyVConfig { cfgSectionNumbering = Just b }
     sFigNum b = emptyVConfig { cfgFigureNumbering = Just b }
+    sVerbNum b = emptyVConfig { cfgVerbatimNumbering = Just b }
 
     -- Command validation.
     vc PSize (POptionMap m) = runSchema
@@ -263,8 +265,9 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $ vc arg opt
     vc PParsize o = validateConfigOption PParsize o "Par font size requires arguments. " ["size"] (namedFontsizeSchema sParSz)
     vc PTitleSize o = validateConfigOption PTitleSize o "Title font size requires arguments. " ["size"] (namedFontsizeSchema sTitleSz)
     vc PSectionSize o = validateConfigOption PSectionSize o "Section font size requires arguments. " ["size"] (namedFontsizeSchema sTitleSz) -- Map PSectionSize to TitleSize logic as per original
-    vc PSubsectionSize o = validateConfigOption PSubsectionSize o "Subtitle font size requires arguments. " ["size"] (namedFontsizeSchema sSubTitleSz)
-    
+    vc PSubsectionSize o = validateConfigOption PSubsectionSize o "Subsection font size requires arguments. " ["size"] (namedFontsizeSchema sSubTitleSz)
+    vc PVerbatimNumbering o = validateConfigOption PSubsectionSize o "Verbatim font size requires arguments. " ["size"] (namedFontsizeSchema sVerbSz)
+
     vc PJustification o = validateConfigOption PJustification o "Justification requires arguments. " ["justification"] 
         (withVal sJust $ requireTextWith "justification" validateJustification ("Unknown just. " ++ configErrorString PJustification))
     
@@ -278,4 +281,6 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $ vc arg opt
     vc PSectionNumbering o = validateConfigOption PSectionNumbering o "Section numbering requires arguments. " ["numbering"]
         (withVal sSecNum $ requireBool "numbering")
     vc PFigureNumbering o = validateConfigOption PSectionNumbering o "Figure numbering requires arguments. " ["numbering"]
-        (withVal sSecNum $ requireBool "numbering")
+        (withVal sFigNum $ requireBool "numbering")
+    vc PVerbatimNumbering o = validateConfigOption PVerbatimNumbering o "Verbatim numbering requires arguments. " ["numbering"]
+        (withVal sVerbNum $ requireBool "numbering")
