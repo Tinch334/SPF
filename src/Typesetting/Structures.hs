@@ -1,5 +1,10 @@
-module Typesetting.Structures 
-    ( RenderConfig(..)
+module Typesetting.Structures
+    ( RCLayout(..)
+    , RCStyles(..)
+    , RCSizes(..)
+    , RCSpacing(..)
+    , RCToggle(..)
+    , RenderConfig(..)
     , RenderEnv(..)
     , RenderState(..)
     , DocumentCounters(..)
@@ -7,7 +12,7 @@ module Typesetting.Structures
     , HPDFParagraph
     ) where
 
-import Datatypes.ValidatedTokens
+import qualified Datatypes.ValidatedTokens as VT
 import Datatypes.Resources
 
 import Control.Monad.Reader
@@ -20,28 +25,49 @@ import Graphics.PDF
 -- TYPES AND STATE
 ------------------------
 -- Replaces VConfig for internal use, to avoid having "fromJust" everywhere.
+data RCLayout = RCLayout
+    { rcPageSize      :: VT.PageSize
+    , rcNumbering     :: VT.PageNumbering
+    , rcMarginVert    :: VT.Pt
+    , rcMarginHoz     :: VT.Pt
+    }
+
+data RCStyles = RCStyles
+    { rcFont          :: VT.Font
+    , rcJustification :: VT.Justification
+    , rcListType      :: VT.ListStyle
+    }
+
+data RCSizes = RCSizes
+    { rcParSize       :: VT.FontSize
+    , rcTitleSize     :: VT.FontSize
+    , rcSectionSize   :: VT.FontSize
+    , rcSubsectionSize:: VT.FontSize
+    , rcVerbatimSize  :: VT.FontSize
+    }
+
+data RCSpacing = RCSpacing
+    { rcSectionSp     :: VT.Spacing
+    , rcParagraphSp   :: VT.Spacing
+    , rcListSp        :: VT.Spacing
+    , rcTableSp       :: VT.Spacing
+    , rcFigureSp      :: VT.Spacing
+    , rcVerbatimSp    :: VT.Spacing
+    , rcParIndent     :: VT.Pt
+    }
+
+data RCToggle = RCToggle
+    { rcSectionNumbering  :: Bool
+    , rcFigureNumbering   :: Bool
+    , rcVerbatimNumbering :: Bool
+    }
+
 data RenderConfig = RenderConfig
-    { rcPageSize            :: PageSize
-    , rcPageNumbering       :: PageNumbering
-    , rcSectionSpacing      :: Spacing
-    , rcParagraphSpacing    :: Spacing
-    , rcListSpacing         :: Spacing
-    , rcTableSpacing        :: Spacing
-    , rcFigureSpacing       :: Spacing
-    , rcParIndent           :: Pt
-    , rcFont                :: Font
-    , rcTitleSize           :: Datatypes.ValidatedTokens.FontSize
-    , rcParSize             :: Datatypes.ValidatedTokens.FontSize
-    , rcSectionSize         :: Datatypes.ValidatedTokens.FontSize
-    , rcSubsectionSize      :: Datatypes.ValidatedTokens.FontSize
-    , rcVerbatimSize        :: Datatypes.ValidatedTokens.FontSize
-    , rcJustification       :: Datatypes.ValidatedTokens.Justification
-    , rcListStyle           :: ListStyle
-    , rcVertMargin          :: Pt
-    , rcHozMargin           :: Pt
-    , rcSectionNumbering    :: Bool
-    , rcFigureNumbering     :: Bool
-    , rcVerbatimNumbering   :: Bool
+    { layout    :: RCLayout
+    , styles    :: RCStyles
+    , sizes     :: RCSizes
+    , spacing   :: RCSpacing
+    , toggles   :: RCToggle 
     }
 
 -- Read only environment.

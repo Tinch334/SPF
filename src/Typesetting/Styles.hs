@@ -10,12 +10,16 @@ import Graphics.PDF.Typesetting
 data CustomParaStyle    = VerbatimPara Color Double Double (Maybe Double) Double
                         -- Verbatim arguments: Colour of box, margins of box, right size adjust, code offset off vertical line, gutter width.
                         -- The Maybe in the second to last argument is used to enable/disable the line and line numbering.
+                        | QuotedPara
+                        | UnderlinedPara
                         | NormalPara
 
 -- We use "StandardStyle" as the second parameter since Paragraph style requires a text style.
 instance ComparableStyle CustomParaStyle where
     -- Update pattern match
     isSameStyleAs (VerbatimPara _ _ _ _ _) (VerbatimPara _ _ _ _ _) = True
+    isSameStyleAs QuotedPara QuotedPara = True
+    isSameStyleAs UnderlinedPara UnderlinedPara = True
     isSameStyleAs NormalPara NormalPara = True
     isSameStyleAs _ _ = False
 
@@ -29,6 +33,10 @@ instance ParagraphStyle CustomParaStyle StandardStyle where
     linePosition _ _ _ = 0.0
 
     -- Interline, controls the style of interline glue added by the line braking algorithm.
+    interline UnderlinedPara = Just $ \(Rectangle (xa :+ ya) (xb :+ yb)) -> do
+        strokeColor black
+        setWidth 0.5
+        stroke $ Line xa yb xb yb
     interline _ = Nothing
 
     -- Paragraph change, allows for changing the content of a paragraph before the line breaking algorithm is run.
@@ -54,4 +62,4 @@ instance ParagraphStyle CustomParaStyle StandardStyle where
 
         b
         return ()
-    paragraphStyle NormalPara = Nothing
+    paragraphStyle _ = Nothing

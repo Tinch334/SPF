@@ -1,6 +1,12 @@
 {-# LANGUAGE StrictData #-}
 
-module Datatypes.Resources where
+module Datatypes.Resources 
+    ( FileInfo(..)
+    , ResourceMap
+    , FontFamily(..)
+    , LoadedFonts(..)
+    )
+where
 
 import Data.Map (Map)
 import qualified Data.ByteString.Lazy as BL
@@ -17,22 +23,18 @@ data FileInfo = FileInfo
 
 type ResourceMap = Map FilePath FileInfo
 
+-- Avoids code repetition.
+data FontFamily = FontFamily
+    { normal        :: AnyFont
+    , bold          :: AnyFont
+    , italic        :: AnyFont
+    , boldItalic    :: AnyFont
+    } deriving (Show, Eq)
 
 data LoadedFonts = LoadedFonts
-    { h         :: AnyFont
-    , hb        :: AnyFont
-    , hi        :: AnyFont
-    , hbi       :: AnyFont
-    , t         :: AnyFont
-    , tb        :: AnyFont
-    , ti        :: AnyFont
-    , tbi       :: AnyFont
-    , c         :: AnyFont
-    , cb        :: AnyFont
-    , ci        :: AnyFont
-    , cbi       :: AnyFont
-    -- These styles are not for text fonts, but symbols.
+    { helvetica :: FontFamily
+    , times     :: FontFamily
+    , courier   :: FontFamily
     , symbols   :: AnyFont
     , zapf      :: AnyFont
-    }
-    deriving (Show, Eq)
+    } deriving (Show, Eq)

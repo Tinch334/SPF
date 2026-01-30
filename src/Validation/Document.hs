@@ -10,6 +10,7 @@ import Control.Applicative
 import Data.Validation (Validation(..))
 
 
+-- Validate the entire document.
 validateDocument :: ParsedDocument -> Validation [LocatedError] ValidatedDocument
 validateDocument (ParsedDocument cfg meta cnt) =
     let cfgOrErr = mergeOpts <$> traverse validateConfig cfg
@@ -26,26 +27,53 @@ mergeOpts opts = merge
 
 -- The second configuration is prioritized, to preserve user configurations if possible.
 merge :: VConfig -> VConfig -> VConfig
-merge op1 op2 = VConfig
-    { cfgPageSize           = cfgPageSize op1           <|> cfgPageSize op2
-    , cfgPageNumbering      = cfgPageNumbering op1      <|> cfgPageNumbering op2
-    , cfgSectionSpacing     = cfgSectionSpacing op1     <|> cfgSectionSpacing op2
-    , cfgParagraphSpacing   = cfgParagraphSpacing op1   <|> cfgParagraphSpacing op2
-    , cfgListSpacing        = cfgListSpacing op1        <|> cfgListSpacing op2
-    , cfgTableSpacing       = cfgTableSpacing op1       <|> cfgTableSpacing op2
-    , cfgFigureSpacing      = cfgFigureSpacing op1      <|> cfgFigureSpacing op2
-    , cfgParIndent          = cfgParIndent op1          <|> cfgParIndent op2
-    , cfgFont               = cfgFont op1               <|> cfgFont op2
-    , cfgParSize            = cfgParSize op1            <|> cfgParSize op2
-    , cfgTitleSize          = cfgTitleSize op1          <|> cfgTitleSize op2
-    , cfgSectionSize        = cfgSectionSize op1        <|> cfgSectionSize op2
-    , cfgSubsectionSize     = cfgSubsectionSize op1     <|> cfgSubsectionSize op2
-    , cfgVerbatimSize       = cfgVerbatimSize op1       <|> cfgVerbatimSize op2
-    , cfgJustification      = cfgJustification op1      <|> cfgJustification op2
-    , cfgListStyle          = cfgListStyle op1          <|> cfgListStyle op2
-    , cfgVertMargin         = cfgVertMargin op1         <|> cfgVertMargin op2
-    , cfgHozMargin          = cfgHozMargin op1          <|> cfgHozMargin op2
-    , cfgSectionNumbering   = cfgSectionNumbering op1   <|> cfgSectionNumbering op2
-    , cfgFigureNumbering    = cfgFigureNumbering op1    <|> cfgFigureNumbering op2
-    , cfgVerbatimNumbering  = cfgVerbatimNumbering op1  <|> cfgVerbatimNumbering op2
+merge old new = VConfig
+    { layout    = mergeLayout (layout old) (layout new)
+    , styles    = mergeStyles (styles old) (styles new)
+    , sizes     = mergeSizes (sizes old) (sizes new)
+    , spacing   = mergeSpacing (spacing old) (spacing new)
+    , toggles   = mergeToggle (toggles old) (toggles new)
+    }
+
+-- Helpers for merging sub-records
+mergeLayout :: LayoutConfig -> LayoutConfig -> LayoutConfig
+mergeLayout o n = LayoutConfig
+    { pageSize      = pageSize   o  <|> pageSize   n
+    , numbering     = numbering  o  <|> numbering  n
+    , marginVert    = marginVert o  <|> marginVert n
+    , marginHoz     = marginHoz  o  <|> marginHoz  n
+    }
+
+mergeStyles :: StyleConfig -> StyleConfig -> StyleConfig
+mergeStyles o n = StyleConfig
+    { font          = font          o   <|> font          n
+    , justification = justification o   <|> justification n
+    , listType      = listType      o   <|> listType      n
+    }
+
+mergeSizes :: SizeConfig -> SizeConfig -> SizeConfig
+mergeSizes o n = SizeConfig
+    { paragraphSize  = paragraphSize  o <|> paragraphSize  n
+    , titleSize      = titleSize      o <|> titleSize      n
+    , sectionSize    = sectionSize    o <|> sectionSize    n
+    , subsectionSize = subsectionSize o <|> subsectionSize n
+    , verbatimSize   = verbatimSize   o <|> verbatimSize   n
+    }
+
+mergeSpacing :: SpacingConfig -> SpacingConfig -> SpacingConfig
+mergeSpacing o n = SpacingConfig
+    { sectionSp   = sectionSp   o   <|> sectionSp   n
+    , paragraphSp = paragraphSp o   <|> paragraphSp n
+    , listSp      = listSp      o   <|> listSp      n
+    , tableSp     = tableSp     o   <|> tableSp     n
+    , figureSp    = figureSp    o   <|> figureSp    n
+    , verbatimSp  = verbatimSp  o   <|> verbatimSp  n
+    , parIndent   = parIndent   o   <|> parIndent   n
+    }
+
+mergeToggle :: ToggleConfig -> ToggleConfig -> ToggleConfig
+mergeToggle o n = ToggleConfig
+    { sectionNumbering  = sectionNumbering  o   <|> sectionNumbering  n
+    , figureNumbering   = figureNumbering   o   <|> figureNumbering   n
+    , verbatimNumbering = verbatimNumbering o   <|> verbatimNumbering n
     }

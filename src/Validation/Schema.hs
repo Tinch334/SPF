@@ -5,23 +5,14 @@ module Validation.Schema
     , runSchema
     , choiceSchema
     -- Primitives.
-    , requireText
-    , tryText
-    , requireTextWith
-    , tryTextWith
-    , requireNumber
-    , requireNumberWith
-    , tryNumberWith
+    , requireText, tryText
+    , requireTextWith, tryTextWith
+    , requireNumber, requireNumberWith, tryNumberWith
+    , requireBool, tryBool
     , ensureValidKeys
-    , requireBool
-    , tryBool
     -- Generic validators.
     , validateNumInst
-    , validateSize
-    , validateNumbering
-    , validateFont
-    , validateJustification
-    , validateListStyle
+    , validateEnum
     ) where
 
 
@@ -57,42 +48,8 @@ instance Applicative Schema where
 validateNumInst :: (Num a, Ord a) => (a -> Bool) -> (a -> b) -> a -> Maybe b
 validateNumInst vf i n = if vf n then Just (i n) else Nothing
 
-validateSize :: Text -> Maybe PageSize
-validateSize t = case T.toLower t of
-    "a4"    -> Just SizeA4
-    "a3"    -> Just SizeA3
-    "legal" -> Just SizeLegal
-    _       -> Nothing
-
-validateNumbering :: Text -> Maybe PageNumbering
-validateNumbering t = case T.toLower t of
-    "arabic" -> Just NumberingArabic
-    "roman"  -> Just NumberingRoman
-    "none"   -> Just NumberingNone
-    _        -> Nothing
-
-validateFont :: Text -> Maybe Font
-validateFont t = case T.toLower t of
-    "helvetica" -> Just Helvetica
-    "courier"   -> Just Courier
-    "times"     -> Just Times
-    _           -> Nothing
-
-validateJustification :: Text -> Maybe Justification
-validateJustification t = case T.toLower t of
-    "left"   -> Just JustifyLeft
-    "right"  -> Just JustifyRight
-    "center" -> Just JustifyCenter
-    "full"   -> Just JustifyFull
-    _        -> Nothing
-
-validateListStyle :: Text -> Maybe ListStyle
-validateListStyle s = case T.toLower s of
-  "bullet" -> Just ListBullet
-  "square" -> Just ListSquare
-  "arrow"  -> Just ListArrow
-  "number" -> Just ListNumber
-  _        -> Nothing
+validateEnum :: [(Text, a)] -> Text -> Maybe a
+validateEnum o t = lookup (T.toLower t) o
 
 
 --------------------

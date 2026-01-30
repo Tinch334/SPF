@@ -1,4 +1,5 @@
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 
 module Datatypes.ValidatedTokens
     ( -- Top level structure.
@@ -14,6 +15,12 @@ module Datatypes.ValidatedTokens
     , VComm(..)
     , VConfig(..)
     , VText(..)
+    -- Configuration data types.
+    , StyleConfig(..)
+    , LayoutConfig(..)
+    , SpacingConfig(..)
+    , SizeConfig(..)
+    , ToggleConfig(..)
     -- Configuration values.
     , emptyVConfig
     , defaultVConfig
@@ -79,85 +86,159 @@ data VComm  = VSection      [VText] (Maybe Font) (Maybe FontSize)
             deriving (Eq, Ord)
 
 
--- Options for configuration commands.
+data StyleConfig = StyleConfig
+    { font          :: Maybe Font
+    , justification :: Maybe Justification
+    , listType      :: Maybe ListStyle
+    } deriving (Show, Eq, Ord)
+
+data LayoutConfig = LayoutConfig
+    { pageSize      :: Maybe PageSize
+    , numbering     :: Maybe PageNumbering
+    , marginVert    :: Maybe Pt
+    , marginHoz     :: Maybe Pt
+    } deriving (Show, Eq, Ord)
+
+data SpacingConfig = SpacingConfig
+    { sectionSp     :: Maybe Spacing
+    , paragraphSp   :: Maybe Spacing
+    , listSp        :: Maybe Spacing
+    , tableSp       :: Maybe Spacing
+    , figureSp      :: Maybe Spacing
+    , verbatimSp    :: Maybe Spacing
+    , parIndent     :: Maybe Pt
+    } deriving (Show, Eq, Ord)
+
+data SizeConfig = SizeConfig
+    { paragraphSize     :: Maybe FontSize
+    , titleSize         :: Maybe FontSize
+    , sectionSize       :: Maybe FontSize
+    , subsectionSize    :: Maybe FontSize
+    , verbatimSize      :: Maybe FontSize
+    } deriving (Show, Eq, Ord)
+
+data ToggleConfig = ToggleConfig
+    { sectionNumbering  :: Maybe Bool
+    , figureNumbering   :: Maybe Bool
+    , verbatimNumbering :: Maybe Bool
+    } deriving (Show, Eq, Ord)
+
 data VConfig = VConfig
-    { cfgPageSize           :: Maybe PageSize
-    , cfgPageNumbering      :: Maybe PageNumbering
-    , cfgSectionSpacing     :: Maybe Spacing
-    , cfgParagraphSpacing   :: Maybe Spacing
-    , cfgListSpacing        :: Maybe Spacing
-    , cfgTableSpacing       :: Maybe Spacing
-    , cfgFigureSpacing      :: Maybe Spacing
-    , cfgParIndent          :: Maybe Pt
-    , cfgFont               :: Maybe Font
-    , cfgParSize            :: Maybe FontSize
-    , cfgTitleSize          :: Maybe FontSize
-    , cfgSectionSize        :: Maybe FontSize
-    , cfgSubsectionSize     :: Maybe FontSize
-    , cfgVerbatimSize       :: Maybe FontSize
-    , cfgJustification      :: Maybe Justification
-    , cfgListStyle          :: Maybe ListStyle
-    , cfgVertMargin         :: Maybe Pt
-    , cfgHozMargin          :: Maybe Pt
-    , cfgSectionNumbering   :: Maybe Bool
-    , cfgFigureNumbering    :: Maybe Bool
-    , cfgVerbatimNumbering  :: Maybe Bool
+    { layout    :: LayoutConfig
+    , styles    :: StyleConfig
+    , sizes     :: SizeConfig
+    , spacing   :: SpacingConfig
+    , toggles   :: ToggleConfig
     } deriving (Show, Eq, Ord)
 
 -- Empty config for easy instantiation.
+emptyStyle :: StyleConfig
+emptyStyle = StyleConfig
+    { font          = Nothing
+    , justification = Nothing
+    , listType      = Nothing
+    }
+
+emptyLayout :: LayoutConfig
+emptyLayout = LayoutConfig
+    { pageSize      = Nothing
+    , numbering     = Nothing
+    , marginVert    = Nothing
+    , marginHoz     = Nothing
+    }
+
+emptySpacing :: SpacingConfig
+emptySpacing = SpacingConfig
+    { sectionSp     = Nothing
+    , paragraphSp   = Nothing
+    , listSp        = Nothing
+    , tableSp       = Nothing
+    , figureSp      = Nothing
+    , verbatimSp    = Nothing
+    , parIndent     = Nothing
+    }
+
+emptySize :: SizeConfig
+emptySize = SizeConfig
+    { paragraphSize     = Nothing
+    , titleSize         = Nothing
+    , sectionSize       = Nothing
+    , subsectionSize    = Nothing
+    , verbatimSize      = Nothing
+    }
+
+emptyToggle :: ToggleConfig
+emptyToggle = ToggleConfig
+    { sectionNumbering  = Nothing
+    , figureNumbering   = Nothing
+    , verbatimNumbering = Nothing
+    }
+
 emptyVConfig :: VConfig
 emptyVConfig = VConfig
-    { cfgPageSize           = Nothing
-    , cfgPageNumbering      = Nothing
-    , cfgSectionSpacing     = Nothing
-    , cfgParagraphSpacing   = Nothing
-    , cfgListSpacing        = Nothing
-    , cfgTableSpacing       = Nothing
-    , cfgFigureSpacing      = Nothing
-    , cfgParIndent          = Nothing
-    , cfgFont               = Nothing
-    , cfgParSize            = Nothing
-    , cfgTitleSize          = Nothing
-    , cfgSectionSize        = Nothing
-    , cfgSubsectionSize     = Nothing
-    , cfgVerbatimSize       = Nothing
-    , cfgJustification      = Nothing
-    , cfgListStyle          = Nothing
-    , cfgVertMargin         = Nothing
-    , cfgHozMargin          = Nothing
-    , cfgSectionNumbering   = Nothing
-    , cfgFigureNumbering    = Nothing
-    , cfgVerbatimNumbering  = Nothing
+    { layout    = emptyLayout
+    , styles    = emptyStyle
+    , sizes     = emptySize
+    , spacing   = emptySpacing
+    , toggles   = emptyToggle
     }
 
 -- Default configuration values for commands, determined manually, to make the document aesthetically pleasant.
+defaultStyle :: StyleConfig
+defaultStyle = StyleConfig
+    { font          = Just Times
+    , justification = Just JustifyLeft
+    , listType      = Just ListBullet
+    }
+
+defaultLayout :: LayoutConfig
+defaultLayout = LayoutConfig
+    { pageSize      = Just SizeA4
+    , numbering     = Just NumberingArabic
+    , marginVert    = Just $ Pt 45
+    , marginHoz     = Just $ Pt 50
+    }
+
+defaultSpacing :: SpacingConfig
+defaultSpacing = SpacingConfig
+    { sectionSp     = Just $ Spacing (Pt 5) (Pt 7.5)
+    , paragraphSp   = Just $ Spacing (Pt 7.5) (Pt 10)
+    , listSp        = Just $ Spacing (Pt 5) (Pt 5)
+    , tableSp       = Just $ Spacing (Pt 10) (Pt 10)
+    , figureSp      = Just $ Spacing (Pt 6) (Pt 4)
+    , verbatimSp    = Just $ Spacing (Pt 10) (Pt 10)
+    , parIndent     = Just $ Pt 20
+    }
+
+defaultSize :: SizeConfig
+defaultSize = SizeConfig
+    { paragraphSize     = Just $ FontSize 12
+    , titleSize         = Just $ FontSize 32
+    , sectionSize       = Just $ FontSize 18
+    , subsectionSize    = Just $ FontSize 16
+    , verbatimSize      = Just $ FontSize 10
+    }
+
+defaultToggles :: ToggleConfig
+defaultToggles = ToggleConfig
+    { sectionNumbering  = Just True
+    , figureNumbering   = Just True
+    , verbatimNumbering = Just True
+    }
+
 defaultVConfig :: VConfig
 defaultVConfig = VConfig
-    { cfgPageSize           = Just SizeA4
-    , cfgPageNumbering      = Just NumberingArabic
-    , cfgSectionSpacing     = Just $ Spacing (Pt 5) (Pt 7.5)
-    , cfgParagraphSpacing   = Just $ Spacing (Pt 7.5) (Pt 10)
-    , cfgListSpacing        = Just $ Spacing (Pt 5) (Pt 5)
-    , cfgTableSpacing       = Just $ Spacing (Pt 10) (Pt 10)
-    , cfgFigureSpacing      = Just $ Spacing (Pt 6) (Pt 4)
-    , cfgParIndent          = Just $ Pt 20
-    , cfgFont               = Just Times
-    , cfgParSize            = Just $ FontSize 12
-    , cfgTitleSize          = Just $ FontSize 32
-    , cfgSectionSize        = Just $ FontSize 18
-    , cfgSubsectionSize     = Just $ FontSize 16
-    , cfgVerbatimSize  = Just $ FontSize 10
-    , cfgJustification      = Just JustifyLeft
-    , cfgListStyle          = Just ListBullet
-    , cfgVertMargin         = Just $ Pt 45
-    , cfgHozMargin          = Just $ Pt 50
-    , cfgSectionNumbering   = Just True
-    , cfgFigureNumbering    = Just True
-    , cfgVerbatimNumbering  = Just True
+    { layout    = defaultLayout
+    , styles    = defaultStyle
+    , sizes     = defaultSize
+    , spacing   = defaultSpacing
+    , toggles   = defaultToggles
     }
-    
 
--- General data types.
+
+--------------------
+-- GENERAL DATA TYPES
+--------------------
 data PageSize   = SizeA4
                 | SizeA3
                 | SizeLegal

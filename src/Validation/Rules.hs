@@ -17,6 +17,7 @@ import Control.Monad
 
 import Data.Text (Text)
 import Data.Validation
+import Data.Functor ((<&>))
 import qualified Data.Text as T
 import qualified Data.List as L
 
@@ -29,9 +30,129 @@ type CommandValidationType = Validation [String] VComm
 
 
 --------------------
--- SHARED HELPERS
+-- ENUM LISTS
 --------------------
--- Auxiliary functions used for command, metadata and configuration validation.
+-- Used for validation of options with multiple possible values.
+fonts :: [(Text, Font)]
+fonts = [("helvetica", Helvetica), ("courier", Courier), ("times", Times)]
+
+pageSizes :: [(Text, PageSize)]
+pageSizes = [("a4", SizeA4), ("a3", SizeA3), ("legal", SizeLegal)]
+
+pageNumberings :: [(Text, PageNumbering)]
+pageNumberings = [("arabic", NumberingArabic), ("roman", NumberingRoman), ("none", NumberingNone)]
+
+justifications :: [(Text, Justification)]
+justifications = [("left", JustifyLeft), ("right", JustifyRight), ("center", JustifyCenter), ("full", JustifyFull)]
+
+listStyles :: [(Text, ListStyle)]
+listStyles = [("bullet", ListBullet), ("square", ListSquare), ("arrow", ListArrow), ("number", ListNumber)]
+
+
+--------------------
+-- CONFIGURATION VALIDATION
+--------------------
+-- Helper setters to modify nested parts of VConfig. The function they take specifies which attribute will be modified.
+setLayout :: (LayoutConfig -> LayoutConfig) -> VConfig
+setLayout f = emptyVConfig { layout = f (layout emptyVConfig) }
+
+setStyle :: (StyleConfig -> StyleConfig) -> VConfig
+setStyle f = emptyVConfig { styles = f (styles emptyVConfig) }
+
+setSize :: (SizeConfig -> SizeConfig) -> VConfig
+setSize f = emptyVConfig { sizes = f (sizes emptyVConfig) }
+
+setSpacing :: (SpacingConfig -> SpacingConfig) -> VConfig
+setSpacing f = emptyVConfig { spacing = f (spacing emptyVConfig) }
+
+setToggle :: (ToggleConfig -> ToggleConfig) -> VConfig
+setToggle f = emptyVConfig { toggles = f (toggles emptyVConfig) }
+
+-- General schemas, there are several options that share the same values, avoids repetition.
+schemaSize :: (FontSize -> VConfig) -> Schema VConfig
+schemaSize setter = setter <$> requireNumberWith "size" (validateNumInst (> 0) FontSize) "Size must be positive"
+
+schemaSpacing :: (Spacing -> VConfig) -> Schema VConfig
+schemaSpacing setter = setter <$> (Spacing <$> (Pt <$> requireNumber "before") <*> (Pt <$> requireNumber "after"))
+
+schemaMargin :: (Pt -> VConfig) -> Schema VConfig
+schemaMargin setter = setter <$> requireNumberWith "margin" (validateNumInst (> 0) Pt) "Margin must be positive"
+
+schemaNumbering :: (Bool -> VConfig) -> Schema VConfig
+schemaNumbering setter = setter <$> requireBool "numbering"
+
+-- Configuration validator, takes a parsed configuration and returns the corresponding validated configuration. It's worth noting that a
+-- certain level of repetition is unavoidable, however it has been minimized as much as possible. 
+validateConfig :: Located PConfig -> Validation [LocatedError] (Located VConfig)
+validateConfig (Located pos (PConfig arg opt)) = withPos pos $ 
+    case arg of
+        -- Layout rules.
+        PSize -> runSchema (choiceSchema 
+             [ ensureValidKeys "Invalid page size" ["size"] 
+                (requireTextWith "size" (validateEnum pageSizes) "Unknown page size" <&> \x -> setLayout (\c -> c { pageSize = Just x }))
+             , ensureValidKeys "Invalid custom size" ["width", "height"]
+                (SizeCustom <$> requireNumberWith "width" (validateNumInst (> 0) Pt) "Width > 0" 
+                            <*> requireNumberWith "height" (validateNumInst (> 0) Pt) "Height > 0" 
+                            <&> \x -> setLayout (\c -> c { pageSize = Just x }))
+             ]) (getOpts opt)
+
+        PPagenumbering -> simpleSchema ["numbering"] 
+            (requireTextWith "numbering" (validateEnum pageNumberings) "Unknown numbering" <&> \x -> setLayout (\c -> c { numbering = Just x }))
+
+        PVerMargin  -> simpleSchema ["margin"] (schemaMargin (\x -> setLayout (\c -> c { marginVert = Just x })))
+        PHozMargin  -> simpleSchema ["margin"] (schemaMargin (\x -> setLayout (\c -> c { marginHoz = Just x })))
+
+        -- Style rules.
+        PFont -> simpleSchema ["font"] 
+            (requireTextWith "font" (validateEnum fonts) "Unknown font" <&> \x -> setStyle (\c -> c { font = Just x }))
+        
+        PJustification -> simpleSchema ["justification"] 
+            (requireTextWith "justification" (validateEnum justifications) "Unknown justification" <&> \x -> setStyle (\c -> c { justification = Just x }))
+
+        PListstyle -> simpleSchema ["style"]
+            (requireTextWith "style" (validateEnum listStyles) "Unknown list style" <&> \x -> setStyle (\c -> c { listType = Just x }))
+
+        -- Size rules.
+        PParsize        -> simpleSchema ["size"] (schemaSize (\x -> setSize (\c -> c { paragraphSize = Just x })))
+        PTitleSize      -> simpleSchema ["size"] (schemaSize (\x -> setSize (\c -> c { titleSize = Just x })))
+        PSectionSize    -> simpleSchema ["size"] (schemaSize (\x -> setSize (\c -> c { sectionSize = Just x })))
+        PSubsectionSize -> simpleSchema ["size"] (schemaSize (\x -> setSize (\c -> c { subsectionSize = Just x })))
+        PVerbatimSize   -> simpleSchema ["size"] (schemaSize (\x -> setSize (\c -> c { verbatimSize = Just x })))
+        
+        PParIndent -> simpleSchema ["indent"] 
+            (requireNumberWith "indent" (validateNumInst (> 0) Pt) "Indent > 0" <&> \x -> setSpacing (\c -> c { parIndent = Just x }))
+
+        -- Spacing rules.
+        PSectionspacing     -> simpleSchema ["before", "after"] (schemaSpacing (\x -> setSpacing (\c -> c { sectionSp = Just x })))
+        PParagraphspacing   -> simpleSchema ["before", "after"] (schemaSpacing (\x -> setSpacing (\c -> c { paragraphSp = Just x })))
+        PListspacing        -> simpleSchema ["before", "after"] (schemaSpacing (\x -> setSpacing (\c -> c { listSp = Just x })))
+        PTablespacing       -> simpleSchema ["before", "after"] (schemaSpacing (\x -> setSpacing (\c -> c { tableSp = Just x })))
+        PFigurespacing      -> simpleSchema ["before", "after"] (schemaSpacing (\x -> setSpacing (\c -> c { figureSp = Just x })))
+        PVerbatimSpacing    -> simpleSchema ["before", "after"] (schemaSpacing (\x -> setSpacing (\c -> c { verbatimSp = Just x })))
+
+        -- Toggle rules.
+        PSectionNumbering   -> simpleSchema ["numbering"] (schemaNumbering (\x -> setToggle (\c -> c { sectionNumbering = Just x })))
+        PFigureNumbering    -> simpleSchema ["numbering"] (schemaNumbering (\x -> setToggle (\c -> c { figureNumbering = Just x })))
+        PVerbatimNumbering  -> simpleSchema ["numbering"] (schemaNumbering (\x -> setToggle (\c -> c { verbatimNumbering = Just x })))
+
+  where
+    -- If there are no options configuration validation fails.
+    getOpts (POptionMap m) = m
+    getOpts POptionNone    = []
+    
+    -- Helper to avoid code duplication, runs the schema and checks the keys.
+    simpleSchema keys schema = runSchema (ensureValidKeys ("Expected: " ++ quoteList keys) keys schema) (getOpts opt)
+
+
+--------------------
+-- COMMAND & META VALIDATION 
+--------------------
+convertMeta :: DocumentMetadata -> Validation [LocatedError] ValidatedMetadata
+convertMeta (DocumentMetadata t a d) = Success $ ValidatedMetadata
+    (maybe Nothing (Just . convertText) t)
+    (maybe Nothing (Just . convertText) a)
+    (maybe Nothing (Just . convertText) d)
+
 convertText :: [PText] -> [VText]
 convertText = map cnvInner
   where
@@ -40,117 +161,11 @@ convertText = map cnvInner
     cnvInner (PItalic t)     = VText {textCnt = t, style = Italic}
     cnvInner (PEmphasised t) = VText {textCnt = t, style = Emphasised}
 
-namedFontWithSizeSchema :: Schema (Maybe FontSize)
-namedFontWithSizeSchema = tryNumberWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive"
 
-namedFontNameSchema :: Schema (Maybe Font)
-namedFontNameSchema =
-  tryTextWith
-    "font"
-    validateFont
-    ("Expected field " ++ quote "font" ++ " to be one of " ++ quoteList ["helvetica", "courier", "times"] ++ ".")
-
-namedFontWithSize :: ([VText] -> Maybe Font -> Maybe FontSize -> a) -> [PText] -> POption -> Validation [String] a
-namedFontWithSize c t (POptionMap o) =
-  runSchema
-    ( ensureValidKeys
-        ("Expected some of fields " ++ quoteList ["font", "size"])
-        ["font", "size"]
-        (c (convertText t) <$> namedFontNameSchema <*> namedFontWithSizeSchema)
-    ) o
-namedFontWithSize c t POptionNone = Success $ c (convertText t) Nothing Nothing
-
---------------------
--- COMMAND VALIDATION
---------------------
--- Helpers for creating Schemas.
-namedFigure :: String -> POption -> CommandValidationType
-namedFigure p (POptionMap o) =
-  if isValid p -- Only checks that the path's format is correct, not that the file exists.
-    then runSchema
-      ( ensureValidKeys
-        ("Expected some of fields " ++ quoteList ["width", "caption"])
-        ["width", "caption"]
-        ( VFigure p
-            <$> requireNumberWith "width" (validateNumInst (\n -> n > 0 && n <= 1) PageWidth) "Figure width must be between 0 and 1"
-            <*> (tryText "caption")
-        )
-      ) o
-    else Failure ["Invalid filepath " ++ quote (T.pack p)]
-namedFigure p POptionNone = Failure ["Expected one numeric value (width)"]
-
-validateTableMatrix :: [[[PText]]] -> Int -> Validation [String] [[[VText]]]
-validateTableMatrix c rLen =
-  let cLen = map length c
-   in if all (== rLen) cLen
-        then Success $ map (map convertText) c
-        else Failure ["Rows of different length in table"]
-
-namedTable :: [[[PText]]] -> POption -> CommandValidationType
-namedTable cnt (POptionMap o) =
-  let columnCount = runSchema (ensureValidKeys "Expected one numeric value (columns)" ["columns"] (requireNumberWith "columns" (validateNumInst (> 0) (\d -> double2Int d)) "Column number must be positive")) o
-    in case columnCount of
-        Success tc -> VTable <$> validateTableMatrix cnt tc <*> pure tc
-        Failure e -> Failure e
-namedTable _ POptionNone = Failure ["Expected one numeric value (columns)"]
-
-namedList :: [[PText]] -> POption -> CommandValidationType
-namedList lst (POptionMap o) =
-  runSchema
-    ( ensureValidKeys
-        ("Expected field " ++ quote "style" ++ " to be one of " ++ quoteList ["bullet", "square", "arrow", "number"])
-        ["style"]
-        ( VList (map convertText lst)
-            <$> tryTextWith "style" validateListStyle ("Unknown list style. Expected one of " ++ quoteList ["bullet", "square", "arrow", "number"])
-        )
-    ) o
-namedList lst POptionNone = Success $ VList (map convertText lst) Nothing
-
-namedParagraph :: [PText] -> POption -> CommandValidationType
-namedParagraph txt (POptionMap o) =
-  runSchema
-    ( ensureValidKeys
-        ("Expected some of fields " ++ quoteList ["font", "size", "justification"])
-        ["font", "size", "justification"]
-        ( VParagraph (convertText txt)
-            <$> namedFontNameSchema
-            <*> namedFontWithSizeSchema
-            <*> tryTextWith "justification" validateJustification ("Expected field " ++ quote "justification" ++ " to be one of " ++ quoteList ["left", "right", "centred", "full"])
-        )
-    ) o
-namedParagraph txt POptionNone = Success $ VParagraph (convertText txt) Nothing Nothing Nothing
-
-namedVerbatim :: [Text] -> POption -> CommandValidationType
-namedVerbatim code (POptionMap o) =
-    runSchema
-      ( ensureValidKeys
-          ("Expected some of fields" ++ quoteList ["size", "numbering"])
-          ["size", "numbering"]
-          ( VVerbatim code
-              <$> tryNumberWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive")
-              <*> tryBool "numbering"
-      ) o
-namedVerbatim code POptionNone = Success $ VVerbatim code Nothing Nothing
-
-namedHLine :: POption -> CommandValidationType
-namedHLine (POptionMap o) =
-  runSchema
-    ( ensureValidKeys
-        ("Expected some of fields" ++ quoteList ["width", "thickness"])
-        ["width", "thickness"]
-        ( VHLine
-            <$> requireNumberWith "width" (validateNumInst (\n -> n > 0 && n <= 1) PageWidth) "HLine width must be between 0 and 1"
-            <*> tryNumberWith "thickness" (validateNumInst (> 0) Pt) "HLine thickness must be positive"
-        )
-    ) o
-namedHLine POptionNone = Failure $ ["Expected one numeric value (width)"]
-
--- Validates the given command.
 validateCommand :: Located PCommOpt -> Validation [LocatedError] (Located VComm)
-validateCommand (Located pos comm) =
-  withPos pos $ case comm of
-    PCommOpt (PSection text) opts       -> namedFontWithSize VSection text opts 
-    PCommOpt (PSubsection text) opts    -> namedFontWithSize VSubsection text opts
+validateCommand (Located pos comm) = withPos pos $ case comm of
+    PCommOpt (PSection text) opts       -> genericFontCmd VSection text opts 
+    PCommOpt (PSubsection text) opts    -> genericFontCmd VSubsection text opts
     PCommOpt (PFigure path) opts        -> namedFigure path opts
     PCommOpt (PTable rows) opts         -> namedTable rows opts
     PCommOpt (PList lst) opts           -> namedList lst opts
@@ -161,126 +176,86 @@ validateCommand (Located pos comm) =
     PCommOpt PNewpage _                 -> Failure ["The command " ++ quote "newpage" ++ " does not accept any options"]
     _                                   -> error "INTERNAL: Attempt to validate unknown command"
 
+-- Generic validator for options that expect font and size.
+genericFontCmd cons text (POptionMap o) =
+  runSchema (ensureValidKeys ("Expected some of fields " ++ quoteList ["font", "size"]) ["font", "size"]
+    (cons (convertText text) 
+        <$> tryTextWith "font" (validateEnum fonts) "Unknown font"
+        <*> tryNumberWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive"
+    )) o
+genericFontCmd cons text POptionNone = Success $ cons (convertText text) Nothing Nothing
 
---------------------
--- METADATA CONVERSION
---------------------
--- Returns a validation so it can be composed with other validations, using "<*>".
-convertMeta :: DocumentMetadata -> Validation [LocatedError] ValidatedMetadata
-convertMeta (DocumentMetadata t a d) = Success $ ValidatedMetadata
-    (maybe Nothing (Just . convertText) t)
-    (maybe Nothing (Just . convertText) a)
-    (maybe Nothing (Just . convertText) d)
+namedFigure p (POptionMap o) =
+    if isValid p then runSchema
+        (ensureValidKeys ("Expected some of fields " ++ quoteList ["width", "caption"]) ["width", "caption"]
+            (VFigure p 
+                    <$> requireNumberWith "width" (validateNumInst (\n -> n > 0 && n <= 1) PageWidth) "Figure width must be between 0 and 1"
+                    <*> tryText "caption"
+            )) o
+    else Failure ["Invalid filepath " ++ quote (T.pack p)]
+namedFigure _ POptionNone = Failure ["Expected one numeric value (width)"]
 
---------------------
--- CONFIGURATION VALIDATION
---------------------
--- Auxiliary functions for creating Schemas.
-withVal :: (a -> VConfig) -> Schema a -> Schema VConfig
-withVal setter s = setter <$> s
+namedTable :: [[[PText]]] -> POption -> CommandValidationType
+namedTable cnt (POptionMap o) =
+    let columnCount = runSchema (ensureValidKeys "Expected one numeric value (columns)" ["columns"] (requireNumberWith "columns" (validateNumInst (> 0) (\d -> double2Int d)) "Column number must be positive")) o
+        in case columnCount of
+            Success tc -> VTable <$> validateTableMatrix cnt tc <*> pure tc
+            Failure e -> Failure e
+  where
+    validateTableMatrix :: [[[PText]]] -> Int -> Validation [String] [[[VText]]]
+    validateTableMatrix c rLen =
+        let cLen = map length c
+            in if all (== rLen) cLen
+                then Success $ map (map convertText) c
+                else Failure ["Rows of different length in table"]
+namedTable _ POptionNone = Failure ["Expected one numeric value (columns)"]
 
-namedBeforeAndAfterSchema :: (Spacing -> VConfig) -> Schema VConfig
-namedBeforeAndAfterSchema c = c <$> (Spacing <$>
-    (Pt <$> requireNumber "before") <*> (Pt <$> requireNumber "after"))
+namedList :: [[PText]] -> POption -> CommandValidationType
+namedList lst (POptionMap o) =
+    runSchema
+        ( ensureValidKeys
+            ("Expected field " ++ quote "style" ++ " to be one of " ++ quoteList ["bullet", "square", "arrow", "number"])
+            ["style"]
+            ( VList (map convertText lst)
+                <$> tryTextWith "style" (validateEnum listStyles) ("Unknown list style. Expected one of " ++ quoteList ["bullet", "square", "arrow", "number"])
+            )
+        ) o
+namedList lst POptionNone = Success $ VList (map convertText lst) Nothing
 
-namedFontsizeSchema :: (FontSize -> VConfig) -> Schema VConfig
-namedFontsizeSchema c = c <$> (requireNumberWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive")
+namedParagraph :: [PText] -> POption -> CommandValidationType
+namedParagraph txt (POptionMap o) =
+    runSchema
+        ( ensureValidKeys
+            ("Expected some of fields " ++ quoteList ["font", "size", "justification"])
+            ["font", "size", "justification"]
+            ( VParagraph (convertText txt)
+                <$> tryTextWith "font" (validateEnum fonts) "Unknown font"
+                <*> tryNumberWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive"
+                <*> tryTextWith "justification" (validateEnum justifications) ("Expected field " ++ quote "justification" ++ " to be one of " ++ quoteList ["left", "right", "centred", "full"])
+            )
+        ) o
+namedParagraph txt POptionNone = Success $ VParagraph (convertText txt) Nothing Nothing Nothing
 
+namedVerbatim :: [Text] -> POption -> CommandValidationType
+namedVerbatim code (POptionMap o) =
+    runSchema
+        ( ensureValidKeys
+            ("Expected some of fields" ++ quoteList ["size", "numbering"])
+            ["size", "numbering"]
+            ( VVerbatim code
+                <$> tryNumberWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive")
+                <*> tryBool "numbering"
+        ) o
+namedVerbatim code POptionNone = Success $ VVerbatim code Nothing Nothing
 
--- All configuration options fail with no arguments, an auxiliary function avoids repetition.
-validateConfigOption :: PConfigArg -> POption -> String -> [Text] -> Schema VConfig -> Validation [String] VConfig
-validateConfigOption arg (POptionMap m) _ keys schema = runSchema (ensureValidKeys (configErrorString arg) keys schema) m
-validateConfigOption arg POptionNone err _ _ = Failure [err ++ configErrorString arg]
-
--- Error generator.
-configErrorString :: PConfigArg -> String
-configErrorString arg = case arg of
-    PSize -> "Expected one of: " ++ quoteList ["a4", "a3", "legal"] ++ " or two numeric values (width: pt, height: pt)."
-    PPagenumbering -> "Expected field " ++ quote "numbering" ++ " to be one of " ++ quoteList ["arabic", "roman", "none"] ++ ""
-    PSectionspacing -> "Expected two numeric values (before: pt, after: pt)"
-    PParagraphspacing -> "Expected two numeric values (before: pt, after: pt)" 
-    PListspacing -> "Expected two numeric values (before: pt, after: pt)" 
-    PTablespacing -> "Expected two numeric values (before: pt, after: pt)" 
-    PFigurespacing -> "Expected two numeric values (before: pt, after: pt)" 
-    PParIndent -> "Expected a numeric value (indent: pt)"
-    PFont -> "Expected field " ++ quote "font" ++ " to be one of " ++ quoteList ["helvetica", "courier", "times"] ++ "."
-    PParsize -> "Expected a numeric value (size: pt)"
-    PTitleSize -> "Expected a numeric value (size: pt)"
-    PSectionSize -> "Expected a numeric value (size: pt)"
-    PSubsectionSize -> "Expected a numeric value (size: pt)"
-    PJustification -> "Expected field " ++ quote "justification" ++ " to be one of " ++ quoteList ["left", "right", "centred", "full"]
-    PListstyle -> "Expected field " ++ quote "style" ++ " to be one of " ++ quoteList ["bullet", "square", "arrow", "number"]
-    PVerMargin -> "Expected a numeric value (margin: pt)"
-    PHozMargin -> "Expected a numeric value (margin: pt)"
-    PSectionNumbering -> "Expected a boolean value (numbering: bool)"
-    PFigureNumbering -> "Expected a boolean value (numbering: bool)"
-
-validateConfig :: Located PConfig -> Validation [LocatedError] (Located VConfig)
-validateConfig (Located pos (PConfig arg opt)) = withPos pos $ vc arg opt
-  where 
-    -- Setters for options.
-    sPageSize ps = emptyVConfig { cfgPageSize = Just ps }
-    sPageNum p = emptyVConfig { cfgPageNumbering = Just p }
-    sTitleSp s = emptyVConfig { cfgSectionSpacing = Just s }
-    sParSp s = emptyVConfig { cfgParagraphSpacing = Just s }
-    sListSp s = emptyVConfig { cfgListSpacing = Just s }
-    sTableSp s = emptyVConfig { cfgTableSpacing = Just s }
-    sFigSp s = emptyVConfig { cfgFigureSpacing = Just s }
-    sFont f = emptyVConfig { cfgFont = Just f }
-    sParSz s = emptyVConfig { cfgParSize = Just s }
-    sTitleSz s = emptyVConfig { cfgSectionSize = Just s }
-    sSubTitleSz s = emptyVConfig { cfgSubsectionSize = Just s }
-    sVerbSz s = emptyVConfig { cfgVerbatimSize = Just s }
-    sJust j = emptyVConfig { cfgJustification = Just j }
-    sListSt s = emptyVConfig { cfgListStyle = Just s }
-    sVertMrg m = emptyVConfig { cfgVertMargin = Just m}
-    sHozMrg m = emptyVConfig { cfgHozMargin = Just m}
-    sSecNum b = emptyVConfig { cfgSectionNumbering = Just b }
-    sFigNum b = emptyVConfig { cfgFigureNumbering = Just b }
-    sVerbNum b = emptyVConfig { cfgVerbatimNumbering = Just b }
-
-    -- Command validation.
-    vc PSize (POptionMap m) = runSchema
-        (choiceSchema
-            [ ensureValidKeys (configErrorString PSize) ["size"] (withVal sPageSize $ requireTextWith "size" validateSize ("Unknown page size. " ++ configErrorString PSize))
-            , ensureValidKeys (configErrorString PSize) ["width", "height"] (withVal sPageSize $ SizeCustom <$> requireNumberWith "width" (validateNumInst (> 0) Pt) "Pos width" <*> requireNumberWith "height" (validateNumInst (> 0) Pt) "Pos height") 
-            ]) m
-    vc PSize POptionNone = Failure ["Invalid form for page size. " ++ configErrorString PSize]
-
-    vc PPagenumbering o = validateConfigOption PPagenumbering o "Invalid form for page numbering. " ["numbering"] 
-        (withVal sPageNum $ requireTextWith "numbering" validateNumbering ("Unknown type. " ++ configErrorString PPagenumbering))
-
-    vc PSectionspacing o = validateConfigOption PSectionspacing o "Title spacing requires arguments. " ["before", "after"] (namedBeforeAndAfterSchema sTitleSp)
-    vc PParagraphspacing o = validateConfigOption PParagraphspacing o "Par spacing requires arguments. " ["before", "after"] (namedBeforeAndAfterSchema sParSp)
-    vc PListspacing o = validateConfigOption PListspacing o "List spacing requires arguments. " ["before", "after"] (namedBeforeAndAfterSchema sListSp)
-    vc PTablespacing o = validateConfigOption PTablespacing o "Table spacing requires arguments. " ["before", "after"] (namedBeforeAndAfterSchema sTableSp)
-    vc PFigurespacing o = validateConfigOption PFigurespacing o "Figure spacing requires arguments. " ["before", "after"] (namedBeforeAndAfterSchema sFigSp)
-    
-    vc PParIndent o = validateConfigOption PHozMargin o "Paragraph indentation requires arguments. " ["indent"] 
-        (withVal sVertMrg $ requireNumberWith "indent" (validateNumInst (> 0) Pt) ("Unknown indent. " ++ configErrorString PJustification))
-
-    vc PFont o = validateConfigOption PFont o "Font type requires arguments. " ["font"] 
-        (withVal sFont $ requireTextWith "font" validateFont ("Unknown font. " ++ configErrorString PFont))
-    
-    vc PParsize o = validateConfigOption PParsize o "Par font size requires arguments. " ["size"] (namedFontsizeSchema sParSz)
-    vc PTitleSize o = validateConfigOption PTitleSize o "Title font size requires arguments. " ["size"] (namedFontsizeSchema sTitleSz)
-    vc PSectionSize o = validateConfigOption PSectionSize o "Section font size requires arguments. " ["size"] (namedFontsizeSchema sTitleSz) -- Map PSectionSize to TitleSize logic as per original
-    vc PSubsectionSize o = validateConfigOption PSubsectionSize o "Subsection font size requires arguments. " ["size"] (namedFontsizeSchema sSubTitleSz)
-    vc PVerbatimSize o = validateConfigOption PVerbatimSize o "Verbatim font size requires arguments. " ["size"] (namedFontsizeSchema sVerbSz)
-
-    vc PJustification o = validateConfigOption PJustification o "Justification requires arguments. " ["justification"] 
-        (withVal sJust $ requireTextWith "justification" validateJustification ("Unknown just. " ++ configErrorString PJustification))
-    
-    vc PListstyle o = validateConfigOption PListstyle o "List style requires arguments. " ["style"]
-        (withVal sListSt $ requireTextWith "style" validateListStyle ("Unknown style. " ++ configErrorString PListstyle))
-
-    vc PVerMargin o = validateConfigOption PVerMargin o "Vertical margin requires arguments. " ["margin"] 
-        (withVal sVertMrg $ requireNumberWith "margin" (validateNumInst (> 0) Pt) ("Unknown margin. " ++ configErrorString PVerMargin))
-    vc PHozMargin o = validateConfigOption PHozMargin o "Horizontal margin requires arguments. " ["margin"] 
-        (withVal sHozMrg $ requireNumberWith "margin" (validateNumInst (> 0) Pt) ("Unknown margin. " ++ configErrorString PHozMargin))
-    vc PSectionNumbering o = validateConfigOption PSectionNumbering o "Section numbering requires arguments. " ["numbering"]
-        (withVal sSecNum $ requireBool "numbering")
-    vc PFigureNumbering o = validateConfigOption PSectionNumbering o "Figure numbering requires arguments. " ["numbering"]
-        (withVal sFigNum $ requireBool "numbering")
-    vc PVerbatimNumbering o = validateConfigOption PVerbatimNumbering o "Verbatim numbering requires arguments. " ["numbering"]
-        (withVal sVerbNum $ requireBool "numbering")
+namedHLine :: POption -> CommandValidationType
+namedHLine (POptionMap o) =
+    runSchema
+        ( ensureValidKeys
+            ("Expected some of fields" ++ quoteList ["width", "thickness"])
+            ["width", "thickness"]
+            ( VHLine
+                <$> requireNumberWith "width" (validateNumInst (\n -> n > 0 && n <= 1) PageWidth) "HLine width must be between 0 and 1"
+                <*> tryNumberWith "thickness" (validateNumInst (> 0) Pt) "HLine thickness must be positive"
+            )
+        ) o

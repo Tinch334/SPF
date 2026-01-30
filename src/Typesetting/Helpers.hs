@@ -7,15 +7,20 @@ module Typesetting.Helpers
     , convertAdjustFontSize
     , fromPt
     , toRoman
+    , getFont
     , generateDocInfo )
     where
 
 import Datatypes.ValidatedTokens
+import Datatypes.Resources
+import Typesetting.Styles
 
 import Data.Text (Text)
 
 import GHC.Float (double2Int)
+
 import Graphics.PDF
+import Graphics.PDF.Fonts.Font (AnyFont)
 
 
 ------------------------
@@ -61,6 +66,21 @@ toRoman x
     | x >= 4    = "IV" ++ toRoman (x - 4)
     | x >= 1    = "I"  ++ toRoman (x - 1)
     | otherwise = ""
+
+-- Takes a font, style and returns the appropriate font.
+getFont :: LoadedFonts -> Font -> Datatypes.ValidatedTokens.TextStyle -> AnyFont
+getFont fonts family style = let
+    f = case family of
+        Datatypes.ValidatedTokens.Helvetica -> helvetica
+        Datatypes.ValidatedTokens.Courier -> courier
+        Datatypes.ValidatedTokens.Times -> times
+        _ -> error "INTERNAL: Given font has no family"
+    s = case style of
+        Normal -> normal
+        Bold -> bold
+        Italic -> italic
+        Emphasised -> boldItalic in
+    s (f fonts)
 
 ------------------------
 -- ELEMENT MAKER FUNCTIONS

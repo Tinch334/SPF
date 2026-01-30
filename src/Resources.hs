@@ -3,7 +3,7 @@
 module Resources 
     ( loadResources
     , loadFonts
-    , getFont )
+    )
     where
 
 import Datatypes.ValidatedTokens
@@ -106,19 +106,14 @@ loadFonts = do
     symbolsInner <- loadFont SF.Symbol
     zapfInner <- loadFont SF.ZapfDingbats
 
-    return $ LoadedFonts 
-        { h   = hInner
-        , hb  = hbInner
-        , hi  = hiInner
-        , hbi = hbiInner
-        , t   = tInner
-        , tb  = tbInner
-        , ti  = tiInner
-        , tbi = tbiInner
-        , c   = cInner
-        , cb  = cbInner
-        , ci  = ciInner
-        , cbi = cbiInner
+    let helveticaFamily = FontFamily hInner hbInner hiInner hbiInner
+    let timesFamily = FontFamily tInner tbInner tiInner tbiInner
+    let courierFamily = FontFamily cInner cbInner ciInner cbiInner
+
+    return LoadedFonts 
+        { helvetica = helveticaFamily
+        , times = timesFamily
+        , courier = courierFamily
         , symbols = symbolsInner
         , zapf = zapfInner
         }
@@ -130,22 +125,3 @@ loadFont f = do
         case fontOrErr of
             Right lFont -> return lFont -- Loading standard fonts cannot fail.
             Left _ -> error $ "INTERNAL: Failed to load font " ++ quote (T.pack $ show f)
-
--- Takes a font and style and returns the appropriate font 
-getFont :: LoadedFonts -> Font -> TextStyle -> AnyFont
-getFont fonts family style = case family of
-    Helvetica -> case style of
-        Bold       -> hb fonts
-        Italic     -> hi fonts
-        Emphasised -> hbi fonts
-        _          -> h fonts
-    Courier -> case style of
-        Bold       -> cb fonts
-        Italic     -> ci fonts
-        Emphasised -> cbi fonts
-        _          -> c fonts
-    Times -> case style of
-        Bold       -> tb fonts
-        Italic     -> ti fonts
-        Emphasised -> tbi fonts
-        _          -> t fonts

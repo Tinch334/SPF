@@ -77,10 +77,10 @@ data PComm  = PSection      [PText]
             deriving (Eq, Ord)
 
 
-data PText  = PNormal      Text
-            | PBold        Text
-            | PItalic      Text
-            | PEmphasised  Text
+data PText  = PNormal       Text
+            | PBold         Text
+            | PItalic       Text
+            | PEmphasised   Text
             deriving (Eq, Ord)
 
 data PConfigArg = PSize
@@ -90,8 +90,7 @@ data PConfigArg = PSize
                 | PListspacing
                 | PTablespacing
                 | PFigurespacing
-                | PSpacingglue
-                | PTextglue
+                | PVerbatimSpacing
                 | PParIndent
                 | PFont
                 | PParsize
