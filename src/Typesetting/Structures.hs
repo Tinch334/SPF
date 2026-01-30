@@ -34,12 +34,14 @@ data RenderConfig = RenderConfig
     , rcParSize             :: Datatypes.ValidatedTokens.FontSize
     , rcSectionSize         :: Datatypes.ValidatedTokens.FontSize
     , rcSubsectionSize      :: Datatypes.ValidatedTokens.FontSize
+    , rcVerbatimSize        :: Datatypes.ValidatedTokens.FontSize
     , rcJustification       :: Datatypes.ValidatedTokens.Justification
     , rcListStyle           :: ListStyle
     , rcVertMargin          :: Pt
     , rcHozMargin           :: Pt
     , rcSectionNumbering    :: Bool
     , rcFigureNumbering     :: Bool
+    , rcVerbatimNumbering   :: Bool
     }
 
 -- Read only environment.

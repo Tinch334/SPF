@@ -148,7 +148,7 @@ thermore, I believe that the world will be a better place to live in after
 we learn more about the subject.
 \end{paragraph}
 
-\begin{code}[background: true]
+\begin{verbatim}[numbering: true]
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Typesetting.Styles where
@@ -191,4 +191,4 @@ instance ParagraphStyle CustomParaStyle StandardStyle where
         b
         return ()
     paragraphStyle NormalPara = Nothing
-\end{code}
+\end{verbatim}

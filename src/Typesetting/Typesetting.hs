@@ -21,7 +21,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Maybe (fromJust, fromMaybe)
 
-import GHC.Float (int2Double)
+import GHC.Float (int2Double, double2Int)
 
 import Graphics.PDF
 import Graphics.PDF.Typesetting.WritingSystem
@@ -46,12 +46,14 @@ toRenderConfig VConfig{..} = RenderConfig
     , rcParSize             = fromJust cfgParSize
     , rcSectionSize         = fromJust cfgSectionSize
     , rcSubsectionSize      = fromJust cfgSubsectionSize
+    , rcVerbatimSize        = fromJust cfgVerbatimSize
     , rcJustification       = fromJust cfgJustification
     , rcListStyle           = fromJust cfgListStyle
     , rcVertMargin          = fromJust cfgVertMargin
     , rcHozMargin           = fromJust cfgHozMargin
     , rcSectionNumbering    = fromJust cfgSectionNumbering
     , rcFigureNumbering     = fromJust cfgFigureNumbering
+    , rcVerbatimNumbering   = fromJust cfgVerbatimNumbering
     }
 
 typesetDocument :: ValidatedDocument -> ResourceMap -> LoadedFonts -> FilePath -> Bool -> IO ()
@@ -646,17 +648,18 @@ typesetTable tableContents columns = do
     RenderState{..} <- get
     modify $ \s -> s { rsCurrentY = rsCurrentY - afterSpace }
 
--- Typesetting.hs
-
+-- Typeset the given text preserving all spaces and escaping no characters.
 typesetVerbatim :: [Text] -> Maybe Datatypes.ValidatedTokens.FontSize -> Maybe Bool -> Typesetter ()
-typesetVerbatim code mSize mBackground = do
+typesetVerbatim code mSize mNumbering = do
     cfg <- asks envConfig
     fonts <- asks envFonts
 
     let codeFontType = Datatypes.ValidatedTokens.Courier
-    let codeFontSize = 10
+    let (FontSize codeFontSize) = fromMaybe (rcVerbatimSize cfg) mSize
     let styledFont = getFont fonts codeFontType Normal
-    let pdfFont = PDFFont styledFont codeFontSize
+    let pdfFont = PDFFont styledFont (double2Int codeFontSize)
+
+    let numbering = fromMaybe (rcVerbatimNumbering cfg) mNumbering
 
     -- Calculate numbering width.
     let maxNumWidth = textWidth pdfFont (T.pack $ show (length code))
@@ -667,7 +670,13 @@ typesetVerbatim code mSize mBackground = do
 
     -- Line wrapping would be a problem if we simply typeset lines and numbers "normally", instead we use a "hanging indent". The cursor starts
     -- where the code starts (because of linePosition). We move back to the start of the line to draw the line number.
-    let paraFormat = VerbatimPara (Rgb 0.94 0.94 0.94) 5 20 (Just $ (int2Double codeFontSize) * 0.5) totalGutter
+    let paraFormat = if numbering
+        then VerbatimPara (Rgb 0.94 0.94 0.94) 5 20 (Just $ codeFontSize * 0.5) totalGutter
+        else VerbatimPara (Rgb 0.94 0.94 0.94) 5 20 Nothing 0
+
+    -- In case of no numbering and a line with spaces at the start the typesetting engine sees: "Space Space ....", since this is the start
+    -- of the line this is treated as unwanted glue and discarded. To solve this a zero width space is inserted, stopping this behaviour.
+    let zws = T.singleton '\x200B'
 
     let formattedCode = do
             setWritingSystem UnknownWritingSystem
@@ -680,18 +689,20 @@ typesetVerbatim code mSize mBackground = do
                     let currentNumWidth = textWidth pdfFont currentNumStr
 
                     -- Align and draw line number.
-                    kern (-totalGutter)
-                    let numberPadding = (totalGutter - gapWidth) - currentNumWidth
-                    kern numberPadding
-                    txt currentNumStr                        
+                    when numbering $ do
+                        kern (-totalGutter)
+                        let numberPadding = (totalGutter - gapWidth) - currentNumWidth
+                        kern numberPadding
+                        txt currentNumStr
+                        -- Move cursor forward to the code start position. Note that the cursor is at "Padding + NumWidth", we need to reach
+                        -- "TotalGutter".
+                        kern gapWidth 
 
-                    -- Move cursor forward to the code start position. Note that the cursor is at "Padding + NumWidth", we need to reach
-                    -- "TotalGutter".
-                    kern gapWidth 
-                    txt line
+                    txt $ zws <> line
                     forceNewLine
 
-    typesetContent (Right formattedCode) codeFontType (FontSize (fromIntegral codeFontSize)) JustifyLeft paraFormat 0 10 12
+    typesetContent (Right formattedCode) codeFontType (FontSize codeFontSize) JustifyLeft paraFormat 0 10 12
+
 -- Draw a horizontal line at the cursors current position.
 typesetHLine :: PageWidth -> Maybe Pt -> Typesetter ()
 typesetHLine (PageWidth width) mThick = do

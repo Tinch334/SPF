@@ -124,13 +124,13 @@ namedVerbatim :: [Text] -> POption -> CommandValidationType
 namedVerbatim code (POptionMap o) =
     runSchema
       ( ensureValidKeys
-          ("Expected some of fields" ++ quoteList ["background", "size"])
-          ["background", "size"]
+          ("Expected some of fields" ++ quoteList ["size", "numbering"])
+          ["size", "numbering"]
           ( VVerbatim code
               <$> tryNumberWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive")
-              <*> tryBool "background"
+              <*> tryBool "numbering"
       ) o
-namedVerbatim code POptionNone = Failure ["Expected one boolean value (background)"]
+namedVerbatim code POptionNone = Success $ VVerbatim code Nothing Nothing
 
 namedHLine :: POption -> CommandValidationType
 namedHLine (POptionMap o) =
@@ -266,7 +266,7 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $ vc arg opt
     vc PTitleSize o = validateConfigOption PTitleSize o "Title font size requires arguments. " ["size"] (namedFontsizeSchema sTitleSz)
     vc PSectionSize o = validateConfigOption PSectionSize o "Section font size requires arguments. " ["size"] (namedFontsizeSchema sTitleSz) -- Map PSectionSize to TitleSize logic as per original
     vc PSubsectionSize o = validateConfigOption PSubsectionSize o "Subsection font size requires arguments. " ["size"] (namedFontsizeSchema sSubTitleSz)
-    vc PVerbatimNumbering o = validateConfigOption PSubsectionSize o "Verbatim font size requires arguments. " ["size"] (namedFontsizeSchema sVerbSz)
+    vc PVerbatimSize o = validateConfigOption PVerbatimSize o "Verbatim font size requires arguments. " ["size"] (namedFontsizeSchema sVerbSz)
 
     vc PJustification o = validateConfigOption PJustification o "Justification requires arguments. " ["justification"] 
         (withVal sJust $ requireTextWith "justification" validateJustification ("Unknown just. " ++ configErrorString PJustification))
