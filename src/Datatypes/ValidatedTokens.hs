@@ -129,7 +129,7 @@ data VConfig = VConfig
     , sizes     :: SizeConfig
     , spacing   :: SpacingConfig
     , toggles   :: ToggleConfig
-    } deriving (Show, Eq, Ord)
+    } deriving (Eq, Ord)
 
 -- Empty config for easy instantiation.
 emptyStyle :: StyleConfig
@@ -311,6 +311,19 @@ instance Show VComm where
     show (VVerbatim code _ _)   = "  [VERBATIM]\n"  ++ unlines (map (\l -> "    |" ++ T.unpack l) code)
     show (VHLine w _)           = "  [HLINE] Width: " ++ show w
     show VNewpage               = "  [NEWPAGE]"
+
+instance Show VConfig where
+    show cfg = unlines
+        [ show $ layout cfg
+        , " "
+        , show $ styles cfg
+        , " "
+        , show $ sizes cfg
+        , " "
+        , show $ spacing cfg
+        , " "
+        , show $ toggles cfg
+        ]
 
 instance Show Pt where
     show (Pt x) = show x ++ "pt"
