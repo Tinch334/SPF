@@ -1,0 +1,144 @@
+\config{size}[size: a4]
+// Alternative custom size: \config{size}[width: 600, height: 800]
+\config{pagenumbering}[numbering: roman]
+\config{vertmargin}[margin: 40]
+\config{hozmargin}[margin: 40]
+
+// Default Style Configuration
+\config{font}[font: times]
+\config{justification}[justification: full]
+\config{style}[style: arrow] // Default list style
+
+// Size Configuration (Global defaults)
+\config{parsize}[size: 12]
+\config{titlesize}[size: 24]
+\config{sectionsize}[size: 18]
+\config{subsectionsize}[size: 16]
+\config{verbatimsize}[size: 10]
+
+// Spacing Configuration
+\config{parindent}[indent: 20]
+\config{sectionspacing}[before: 20, after: 10]
+\config{paragraphspacing}[before: 5, after: 5]
+\config{listspacing}[before: 10, after: 10]
+\config{tablespacing}[before: 15, after: 15]
+\config{figurespacing}[before: 15, after: 15]
+\config{verbatimspacing}[before: 10, after: 10]
+
+// Toggle Configuration
+\config{sectionnumbering}[numbering: true]
+\config{figurenumbering}[numbering: true]
+\config{verbatimnumbering}[numbering: true]
+
+//Metadata Testing
+\title{Comprehensive SPF Test Suite}
+\author{Test Runner}
+\date{Today :)}
+
+
+// -----------------------------------------------------------
+// Document Content & Command Testing
+// -----------------------------------------------------------
+
+\section{Structural Commands}[font: helvetica, size: 22]
+
+\begin{paragraph}
+This document tests the capabilities of the \bold{Simple PDF Format}. This paragraph demonstrates standard text wrapping and justification defined in the global config. We can also use \italic{italicized text} and \emph{emphasised text} (which renders as bold-italic).
+\end{paragraph}
+
+\subsection{Subsection Testing}[font: courier, size: 14]
+
+\begin{paragraph}[justification: center, font: helvetica]
+This paragraph overrides global settings. It is centered and uses the Helvetica font.
+\end{paragraph}
+
+\section{List Styles}
+
+\begin{paragraph}
+Testing different list styles:
+\end{paragraph}
+
+\begin{list}
+\item Default item \italic{one}
+\item \emph{Default item two, and the last of the list}
+\end{list}
+
+\begin{list}[style: bullet]
+\item Bullet item one
+\item Bullet item two with \bold{bold} text
+\end{list}
+
+\begin{list}[style: number]
+\item Numbered item one
+\item Numbered item two
+\end{list}
+
+\begin{list}[style: arrow]
+\item Arrow item
+\end{list}
+
+\begin{list}[style: square]
+\item Square item
+\end{list}
+
+\section{Visual Elements}
+
+\subsection{Figures}
+
+\begin{paragraph}
+Below is a test figure loaded from the source files.
+\end{paragraph}
+
+\figure{logo.jpg}[width: 0.3, caption: "The Haskell Logo"]
+
+\subsection{Horizontal Lines}
+
+\begin{paragraph}
+Standard separator:
+\end{paragraph}
+\hline[width: 0.7]
+
+\begin{paragraph}
+Custom thick separator:
+\end{paragraph}
+\hline[width: 0.2, thickness: 3]
+
+
+\newpage
+
+\section{Advanced Structures}
+
+\subsection{Tables}
+
+\begin{table}[columns: 3]
+Header 1 | Header 2 | Header 3 \break
+Row 1 Col 1 | Row 1 Col 2 | Row 1 Col 3 \break
+Row 2 Col 1 | \bold{Row 2 Col 2} | Row 2 Col 3
+\end{table}
+
+\subsection{Verbatim Code}
+
+\begin{paragraph}
+Below is a block of verbatim code with line numbering enabled:
+\end{paragraph}
+
+\begin{verbatim}[size: 10, numbering: true]
+module Main where
+
+main :: IO ()
+main = putStrLn "Hello, World!"
+\end{verbatim}
+
+\begin{paragraph}
+And a verbatim block without numbering:
+\end{paragraph}
+
+\begin{verbatim}[numbering: false]
+$> cabal run
+Hello, World!
+\end{verbatim}
+
+\subsection{Vector image}
+Loading an \emph{svg} image:
+
+\figure{Color and ratio.svg}[width: 0.6, caption: "An SVG image"]

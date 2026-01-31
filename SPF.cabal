@@ -57,7 +57,9 @@ library
     , mtl
     , optparse-applicative
     , optparse-simple
+    , rasterific-svg
     , safe-coloured-text
+    , svg-tree
     , text
     , validation
     , vector
@@ -85,7 +87,9 @@ executable SPF-exe
     , mtl
     , optparse-applicative
     , optparse-simple
+    , rasterific-svg
     , safe-coloured-text
+    , svg-tree
     , text
     , validation
     , vector
@@ -114,7 +118,9 @@ test-suite SPF-test
     , mtl
     , optparse-applicative
     , optparse-simple
+    , rasterific-svg
     , safe-coloured-text
+    , svg-tree
     , text
     , validation
     , vector

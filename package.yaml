@@ -35,6 +35,8 @@ dependencies:
 - async
 - directory
 - mtl
+- svg-tree
+- rasterific-svg
 
 
 ghc-options:

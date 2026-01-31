@@ -259,3 +259,4 @@ namedHLine (POptionMap o) =
                 <*> tryNumberWith "thickness" (validateNumInst (> 0) Pt) "HLine thickness must be positive"
             )
         ) o
+namedHLine POptionNone = Failure $ ["Expected one numeric value (width)"]

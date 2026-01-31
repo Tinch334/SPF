@@ -28,6 +28,8 @@ import System.Directory (doesFileExist)
 import Codec.Picture
 import Graphics.PDF.Fonts.Font (AnyFont)
 import qualified Graphics.PDF.Fonts.StandardFont as SF
+import Graphics.Svg (loadSvgFile)
+import Graphics.Rasterific.Svg (loadCreateFontCache, renderSvgDocument)
 
 
 --------------------
@@ -58,27 +60,47 @@ loadResource (Located pos fullPath, Located _ originalPath) = do
     if not exists
         then return $ Failure [at pos $ "File does not exist: " ++ quote (T.pack fullPath)]
         else handleFile ext
-        where
-            handleFile ext =
-                case ext of
-                e | Prelude.elem e [".bmp", ".png", ".jpg", ".jpeg"] -> do
-                    res <- readImage fullPath
-                    case res of
-                        -- The default error does not follow the style of the rest of the program.
-                        Left _ -> return $ Failure [at pos $ "The file " ++ quote (T.pack fullPath) ++ " could not be accessed"]
-                        Right img -> do
-                            -- Handles colour space by forcing conversion to RGB8.
-                            let rgbImage = convertRGB8 img
-                            -- Get image dimensions.
-                            let width = imageWidth rgbImage
-                            let height = imageHeight rgbImage
-                            -- Extracts the raw data ad converts it to a ByteString.
-                            let vector = imageData rgbImage
-                            let bytes = BL.pack (V.toList vector)
+  where
+    handleFile ext =
+        case ext of
+        e | Prelude.elem e [".bmp", ".png", ".jpg", ".jpeg"] -> do
+            res <- readImage fullPath
+            case res of
+                -- The default error does not follow the style of the rest of the program.
+                Left _ -> accessError fullPath
+                Right img -> makeBytes img
+                
+        ".svg" -> do
+            res <- loadSvgFile fullPath
+            case res of
+                Nothing -> accessError fullPath
+                Just doc -> do
+                    -- Set rendering DPI(Dots per inch), larger values make the image bigger.
+                    let dpi = 96
+                    -- Font cache for font rendering.
+                    cache <- loadCreateFontCache "fonty-texture-cache"
+                    -- Render image with no coordinate transformation.
+                    (render, _) <- renderSvgDocument cache Nothing dpi doc
+                    
+                    -- Convert the image buffer into a "DynamicImage".
+                    makeBytes $ ImageRGBA8 render
 
-                            return $ Success (originalPath, FileInfo bytes width height)
-                e -> return $ Failure [at pos $ "The file extension " ++ quote (T.pack e) ++ " is invalid"]
+        e -> return $ Failure [at pos $ "The file extension " ++ quote (T.pack e) ++ " is invalid"]
 
+    -- Extracts the raw data and converts it to a ByteString.
+    accessError path = 
+        return $ Failure [at pos $ "The file " ++ quote (T.pack path) ++ " could not be accessed"]
+
+    makeBytes img = do
+        -- Handles colour space by forcing conversion to RGB8.
+        let rgbImage = convertRGB8 img
+        -- Get image dimensions.
+        let width = imageWidth rgbImage
+        let height = imageHeight rgbImage
+        let vector = imageData rgbImage
+        let bytes = BL.pack (V.toList vector)
+
+        return $ Success (originalPath, FileInfo bytes width height)
 
 --------------------
 -- FONT LOADING FUNCTIONS

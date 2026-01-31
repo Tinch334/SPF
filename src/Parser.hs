@@ -286,7 +286,7 @@ parseConfigArg = label "config option" $ choice
     , PTablespacing         <$ string "tablespacing"
     , PFigurespacing        <$ string "figurespacing"
     , PVerbatimSpacing      <$ string "verbatimspacing"
-    , PHozMargin            <$ string "parindent"
+    , PParIndent            <$ string "parindent"
     , PFont                 <$ string "font"
     , PParsize              <$ string "parsize"
     , PTitleSize            <$ string "titlesize"
@@ -372,6 +372,6 @@ parseOptionValue = label "option value" $ choice
     boolean = string "true" *> return True <|> string "false" *> return False
     stringLiteral = between (char '"') (char '"') parseRawTextLine
     identifier = do
-        t <- some letterChar
+        t <- some alphaNumChar
         notFollowedBy (symbol ":")
         return t

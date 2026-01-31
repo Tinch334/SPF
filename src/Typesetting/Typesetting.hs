@@ -540,7 +540,7 @@ typesetList items mStyle = do
                         let styledFont = getFont fonts font style
                         setStyle (Font (PDFFont styledFont (convertFontSize size)) black black)
                         txt txtContent
-                        forceNewLine
+                    forceNewLine
 
     typesetContent (Right list) font size VT.JustifyLeft NormalPara 0 beforeSpace afterSpace
 
@@ -712,9 +712,11 @@ typesetHLine (VT.PageWidth width) mThick = do
     p <- gets rsCurrentPage
     w <- asks envPageWidth
 
-    -- Get horizontal start and end position.
-    let xStart = (1 - width) * w
-    let xEnd = width * w
+    -- Get margins on either side of line, note that this calculation does not take margins into account, to allow for full page lines.
+    let lineMargin = (w - w * width) / 2
+
+    let xStart = lineMargin
+    let xEnd = w - lineMargin
 
     let thickness = case mThick of
             Just (VT.Pt t) -> t
