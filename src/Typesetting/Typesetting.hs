@@ -33,38 +33,44 @@ import Graphics.PDF.Typesetting.WritingSystem
 toRenderConfig :: VT.VConfig -> RenderConfig
 toRenderConfig cfg = RenderConfig
     { layout = RCLayout 
-        { rcPageSize   = fromJust $ VT.pageSize (VT.layout cfg)
-        , rcNumbering  = fromJust $ VT.numbering (VT.layout cfg)
-        , rcMarginVert = fromJust $ VT.marginVert (VT.layout cfg)
-        , rcMarginHoz  = fromJust $ VT.marginHoz (VT.layout cfg)
+        { rcPageSize   = fromJust (VT.pageSize   l)
+        , rcNumbering  = fromJust (VT.numbering  l)
+        , rcMarginVert = fromJust (VT.marginVert l)
+        , rcMarginHoz  = fromJust (VT.marginHoz  l)
         }
     , styles = RCStyles
-        { rcFont          = fromJust $ VT.font (VT.styles cfg)
-        , rcJustification = fromJust $ VT.justification (VT.styles cfg)
-        , rcListType      = fromJust $ VT.listType (VT.styles cfg)
+        { rcFont          = fromJust (VT.font          s)
+        , rcJustification = fromJust (VT.justification s)
+        , rcListType      = fromJust (VT.listType      s)
         }
     , sizes = RCSizes
-        { rcParSize        = fromJust $ VT.paragraphSize (VT.sizes cfg)
-        , rcTitleSize      = fromJust $ VT.titleSize (VT.sizes cfg)
-        , rcSectionSize    = fromJust $ VT.sectionSize (VT.sizes cfg)
-        , rcSubsectionSize = fromJust $ VT.subsectionSize (VT.sizes cfg)
-        , rcVerbatimSize   = fromJust $ VT.verbatimSize (VT.sizes cfg)
+        { rcParSize        = fromJust (VT.paragraphSize  sz)
+        , rcTitleSize      = fromJust (VT.titleSize      sz)
+        , rcSectionSize    = fromJust (VT.sectionSize    sz)
+        , rcSubsectionSize = fromJust (VT.subsectionSize sz)
+        , rcVerbatimSize   = fromJust (VT.verbatimSize   sz)
         }
     , spacing = RCSpacing
-        { rcSectionSp   = fromJust $ VT.sectionSp (VT.spacing cfg)
-        , rcParagraphSp = fromJust $ VT.paragraphSp (VT.spacing cfg)
-        , rcListSp      = fromJust $ VT.listSp (VT.spacing cfg)
-        , rcTableSp     = fromJust $ VT.tableSp (VT.spacing cfg)
-        , rcFigureSp    = fromJust $ VT.figureSp (VT.spacing cfg)
-        , rcVerbatimSp  = fromJust $ VT.verbatimSp (VT.spacing cfg)
-        , rcParIndent   = fromJust $ VT.parIndent (VT.spacing cfg)
+        { rcSectionSp   = fromJust (VT.sectionSp   sp)
+        , rcParagraphSp = fromJust (VT.paragraphSp sp)
+        , rcListSp      = fromJust (VT.listSp      sp)
+        , rcTableSp     = fromJust (VT.tableSp     sp)
+        , rcFigureSp    = fromJust (VT.figureSp    sp)
+        , rcVerbatimSp  = fromJust (VT.verbatimSp  sp)
+        , rcParIndent   = fromJust (VT.parIndent   sp)
         }
     , toggles = RCToggle
-        { rcSectionNumbering    = fromJust $ VT.sectionNumbering (VT.toggles cfg)
-        , rcFigureNumbering     = fromJust $ VT.figureNumbering (VT.toggles cfg)
-        , rcVerbatimNumbering   = fromJust $ VT.verbatimNumbering (VT.toggles cfg)
+        { rcSectionNumbering    = fromJust (VT.sectionNumbering    t)
+        , rcFigureNumbering     = fromJust (VT.figureNumbering     t)
+        , rcVerbatimNumbering   = fromJust (VT.verbatimNumbering   t)
         }
     }
+  where
+    l  = VT.layout cfg
+    s  = VT.styles cfg
+    sz = VT.sizes cfg
+    sp = VT.spacing cfg
+    t  = VT.toggles cfg
 
 typesetDocument :: VT.ValidatedDocument -> ResourceMap -> LoadedFonts -> FilePath -> Bool -> IO ()
 typesetDocument (VT.ValidatedDocument cfg meta cnt) res fonts outPath dbg = do
@@ -102,11 +108,11 @@ typesetDocument (VT.ValidatedDocument cfg meta cnt) res fonts outPath dbg = do
     -- Generate typesetting action based on if there are title elements.
     let action = if hasTitleElems meta
         then do
-            makeNewPage False
+            makeNewPage Unnumbered
             typesetTitlepage meta
-            makeNewPage True
+            makeNewPage Numbered
         else do
-            makeNewPage True
+            makeNewPage Numbered
 
     -- Typeset PDF and store result in "outPath".
     runPdf outPath (generateDocInfo meta) pageRect $ do
@@ -126,9 +132,9 @@ typesetElements elements = do
             VT.VParagraph text font size just -> 
                 typesetParagraph text font size just
             VT.VSection text font size -> do
-                typesetHeader text font size True
+                typesetHeader text font size LevelSection
             VT.VSubsection text font size -> do
-                typesetHeader text font size False
+                typesetHeader text font size LevelSubsection
             VT.VFigure path width caption -> do
                 typesetFigure path width caption
             VT.VTable table columns ->
@@ -138,13 +144,13 @@ typesetElements elements = do
             VT.VVerbatim code font background ->
                 do typesetVerbatim code font background
             VT.VNewpage ->
-                makeNewPage True
+                makeNewPage Numbered
             VT.VHLine width thick ->
                 typesetHLine width thick
 
         -- Check for overflow after typesetting every element.
         cs <- checkSpace
-        when cs $ makeNewPage True
+        when cs $ makeNewPage Numbered
 
 
 ------------------------
@@ -163,8 +169,8 @@ checkSpace = do
     return $ currentY < bottom
 
 -- Creates a new page, if the flag is set adds a number to that page.
-makeNewPage :: Bool -> Typesetter ()
-makeNewPage makeNumbering = do
+makeNewPage :: NewPageMode -> Typesetter ()
+makeNewPage mode = do
     RenderEnv{..} <- ask
     let layoutCfg = layout envConfig
 
@@ -184,7 +190,7 @@ makeNewPage makeNumbering = do
             stroke $ Rectangle (hozMargin :+ bottomMargin) ((envPageWidth - hozMargin) :+ (envPageHeight - topMargin)))
 
     -- Typeset line number onto new page.
-    unless (numbering == VT.NumberingNone || not makeNumbering) $ typesetPageNumber numbering
+    unless (numbering == VT.NumberingNone || mode == Unnumbered) $ typesetPageNumber numbering
 
   where
     typesetPageNumber numbering = do
@@ -299,7 +305,7 @@ typesetContent content font size just paraStyle indent beforeSpace afterSpace = 
                 modify $ \s -> s { rsCurrentY = newBottomY - afterSpace }
             else do
                 -- Overflow, force new page and render remaining boxes.
-                makeNewPage True
+                makeNewPage Numbered
                 fillBoxLoop remainingBoxes paraStyle
 
 -- Generates the title-page.
@@ -348,8 +354,8 @@ typesetParagraph vText mFont mSize mJust = do
     typesetContent (Left vText) font size just NormalPara indent beforeSpace afterSpace
 
 -- Typesets both sections and subsections. 
-typesetHeader :: [VT.VText] -> Maybe VT.Font -> Maybe VT.FontSize -> Bool -> Typesetter ()
-typesetHeader vText mFont mSize isSection = do
+typesetHeader :: [VT.VText] -> Maybe VT.Font -> Maybe VT.FontSize -> HeaderLevel -> Typesetter ()
+typesetHeader vText mFont mSize level = do
     RenderState{..} <- get
     cfg <- asks envConfig
     let styleCfg = styles cfg
@@ -360,17 +366,17 @@ typesetHeader vText mFont mSize isSection = do
     let (VT.Spacing (VT.Pt beforeSpace) (VT.Pt afterSpace)) = rcSectionSp spaceCfg
     let numberingEnabled = rcSectionNumbering (toggles cfg)
 
-    let (size, newCounters, label) = if isSection
-        then
-            let next = dcSection rsCounters + 1
-            in ( fromMaybe (rcSectionSize sizeCfg) mSize
-                , rsCounters { dcSection = next, dcSubsection = 0}
-                , show next )
-        else
-            let next = dcSection rsCounters + 1
-            in ( fromMaybe (rcSubsectionSize sizeCfg) mSize
-                , rsCounters { dcSubsection = next}
-                , show (dcSection rsCounters) ++ "." ++ show next )
+    let (size, newCounters, label) = case level of
+            LevelSection ->
+                let next = dcSection rsCounters + 1
+                in ( fromMaybe (rcSectionSize sizeCfg) mSize
+                   , rsCounters { dcSection = next, dcSubsection = 0 }
+                   , show next )
+            LevelSubsection ->
+                let next = dcSubsection rsCounters + 1
+                in ( fromMaybe (rcSubsectionSize sizeCfg) mSize
+                   , rsCounters { dcSubsection = next }
+                   , show (dcSection rsCounters) ++ "." ++ show next )
 
     -- Update counter state.
     modify $ \s -> s { rsCounters = newCounters }
@@ -385,7 +391,10 @@ typesetHeader vText mFont mSize isSection = do
 
 -- Typesets the given figure, with it's caption if present.
 typesetFigure :: FilePath -> VT.PageWidth -> Maybe VT.Caption -> Typesetter ()
-typesetFigure path (VT.PageWidth givenWidth) mCap = do
+typesetFigure path gw mCap = typesetFigureInner path gw mCap True
+
+typesetFigureInner :: FilePath -> VT.PageWidth -> Maybe VT.Caption -> Bool -> Typesetter ()
+typesetFigureInner path gw@(VT.PageWidth givenWidth) mCap newpageAllowed = do
     RenderEnv{..} <- ask
     RenderState{..} <- get
 
@@ -409,42 +418,36 @@ typesetFigure path (VT.PageWidth givenWidth) mCap = do
     let figureScaleY = (1 / (int2Double h)) * figureHeight
 
     -- Adjust image size according to given page-width.
-    let drawFigure = pdfLift (drawWithPage rsCurrentPage $ do
-            withNewContext $ do
-                applyMatrix (translate (figureX :+ figureY))
-                applyMatrix (scale figureScaleX figureScaleY)
-                drawXObject img)
+    let drawFigure = withNewContext $ do
+            applyMatrix (translate (figureX :+ figureY))
+            applyMatrix (scale figureScaleX figureScaleY)
+            drawXObject img
 
     -- Update cursor by the height of the figure, spacing after it is added later.
     modify $ \s -> s { rsCurrentY = figureY }
     cs <- checkSpace
 
     -- Check if there's enough space to fit the figure, if there's not create a new page and typeset it there.
-    if cs
-        then
-            makeNewPage True >>typesetFigure path (VT.PageWidth givenWidth) mCap
-        else -- Draw image and potentially caption.
-            case mCap of
-                Just caption -> do
-                    (captionFits, drawCaption) <- makeFigureCaption caption afterSpace
-                    -- Check if there's enough space to fit the figure and caption, if there's not create a new page and typeset it there.
-                    -- Note that this does not guarantee that the image and caption fit properly, it could by that they just will never
-                    -- fit in the page.
-                    if captionFits
-                        then do
-                            drawFigure
-                            pdfLift $ drawWithPage rsCurrentPage drawCaption
-                        else do
-                            makeNewPage True
-                            drawFigure
-                            pdfLift $ drawWithPage rsCurrentPage drawCaption
+    (captionFits, drawCaption) <- case mCap of
+            Just caption -> makeFigureCaption caption afterSpace
+            Nothing -> return (True, return ())
 
-                -- No caption, draw figure and spacing directly.
-                Nothing -> do
-                    modify $ \s -> s { rsCurrentY = rsCurrentY - afterSpace }
-                    drawFigure
+    -- Check if figure and caption fit in page, if not make a new page. Any given figure can only create one new page, to avoid an
+    -- infinite loop if a figure is too big to fit even on an empty page.
+    if (cs && not captionFits) && newpageAllowed
+        then do
+            makeNewPage Numbered
+            typesetFigureInner path gw mCap False
+        else do
+            pdfLift $ drawWithPage rsCurrentPage drawFigure
+            pdfLift $ drawWithPage rsCurrentPage drawCaption
+
+    -- Get updated state, with figure and possibly caption changes to cursor position.
+    RenderState{..} <- get
+    modify $ \s -> s { rsCurrentY = rsCurrentY - afterSpace }
+
   where
-    -- The signature is required, otherwise Haskell complains about inferring a concrete type.
+    -- The signature is fromJustuired, otherwise Haskell complains about inferring a concrete type.
     makeFigureCaption :: Text -> Double -> Typesetter (Bool, Draw ())
     makeFigureCaption caption afterSpace = do
         RenderEnv{..} <- ask
@@ -629,14 +632,14 @@ typesetTable tableContents columns = do
                 modify $ \s -> s { rsCurrentY = nextY }
             else do
                 -- It does not fit, create a new page and typeset it there.
-                makeNewPage True
+                makeNewPage Numbered
                 -- Get the new state, to have the updated Y cursor.
                 RenderState{..} <- get
 
                 -- Layout the row again on the new page.
                 (drawActionNew, nextYNew, _) <- lift $ layoutRow row rsCurrentY
                 -- Typeset it on the new page. It's worth noting that there are no guarantees that the table will fit on an empty page, it
-                -- could simply be to big.
+                -- could simply be too big.
                 pdfLift $ drawWithPage rsCurrentPage drawActionNew
                 modify $ \s -> s { rsCurrentY = nextYNew }
 

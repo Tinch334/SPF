@@ -8,6 +8,8 @@ module Typesetting.Structures
     , RenderEnv(..)
     , RenderState(..)
     , DocumentCounters(..)
+    , HeaderLevel(..)
+    , NewPageMode(..)
     , Typesetter
     , HPDFParagraph
     ) where
@@ -94,6 +96,13 @@ data DocumentCounters = DocumentCounters
     , dcSubsection  :: Int
     , dcFigure      :: Int
     }
+
+-- Datatypes to avoid using boolean flags.
+data HeaderLevel = LevelSection | LevelSubsection
+    deriving (Eq, Show)
+
+data NewPageMode = Numbered | Unnumbered
+    deriving (Eq, Show)
 
 -- Typesetter monad stack, provides access to current document state as well as the underlying PDF.
 type Typesetter a = ReaderT RenderEnv (StateT RenderState PDF) a
