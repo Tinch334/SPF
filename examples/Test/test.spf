@@ -1,4 +1,4 @@
-// Hello
+// Document start
 \config{size}[size: a4]
 // Alternative custom size: \config{size}[width: 600, height: 800]
 \config{pagenumbering}[numbering: roman]
@@ -8,7 +8,7 @@
 // Default Style Configuration
 \config{font}[font: times]
 \config{justification}[justification: full]
-\config{style}[style: arrow] // Default list style
+\config{liststyle}[style: arrow] // Default list style
 
 // Size Configuration (Global defaults)
 \config{parsize}[size: 12]

@@ -22,10 +22,11 @@ import qualified Text.Megaparsec.Char.Lexer as L
 --------------------
 -- ERROR HANDLING FUNCTIONS
 --------------------
-data CustomError    = UnknownCommand Text   -- Thrown when encountering \command, where command is invalid.
-                    | UnknownText Text      -- Thrown when encountering \text-type, where text-type is invalid.
-                    | InvalidOptions Text   -- Thrown when a set of options has an invalid format.
-                    | InvalidMeta Text      -- Thrown when metadata has an invalid format.
+data CustomError    = UnknownCommand Text       -- Thrown when encountering \command, where command is invalid.
+                    | UnknownText Text          -- Thrown when encountering \text-type, where text-type is invalid.
+                    | InvalidOptions Text       -- Thrown when a set of options has an invalid format.
+                    | InvalidMeta Text          -- Thrown when metadata has an invalid format.
+                    | InvalidConfiguration Text -- Thrown when encountering an unknown configuration option.
                     deriving (Eq, Ord, Show)
 
 -- To allow for easy error throwing.
@@ -41,6 +42,9 @@ invalidOptions = customFailure . InvalidOptions
 invalidMeta :: Text -> Parser a
 invalidMeta = customFailure . InvalidMeta
 
+unknownConfiguration :: Text -> Parser a
+unknownConfiguration = customFailure . InvalidConfiguration
+
 -- Make error labelling easier.
 mkErrStr :: String -> Text -> String -> String
 mkErrStr b t a = b ++ (T.unpack t) ++ a
@@ -51,12 +55,13 @@ instance ShowErrorComponent CustomError where
     showErrorComponent (UnknownText t) = "Unknown text type: " ++ quote t
     showErrorComponent (InvalidOptions o) = "Invalid format for options: " ++ T.unpack o
     showErrorComponent (InvalidMeta o) = "Invalid format for metadata: " ++ T.unpack o
+    showErrorComponent (InvalidConfiguration o) = "Unknown configuration option: " ++ quote o
 
 
 --------------------
 -- GENERAL DEFINITIONS
 --------------------
--- Parser for Text using custom errors.
+-- Parser for "Text" using custom errors.
 type Parser = Parsec CustomError Text
 
 sc :: Parser ()
@@ -302,7 +307,12 @@ parseConfigArg = label "config option" $ choice
     , PSectionNumbering     <$ string "sectionnumbering"
     , PFigureNumbering      <$ string "figurenumbering"
     , PVerbatimNumbering    <$ string "verbatimnumbering"
+    , unknown               -- Detects unknown configuration commands.
     ]
+  where
+    unknown = do
+        c <- some letterChar
+        unknownConfiguration (T.pack c)
 
 
 --------------------
