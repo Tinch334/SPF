@@ -128,6 +128,10 @@ typesetDocument (VT.ValidatedDocument cfg meta cnt) res fonts outPath dbg = do
 typesetElements :: [Located VT.VComm] -> Typesetter ()
 typesetElements elements = do
     forM_ elements $ \(Located _ comm) -> do
+        -- Check for overflow before typesetting.
+        cs <- checkSpace
+        when cs $ makeNewPage Numbered
+
         case comm of
             VT.VParagraph text font size just -> 
                 typesetParagraph text font size just
@@ -147,10 +151,6 @@ typesetElements elements = do
                 makeNewPage Numbered
             VT.VHLine width thick ->
                 typesetHLine width thick
-
-        -- Check for overflow after typesetting every element.
-        cs <- checkSpace
-        when cs $ makeNewPage Numbered
 
 
 ------------------------
@@ -703,7 +703,7 @@ typesetVerbatim code mSize mNumbering = do
                     txt $ zws <> line
                     forceNewLine
 
-    typesetContent (Right formattedCode) codeFontType (VT.FontSize codeFontSize) VT.JustifyLeft paraFormat 0 10 12
+    typesetContent (Right formattedCode) codeFontType (VT.FontSize codeFontSize) VT.JustifyLeft paraFormat 0 beforeSpace afterSpace
 
 -- Draw a horizontal line at the cursors current position.
 typesetHLine :: VT.PageWidth -> Maybe VT.Pt -> Typesetter ()

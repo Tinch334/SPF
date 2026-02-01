@@ -119,9 +119,7 @@ Row 2 Col 1 | \bold{Row 2 Col 2} | Row 2 Col 3
 
 \subsection{Verbatim Code}
 
-\begin{paragraph}
 Below is a block of verbatim code with line numbering enabled:
-\end{paragraph}
 
 \begin{verbatim}[size: 10, numbering: true]
 module Main where
@@ -130,16 +128,19 @@ main :: IO ()
 main = putStrLn "Hello, World!"
 \end{verbatim}
 
-\begin{paragraph}
 And a verbatim block without numbering:
-\end{paragraph}
+
 
 \begin{verbatim}[numbering: false]
-$> cabal run
-Hello, World!
+$> stack build
+$> stack exec SPF-exe -- file.spf
+File parsed
+File validated
+Resources loaded
+Compilation succeeded, result in "file.pdf"
 \end{verbatim}
 
 \subsection{Vector image}
 Loading an \emph{svg} image:
 
-\figure{Color and ratio.svg}[width: 0.8, caption: "An SVG image"]
+\figure{Color and ratio.svg}[width: 0.7, caption: "An SVG image"]
