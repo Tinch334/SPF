@@ -1,3 +1,4 @@
+// Hello
 \config{size}[size: a4]
 // Alternative custom size: \config{size}[width: 600, height: 800]
 \config{pagenumbering}[numbering: roman]
@@ -141,4 +142,4 @@ Hello, World!
 \subsection{Vector image}
 Loading an \emph{svg} image:
 
-\figure{Color and ratio.svg}[width: 0.6, caption: "An SVG image"]
+\figure{Color and ratio.svg}[width: 0.8, caption: "An SVG image"]

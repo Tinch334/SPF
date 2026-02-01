@@ -12,9 +12,9 @@ import qualified Resources                  as R
 import qualified Typesetting.Typesetting    as TS
 import qualified Validation.Document        as VD
 
-import System.IO.Error                      (tryIOError)
+import System.Exit                          (exitFailure)
+import System.IO.Error                      (tryIOError, ioeGetErrorType, ioeGetFileName)
 import System.FilePath                      (addExtension, dropExtension)
-import GHC.Internal.IO.Exception            as IIE
 
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M
@@ -116,10 +116,33 @@ printLocatedError fileContents (L.LocatedError pos err) = do
 
 -- Haskell definition of "show" for "IO error" does not follow the style of the rest of the program.
 showIOError :: IOError -> String
-showIOError e = let reason = "\nReason: " ++ show (IIE.ioe_type e) in
-    case IIE.ioe_filename e of
+showIOError e =
+    let reason = "\nReason: " ++ show (ioeGetErrorType e)
+    in case ioeGetFileName e of
         Nothing -> "An IO error occurred" ++ reason
         Just f -> "The file " ++ C.quote (T.pack f) ++ " could not be accessed" ++ reason
+
+
+--------------------
+-- FLOW CONTROL FUNCTIONS
+--------------------
+handleIO :: Either IOError a -> IO a
+handleIO (Left err) = printError (showIOError err) >> exitFailure
+handleIO (Right res) = return res
+
+handleParser :: (MP.VisualStream s, MP.TraversableStream s, MP.ShowErrorComponent e) => Either (MP.ParseErrorBundle s e) a -> IO a
+handleParser (Left err) = do
+        printError "File could not be parsed:"
+        putStr (MP.errorBundlePretty err)
+        exitFailure
+handleParser (Right val) = return val
+
+handleValidation :: T.Text -> V.Validation [L.LocatedError] a -> IO a
+handleValidation contents (V.Failure errs) = do
+    printError "File contains invalid elements:"
+    mapM_ (printLocatedError contents) errs
+    exitFailure
+handleValidation _ (V.Success val) = return val
 
 
 --------------------
@@ -134,46 +157,23 @@ main = do
 runCompiler :: Options -> IO ()
 runCompiler Options{..} = do
     -- Read file.
-    contentRes <- tryIOError $ TIO.readFile inFile
-    case contentRes of
-        Left err -> printError $ showIOError err
-        Right contents -> processContents contents 
-        where
+    contents <- (tryIOError $ TIO.readFile inFile) >>= handleIO
 
     -- Parse file.
-    processContents contents = 
-        case MP.runParser P.parseLanguage inFile contents of
-            Left err -> do
-                printError "File could not be parsed:"
-                putStr (MP.errorBundlePretty err)
-            Right parsed -> do
-                logStep verbose parsed "Parsed contents\n===============" "File parsed"
-                validateAndRender contents parsed
+    parsedContents <- handleParser $ MP.runParser P.parseLanguage inFile contents
+    logStep verbose parsedContents "Parsed contents\n===============" "File parsed"
 
     -- Validate file.
-    validateAndRender contents parsed =
-        case VD.validateDocument parsed of
-            V.Failure errs -> do
-                printError "File contains invalid elements:"
-                mapM_ (printLocatedError contents) errs
-            V.Success vParsed -> do
-                logStep verbose vParsed "Validated contents\n==================" "File validated"
-                loadAssets contents vParsed
+    validatedContents <- handleValidation contents $ VD.validateDocument parsedContents
+    logStep verbose validatedContents "Validated contents\n==================" "File validated"
 
-    -- Load resources and fonts.
-    loadAssets contents vParsed = do
-        resR <- R.loadResources (VT.vContent vParsed) inFile
-        case resR of
-            V.Failure errs -> do
-                printError "Some resources could not be loaded:"
-                mapM_ (printLocatedError contents) errs
-            V.Success resources -> do
-                -- Font loading cannot fail, save for an internal error.
-                fonts <- R.loadFonts
-                logStepMap verbose resources "Loaded resources\n================" "Resources loaded"
+    -- Load resources
+    resources <- R.loadResources (VT.vContent validatedContents) inFile >>= handleValidation contents
+    logStepMap verbose resources "Loaded resources\n================" "Resources loaded"
+    -- Load fonts, note that font loading cannot fail, save for an internal error.
+    fonts <- R.loadFonts
 
-                let outPath = maybe (addExtension (dropExtension inFile) C.outputExtension) id outFile
-
-                TS.typesetDocument vParsed resources fonts outPath debug
-                
-                putStrLn $ "Compilation succeeded, result in " ++ (C.quote $ T.pack outPath)
+    -- Typeset document.
+    let outPath = maybe (addExtension (dropExtension inFile) C.outputExtension) id outFile
+    TS.typesetDocument validatedContents resources fonts outPath debug                
+    putStrLn $ "Compilation succeeded, result in " ++ (C.quote $ T.pack outPath)

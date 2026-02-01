@@ -66,7 +66,6 @@ loadResource (Located pos fullPath, Located _ originalPath) = do
         e | Prelude.elem e [".bmp", ".png", ".jpg", ".jpeg"] -> do
             res <- readImage fullPath
             case res of
-                -- The default error does not follow the style of the rest of the program.
                 Left _ -> accessError fullPath
                 Right img -> makeBytes img
                 
@@ -75,22 +74,22 @@ loadResource (Located pos fullPath, Located _ originalPath) = do
             case res of
                 Nothing -> accessError fullPath
                 Just doc -> do
-                    -- Set rendering DPI(Dots per inch), larger values make the image bigger.
+                    -- Set rendering DPI(Dots per inch).
                     let dpi = 96
                     -- Font cache for font rendering.
                     cache <- loadCreateFontCache "fonty-texture-cache"
                     -- Render image with no coordinate transformation.
                     (render, _) <- renderSvgDocument cache Nothing dpi doc
-                    
+
                     -- Convert the image buffer into a "DynamicImage".
                     makeBytes $ ImageRGBA8 render
 
         e -> return $ Failure [at pos $ "The file extension " ++ quote (T.pack e) ++ " is invalid"]
 
-    -- Extracts the raw data and converts it to a ByteString.
     accessError path = 
         return $ Failure [at pos $ "The file " ++ quote (T.pack path) ++ " could not be accessed"]
 
+    -- Extracts the raw data and converts it to a ByteString.
     makeBytes img = do
         -- Handles colour space by forcing conversion to RGB8.
         let rgbImage = convertRGB8 img
@@ -101,6 +100,7 @@ loadResource (Located pos fullPath, Located _ originalPath) = do
         let bytes = BL.pack (V.toList vector)
 
         return $ Success (originalPath, FileInfo bytes width height)
+
 
 --------------------
 -- FONT LOADING FUNCTIONS

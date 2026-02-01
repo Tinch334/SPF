@@ -95,6 +95,8 @@ withPos p = Located <$> getSourcePos <*> p
 -- Parse the language and store the results in the appropriate structure.
 parseLanguage :: Parser ParsedDocument
 parseLanguage = do
+    -- Consume whitespace at the beginning of the file.
+    sc
     -- Retaining the configuration tokens and parsing them normally is done to reduce function definitions and duplicated code.
     cfg <- sepEndBy (withPos parseConfigCommand) sc
     meta <- parseMeta
@@ -294,7 +296,7 @@ parseConfigArg = label "config option" $ choice
     , PSubsectionSize       <$ string "subsectionsize"
     , PVerbatimSize         <$ string "verbatimsize"
     , PJustification        <$ string "justification"
-    , PListstyle            <$ string "style"
+    , PListstyle            <$ string "liststyle"
     , PVerMargin            <$ string "vertmargin"
     , PHozMargin            <$ string "hozmargin"
     , PSectionNumbering     <$ string "sectionnumbering"
