@@ -139,12 +139,14 @@ withPos p = Located <$> getSourcePos <*> p
 -- Parse the language and store the results in the appropriate structure.
 parseLanguage :: Parser ParsedDocument
 parseLanguage = do
-    -- Consume whitespace at the beginning of the file.
-    sc
-    -- Retaining the configuration tokens and parsing them normally is done to reduce function definitions and duplicated code.
+    sc -- Consume leading whitespace.
+
     cfg <- sepEndBy (withPos parseConfigCommand) sc
     meta <- parseMeta
     mDoc <- optional parseDocument
+
+    sc -- Consume trailing whitespace.
+    eof -- Ensure all file contents were parsed.
 
     case mDoc of
         Just doc -> return $ ParsedDocument cfg meta doc
