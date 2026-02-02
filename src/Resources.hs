@@ -22,6 +22,8 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Vector.Storable as V
 import qualified Data.Text as T
 
+import GHC.Float (double2Int)
+
 import System.FilePath
 import System.Directory (doesFileExist)
 
@@ -30,6 +32,7 @@ import Graphics.PDF.Fonts.Font (AnyFont)
 import qualified Graphics.PDF.Fonts.StandardFont as SF
 import Graphics.Svg (loadSvgFile)
 import Graphics.Rasterific.Svg (loadCreateFontCache, renderSvgDocument)
+import qualified Graphics.Svg.Types as ST
 
 
 --------------------
@@ -76,10 +79,19 @@ loadResource (Located pos fullPath, Located _ originalPath) = do
                 Just doc -> do
                     -- Set rendering DPI(Dots per inch).
                     let dpi = 96
+                    -- Ensures the image has high resolution when rendered, otherwise the library defaults to a low resolution.
+                    let imageWidth = 3840.0
+                    let size = case (ST._width doc, ST._height doc) of
+                            (Just wNum, Just hNum) ->
+                                let w = extractDouble wNum
+                                    h = extractDouble hNum
+                                in Just $ (double2Int imageWidth, double2Int $ (h / w) * imageWidth)
+                            _ -> Nothing
+
                     -- Font cache for font rendering.
                     cache <- loadCreateFontCache "fonty-texture-cache"
                     -- Render image with no coordinate transformation.
-                    (render, _) <- renderSvgDocument cache Nothing dpi doc
+                    (render, _) <- renderSvgDocument cache size dpi doc
 
                     -- Convert the image buffer into a "DynamicImage".
                     makeBytes $ ImageRGBA8 render
@@ -100,6 +112,17 @@ loadResource (Located pos fullPath, Located _ originalPath) = do
         let bytes = BL.pack (V.toList vector)
 
         return $ Success (originalPath, FileInfo bytes width height)
+    -- Extracts the size out of an SVG "Number".
+    extractDouble n = case n of
+        ST.Num d     -> d
+        ST.Px d      -> d
+        ST.Em d      -> d
+        ST.Percent d -> d
+        ST.Pc d      -> d
+        ST.Mm d      -> d
+        ST.Cm d      -> d
+        ST.Point d   -> d
+        ST.Inches d  -> d
 
 
 --------------------
