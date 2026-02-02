@@ -1,0 +1,101 @@
+\config{vertmargin}[margin: 40]
+\config{hozmargin}[margin: 40]
+
+\config{titlesize}[size: 42]
+\config{parsize}[size: 12]
+\config{subsectionsize}[size: 17]
+\config{subsectionsize}[size: 15]
+
+\config{parindent}[indent: 25]
+\config{sectionspacing}[before: 5, after: 5]
+\config{paragraphspacing}[before: 5, after: 10]
+
+\config{sectionnumbering}[numbering: false]
+
+
+\title{Simple PDF}
+\author{Martín Goñi}
+\date{2\/2\/2026}
+
+
+
+\section{¿Que es \bold{SPF}?}
+Simple PDF, es un DSL para generar PDFs, es decir un lenguaje que al ser interpretado produce PDFs. Es más este informe esta hecho con \bold{SPF}.
+
+\section{Sobre \bold{SPF}}
+\subsection{Consideraciones de diseño}
+A la hora de diseñar \bold{SPF} me inspire en \bold{LaTeX}, pero sin mantenerme atado a sus convenciones o decisiones de diseño, lo trate como una fuente de inspiracion. En particular tome otra direccion en cuanto a la forma de los comandos, permitiendo solo un argumento; Al mismo tiempo las opciones deben tener asociada una clave indicando a que corresponde el valor. Finalmente simplifique la forma en la que estructura el documento, ya no es necesario separar el titulo y documento de forma explicita.
+
+Los comandos implementados son un subconjunto de los disponibles en \bold{LaTeX}, elegidos para permitir generar documentos (mayormente)completos, manteniendo al mismo tiempo la cantidad total de comandos baja.
+
+\subsection{Sintaxis}
+Para representar la sintaxis se usan ciertas convenciones; El simbolo \bold{*} indica cero o mas ocurrencias de lo que encierre mientras que el \bold{+} indica una o mas ocurrencias. Los comentarios no estan incluidos pues no son parte de la sintaxis en si, son añadidos en el parser para la conveniencia del usuario. A continuación se presenta la sintaxis concreta de \bold{SPF}:
+
+\begin{verbatim}[numbering: false]
+digit           ::= '0' | '1' | ... | '9'
+integer         ::= <digit> (<digit>)*
+float           ::= <integer> '.' <integer>
+letter          ::= 'a' | ... | 'z' | 'A' | ... | 'Z'
+letterStr       ::= <letter> (<letter>)*
+specialChars    ::= '\' | '{', '}' | '[' | ']' | '"' | '/' | '|'
+nonSpecialChars ::= c / c != <specialChars>
+filepath        ::= (<letterStr> | '/' | '\' | '-' | '_' | '.' | ' ')+
+
+#| Opciones
+optionList      ::= '[' optionListElems ']'
+optionListElems ::= <optionPair> (',' <optionPair>)*
+optionPair      ::= <letterStr> ':' <optionValue>
+optionValue     ::= <boolValue> 
+                | <numberValue>
+                | <literalValue>
+                | <identifierValue>
+
+boolValue       ::= 'true' | 'false'
+numberValue     ::= <integer> | <float>
+literalValue    ::= '"' <nonSpecialChars> '"'
+identifierValue ::= <letterStr>
+
+#| Texto
+text        ::= ('\bold' | '\italic' | '\emph') '{' <textChars> '}'
+textChars   ::= (<nonSpecialChars>)+ <textChars> | '\' <specialChars> <textChars> | <empty>
+
+#| Configuracion del documento
+config      ::= '\config{' <configName> '}' <optionList>
+configName  ::= 'size' | 'pagenumbering' | ... | 'verbatimnumbering'
+
+#| Metadata del documento
+metadata    ::= <title> <autho> <date>
+title       ::= '\title{' <text> '}' | <empty>
+author      ::= '\author{' <text> '}' | <empty>
+date        ::= '\date{' <text> '}' | <empty>
+
+#| Comandos
+command ::= <text>
+        | <paragraph>
+        | <section>
+        | <subsection>
+        | <figure>
+        | <table>
+        | <list>
+        | <verbatim>
+        | <newpage>
+        | <hline>
+
+paragraph         ::= '\begin{paragraph}' <optionList> <text> '\end{paragraph}'
+section           ::= '\section{'<text> '}' <optionList>
+subsection        ::= '\subsection{'<text> '}' <optionList>
+figure            ::= '\figure{' <filepath> '}' <optionList>
+table             ::= '\begin{table}' <optionList> <tableContents> '\end{table}'
+tableContents     ::= <text> ('|' <text>)* '\break'
+list              ::= '\begin{list}' <optionList> <listContents> '\end{list}'
+listContents      ::= '\item' <text>
+verbatim          ::= '\begin{verbatim}' <optionList> <verbatimContents> '\end{verbatim}'
+verbatimContents  ::= (<anyChar>)+ <notFollowedBy '\end'>
+newpage           ::= '\newpage'
+hline             ::= '\hline' <optionList>
+
+#| Documento
+document    ::= (<config>)* <metadata> (<command>)+
+\end{verbatim}
+
+Hay una aclaracion importante sobre la sintaxis para \bold{verbatim}, esto es que acepta cualquier caracter hasta encontrar \italic{\"\\end\"}.

@@ -18,7 +18,7 @@ import Control.Monad.State.Lazy
 import qualified Data.Map as M
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (fromJust, fromMaybe, isJust)
 
 import GHC.Float (int2Double, double2Int)
 
@@ -312,30 +312,48 @@ typesetContent content font size just paraStyle indent beforeSpace afterSpace = 
 typesetTitlepage :: VT.ValidatedMetadata -> Typesetter ()
 typesetTitlepage meta = do
     RenderEnv{..} <- ask
-    RenderState{..} <- get
 
     -- Move the cursor down to separate any title elements.
-    modify $ \s -> s { rsCurrentY = envPageHeight * 0.92 }
-    RenderState{..} <- get
+    modify $ \s -> s { rsCurrentY = envPageHeight * 0.85 }
 
     let font = rcFont (styles envConfig)
-    let (VT.FontSize cSizeTitle) = rcTitleSize (sizes envConfig)
-    let cSizeRest = cSizeTitle * 0.6
 
-    case VT.vmTitle meta of
+    let (VT.FontSize baseSize) = rcTitleSize (sizes envConfig)
+    let sizeTitle  = VT.FontSize baseSize
+    let sizeAuthor = VT.FontSize (baseSize * 0.6)
+    let sizeDate   = VT.FontSize (baseSize * 0.45)
+
+    -- Element spacing
+    let largeGap = envPageHeight * 0.05
+    let smallGap = envPageHeight * 0.02
+
+    let mTitle = VT.vmTitle meta
+    let mAuthor = VT.vmAuthor meta
+    let mDate = VT.vmDate meta
+
+    case mTitle of
         Nothing -> return ()
         Just t -> do
-            typesetContentSimple t font (VT.FontSize cSizeTitle) VT.JustifyCenter 0 (envPageWidth * 0.15)
+            typesetContentSimple t font sizeTitle VT.JustifyCenter 0 0
 
-    case VT.vmAuthor meta of
+    -- If title and author are present typeset a separating line.
+    when (isJust mTitle && isJust mAuthor) $ do
+        -- It's necessary to get the cursor position both times since typesetting, first the title and then the line, changes it.
+        cy <- gets rsCurrentY
+        modify $ \s -> s { rsCurrentY = cy - smallGap }
+        typesetHLine (VT.PageWidth 0.6) (Just $ VT.Pt 2.0)
+        cy <- gets rsCurrentY
+        modify $ \s -> s { rsCurrentY = cy - smallGap }
+
+    case mAuthor of
         Nothing -> return ()
         Just a -> do
-            typesetContentSimple a font (VT.FontSize cSizeRest) VT.JustifyCenter 0 (envPageWidth * 0.025)
+            typesetContentSimple a font sizeAuthor VT.JustifyCenter 0 largeGap
 
-    case VT.vmDate meta of
+    case mDate of
         Nothing -> return ()
         Just d -> do
-            typesetContentSimple d font (VT.FontSize cSizeRest) VT.JustifyCenter 0 0
+            typesetContentSimple d font sizeDate VT.JustifyCenter 0 0
 
 -- Typesets the given paragraph.
 typesetParagraph :: [VT.VText] -> Maybe VT.Font -> Maybe VT.FontSize -> Maybe VT.Justification -> Typesetter ()
@@ -655,11 +673,13 @@ typesetVerbatim code mSize mNumbering = do
 
     let sizeCfg = sizes cfg
     let spaceCfg = spacing cfg
+    let layoutCfg = layout cfg
 
     let codeFontType = VT.Courier
     let (VT.FontSize codeFontSize) = fromMaybe (rcVerbatimSize sizeCfg) mSize
     let styledFont = getFont fonts codeFontType VT.Normal
     let pdfFont = PDFFont styledFont (double2Int codeFontSize)
+
     let numbering = fromMaybe (rcVerbatimNumbering (toggles cfg)) mNumbering
     let (VT.Spacing (VT.Pt beforeSpace) (VT.Pt afterSpace)) = rcVerbatimSp spaceCfg
 
@@ -673,8 +693,8 @@ typesetVerbatim code mSize mNumbering = do
     -- Line wrapping would be a problem if we simply typeset lines and numbers "normally", instead we use a "hanging indent". The cursor starts
     -- where the code starts (because of linePosition). We move back to the start of the line to draw the line number.
     let paraFormat = if numbering
-        then VerbatimPara (Rgb 0.94 0.94 0.94) 5 20 (Just $ codeFontSize * 0.5) totalGutter
-        else VerbatimPara (Rgb 0.94 0.94 0.94) 5 20 Nothing 0
+        then VerbatimPara (Rgb 0.94 0.94 0.94) 5 0 (Just $ codeFontSize * 0.5) totalGutter
+        else VerbatimPara (Rgb 0.94 0.94 0.94) 5 0 Nothing 0
 
     -- In case of no numbering and a line with spaces at the start the typesetting engine sees: "Space Space ....", since this is the start
     -- of the line this is treated as unwanted glue and discarded. To solve this a zero width space is inserted, stopping this behaviour.

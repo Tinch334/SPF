@@ -12,7 +12,7 @@ import Control.Monad (void)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Char as DC
-import GHC.Float (int2Double)
+import qualified Data.Scientific as DS
 
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -25,8 +25,9 @@ import qualified Text.Megaparsec.Char.Lexer as L
 data CustomError    = UnknownCommand Text       -- Thrown when encountering \command, where command is invalid.
                     | UnknownText Text          -- Thrown when encountering \text-type, where text-type is invalid.
                     | InvalidOptions Text       -- Thrown when a set of options has an invalid format.
-                    | InvalidMeta Text          -- Thrown when metadata has an invalid format.
+                    | InvalidMeta               -- Thrown when metadata has an invalid format.
                     | InvalidConfiguration Text -- Thrown when encountering an unknown configuration option.
+                    | MissingContent            -- Thrown when document has no content.
                     deriving (Eq, Ord, Show)
 
 -- To allow for easy error throwing.
@@ -39,11 +40,14 @@ unknownText = customFailure . UnknownText
 invalidOptions :: Text -> Parser a
 invalidOptions = customFailure . InvalidOptions
 
-invalidMeta :: Text -> Parser a
-invalidMeta = customFailure . InvalidMeta
+invalidMeta :: Parser a
+invalidMeta = customFailure InvalidMeta
 
 unknownConfiguration :: Text -> Parser a
 unknownConfiguration = customFailure . InvalidConfiguration
+
+missingContent :: Parser a
+missingContent = customFailure MissingContent
 
 -- Make error labelling easier.
 mkErrStr :: String -> Text -> String -> String
@@ -54,8 +58,9 @@ instance ShowErrorComponent CustomError where
     showErrorComponent (UnknownCommand c) = "Unknown command: " ++ quote c
     showErrorComponent (UnknownText t) = "Unknown text type: " ++ quote t
     showErrorComponent (InvalidOptions o) = "Invalid format for options: " ++ T.unpack o
-    showErrorComponent (InvalidMeta o) = "Invalid format for metadata: " ++ T.unpack o
+    showErrorComponent InvalidMeta = "Invalid format for metadata"
     showErrorComponent (InvalidConfiguration o) = "Unknown configuration option: " ++ quote o
+    showErrorComponent MissingContent = "Empty document"
 
 
 --------------------
@@ -105,9 +110,11 @@ parseLanguage = do
     -- Retaining the configuration tokens and parsing them normally is done to reduce function definitions and duplicated code.
     cfg <- sepEndBy (withPos parseConfigCommand) sc
     meta <- parseMeta
-    doc <- parseDocument
+    mDoc <- optional parseDocument
 
-    return $ ParsedDocument cfg meta doc
+    case mDoc of
+        Just doc -> return $ ParsedDocument cfg meta doc
+        Nothing -> missingContent
 
 -- Parse metadata commands, ensuring at most one of each kind is present.
 parseMeta :: Parser DocumentMetadata
@@ -124,7 +131,7 @@ parseMeta = DocumentMetadata
             Nothing -> do
                 void sc -- There might be blank space between metadata definitions.
                 return arg
-            Just _ -> invalidMeta "Metadata does not accept options"
+            Just _ -> invalidMeta
 
 parseDocument :: Parser [Located PCommOpt]
 parseDocument = sepEndBy1 documentOptions sc where
@@ -373,10 +380,9 @@ parseOptionMap = label "option pair" $ do
 -- because there's not a single parser for integers and floats.
 parseOptionValue :: Parser POptionValue
 parseOptionValue = label "option value" $ choice
-    [ try $ PNumber <$> L.float -- Goes first otherwise a float might be interpreted as a decimal number and committed, leaving a ".".
-    , try $ PNumber . int2Double <$> L.decimal -- The function "fromIntegral" is not used since it performs silent truncation.
-    , try $ PBool <$> boolean
-    , try $ PText <$> stringLiteral
+    [ PBool <$> boolean
+    , PNumber . DS.toRealFloat <$> L.scientific -- Handles integrals, floating point numbers, etc automatically.
+    , PText <$> stringLiteral
     , PText . T.pack <$> identifier
     ]
 

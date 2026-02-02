@@ -1,6 +1,5 @@
 // Document start
 \config{size}[size: a4]
-// Alternative custom size: \config{size}[width: 600, height: 800]
 \config{pagenumbering}[numbering: roman]
 \config{vertmargin}[margin: 40]
 \config{hozmargin}[margin: 40]

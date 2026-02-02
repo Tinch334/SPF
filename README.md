@@ -7,7 +7,7 @@ Simple PDF, or SPF for short, is a simple document preparation system based on L
 ## Installing & Running
 SPF uses [**Stack**](https://docs.haskellstack.org/). Read the [installation guide](https://docs.haskellstack.org/en/stable/README/#how-to-install) for details. 
 
-To set up the project, ensure you are in the project's directory `SPF` and execute:
+To set up the project, ensure you are in the project`s directory `SPF` and execute:
 ```bash
 stack setup
 
@@ -102,7 +102,7 @@ These commands set the properties of the documents title page and metadata. They
 * `\date{<text>}`: Sets the document date.
 
 ### 3. Document Content
-These commands are used to structure and format the main body of the text, they may be used in any order.
+These commands are used to structure and format the main body of the text, they may be used in any order. Keep in mind that there must be **some** content, an empty document cannot be typeset.
 
 #### Text & Formatting
 For _regular_ text, that is to say text without any modifiers the text must be entered into the file without any commands. The following modifiers are available for text:
@@ -123,6 +123,11 @@ Etiam eget sollicitudin sem.                                <--- One paragraph
 
 Etiam eget sollicitudin sem. Nulla euismod \emph{consectetur consectetur.
 Suspendisse ullamcorper} fringilla leo, vitae semper metus pretium quis.  <--- Separate paragraph
+```
+#### Character escaping
+There are certain characters that have a special meaning in SPF, because of that they cannot be inserted normally, or they will produce and error in order to avoid this such characters have to be escaped using a `\`. The characters that require escaping are: `\`, `{`, `}`, `[`, `]`, `"`, `/`, `|`. An example of character escaping:
+```
+Lorem \"ipsum\" dolor \| sit amet \\.
 ```
 
 #### Sections & subsections

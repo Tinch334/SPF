@@ -59,6 +59,7 @@ library
     , optparse-simple
     , rasterific-svg
     , safe-coloured-text
+    , scientific
     , svg-tree
     , text
     , validation
@@ -89,6 +90,7 @@ executable SPF-exe
     , optparse-simple
     , rasterific-svg
     , safe-coloured-text
+    , scientific
     , svg-tree
     , text
     , validation
@@ -120,6 +122,7 @@ test-suite SPF-test
     , optparse-simple
     , rasterific-svg
     , safe-coloured-text
+    , scientific
     , svg-tree
     , text
     , validation
