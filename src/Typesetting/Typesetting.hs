@@ -522,6 +522,7 @@ typesetList items mStyle = do
     let sizeCfg  = sizes cfg
 
     let size = rcParSize sizeCfg
+    let (VT.FontSize sizeValue) = size
     let font = rcFont styleCfg
     let (VT.Spacing (VT.Pt beforeSpace) (VT.Pt afterSpace)) = rcListSp (spacing cfg)
 
@@ -544,23 +545,25 @@ typesetList items mStyle = do
                 txt $ T.pack $ show n ++ "."
 
     -- Typeset list.
-    let list = do
-            setJustification LeftJustification
-            paragraph $ do
-                -- Typeset each line.
-                forM_ (zip items [1..(length items)]) $ \(line, i) -> do
-                    kern 10
+    forM_ (zip items [1..(length items)]) $ \(line, i) -> do
+        let beforeLine = if i == 1 then beforeSpace else 0
+        let afterLine = if i == length items then afterSpace else sizeValue * 0.7
+
+        let listElement = do
+                setJustification LeftJustification
+                paragraph $ do
+                    kern sizeValue
                     styleFunction i
-                    kern 5
+                    kern $ sizeValue * 0.5
                     -- Convert all text into HPDF paragraphs.
                     forM_ line $ \(VT.VText txtContent style) -> do
                         -- Apply styling to segment.
                         let styledFont = getFont fonts font style
                         setStyle (Font (PDFFont styledFont (convertFontSize size)) black black)
                         txt txtContent
-                    forceNewLine
 
-    typesetContent (Right list) font size VT.JustifyLeft NormalPara 0 beforeSpace afterSpace
+        -- Typeset each line individually to properly control line spacing.
+        typesetContent (Right listElement) font size VT.JustifyLeft NormalPara 0 beforeLine afterLine
 
 -- Typesets the given table.
 typesetTable :: [[[VT.VText]]] -> VT.TableColumns -> Typesetter ()

@@ -12,9 +12,11 @@ import qualified Resources                  as R
 import qualified Typesetting.Typesetting    as TS
 import qualified Validation.Document        as VD
 
+import Control.Monad                        (when)
+
 import System.Exit                          (exitFailure)
 import System.IO.Error                      (tryIOError, ioeGetErrorType, ioeGetFileName)
-import System.FilePath                      (addExtension, dropExtension)
+import System.FilePath                      (replaceExtensions, isExtensionOf)
 
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M
@@ -156,6 +158,10 @@ main = do
 
 runCompiler :: Options -> IO ()
 runCompiler Options{..} = do
+    when (not $ isExtensionOf C.inputExtension inFile) $ do
+        printError $ "File " ++ C.quote (T.pack inFile) ++ " has invalid extension, expected " ++ C.quote (T.pack C.inputExtension)
+        exitFailure
+
     -- Read file.
     contents <- (tryIOError $ TIO.readFile inFile) >>= handleIO
 
@@ -174,6 +180,6 @@ runCompiler Options{..} = do
     fonts <- R.loadFonts
 
     -- Typeset document.
-    let outPath = maybe (addExtension (dropExtension inFile) C.outputExtension) id outFile
+    let outPath = maybe (replaceExtensions inFile C.outputExtension) id outFile
     TS.typesetDocument validatedContents resources fonts outPath debug                
     putStrLn $ "Compilation succeeded, result in " ++ (C.quote $ T.pack outPath)

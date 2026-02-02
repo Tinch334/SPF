@@ -3,7 +3,7 @@ module Common
     , quoteList
     , filterMap
     , completePath
-    , fileExtension
+    , inputExtension
     , outputExtension )
     where
 
@@ -40,8 +40,8 @@ completePath sp rp = if SF.isAbsolute rp
 --------------------
 -- CONSTANTS
 --------------------
-fileExtension :: String
-fileExtension = "spf"
+inputExtension :: String
+inputExtension = "spf"
 
 outputExtension :: String
 outputExtension = "pdf"

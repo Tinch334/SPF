@@ -13,6 +13,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Char as DC
 import qualified Data.Scientific as DS
+import qualified Data.Set as S
 
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -28,26 +29,45 @@ data CustomError    = UnknownCommand Text       -- Thrown when encountering \com
                     | InvalidMeta               -- Thrown when metadata has an invalid format.
                     | InvalidConfiguration Text -- Thrown when encountering an unknown configuration option.
                     | MissingContent            -- Thrown when document has no content.
+                    | MissingCloser Text        -- Thrown when a closing element is missing, included to avoid cryptic error messages
                     deriving (Eq, Ord, Show)
 
--- To allow for easy error throwing.
-unknownCommand :: Text -> Parser a
-unknownCommand = customFailure . UnknownCommand
+-- Helpers to allow for delayed errors, this allows multiple parse errors to be reported at once. The specific values returned by the
+-- error handlers is not important, they are simply there because the respective parser has to return something to continue. 
+recoverWith :: a -> CustomError -> Parser a
+recoverWith fallback err = do
+    registerFancyFailure (S.singleton (ErrorCustom err))
+    return fallback
 
-unknownText :: Text -> Parser a
-unknownText = customFailure . UnknownText
+unknownCommand :: Text -> Parser PCommOpt
+unknownCommand c = recoverWith 
+    (PCommOpt (PParagraph [PNormal $ "\\" <> c]) POptionNone) 
+    (UnknownCommand c)
 
-invalidOptions :: Text -> Parser a
-invalidOptions = customFailure . InvalidOptions
+unknownText :: Text -> Parser PText
+unknownText c = recoverWith 
+    (PNormal ("\\" <> c)) 
+    (UnknownText c)
 
-invalidMeta :: Parser a
-invalidMeta = customFailure InvalidMeta
+invalidOptions :: Text -> Text -> Parser POptionPair
+invalidOptions key msg = recoverWith 
+    (key, PText "") 
+    (InvalidOptions msg)
 
-unknownConfiguration :: Text -> Parser a
-unknownConfiguration = customFailure . InvalidConfiguration
+invalidMeta :: [PText] -> Parser [PText]
+invalidMeta arg = recoverWith arg InvalidMeta
 
-missingContent :: Parser a
-missingContent = customFailure MissingContent
+unknownConfiguration :: Text -> Parser PConfigArg
+unknownConfiguration c = recoverWith PFont (InvalidConfiguration c)
+
+missingContent :: [Located PConfig] -> DocumentMetadata -> Parser ParsedDocument
+missingContent cfg meta = recoverWith 
+    (ParsedDocument cfg meta []) 
+    MissingContent
+
+-- Modified: Returns the content parsed so far.
+missingCloser :: a -> Text -> Parser a
+missingCloser val name = recoverWith val (MissingCloser name)
 
 -- Make error labelling easier.
 mkErrStr :: String -> Text -> String -> String
@@ -61,6 +81,7 @@ instance ShowErrorComponent CustomError where
     showErrorComponent InvalidMeta = "Invalid format for metadata"
     showErrorComponent (InvalidConfiguration o) = "Unknown configuration option: " ++ quote o
     showErrorComponent MissingContent = "Empty document"
+    showErrorComponent (MissingCloser c) = "Missing closing element: " ++ quote c
 
 
 --------------------
@@ -82,13 +103,26 @@ lexeme = L.lexeme sc
 symbol :: Text -> Parser Text
 symbol = L.symbol sc
 
+-- Captures offset before an action that has an opening and closing element; If the closer is missing rewinds to start and throws error.
+recoveryBetween :: Parser a -> Parser b -> Parser c -> Text -> Parser c
+recoveryBetween op cl p errStr = do
+    o <- getOffset
+    void op
+    res <- p
+    mClose <- optional cl
+    case mClose of
+        Just _ -> return res
+        Nothing -> do
+            setOffset o
+            missingCloser res errStr
+
 -- Brace wrapper.
 braces :: Parser a -> Parser a
-braces = between (char '{') (char '}')
+braces p = recoveryBetween (char '{') (char '}') p "}"
 
 -- Bracket wrapper.
 brackets :: Parser a -> Parser a
-brackets = between (char '[') (char ']')
+brackets p = recoveryBetween (char '[') (char ']') p "]"
 
 -- Succeeds when a single newline is present.
 singleNewline :: Parser ()
@@ -114,7 +148,7 @@ parseLanguage = do
 
     case mDoc of
         Just doc -> return $ ParsedDocument cfg meta doc
-        Nothing -> missingContent
+        Nothing -> missingContent cfg meta
 
 -- Parse metadata commands, ensuring at most one of each kind is present.
 parseMeta :: Parser DocumentMetadata
@@ -131,7 +165,7 @@ parseMeta = DocumentMetadata
             Nothing -> do
                 void sc -- There might be blank space between metadata definitions.
                 return arg
-            Just _ -> invalidMeta
+            Just _ -> invalidMeta arg
 
 parseDocument :: Parser [Located PCommOpt]
 parseDocument = sepEndBy1 documentOptions sc where
@@ -155,7 +189,6 @@ mkSimpleCommand n p c = CommandSpec n $ do
 
     return $ PCommOpt (c arg) (maybe POptionNone id op)
 
--- Helper for a command with no argument "\comm[opts].
 mkNoArgCommand :: Text -> PComm -> CommandSpec
 mkNoArgCommand n c = CommandSpec n $ do
     void (string $ "\\" <> n) <?> "\\" ++ T.unpack n
@@ -164,18 +197,23 @@ mkNoArgCommand n c = CommandSpec n $ do
     return $ PCommOpt c (maybe POptionNone id op)
 
 mkBeginEndCommand :: Text -> Parser a -> (a -> PComm) -> CommandSpec
-mkBeginEndCommand n p c = CommandSpec n $ do
-    void (string "\\begin") <?> "\\begin"
-    void (braces (string n)) <?> mkErrStr "" n " for begin"
+mkBeginEndCommand n p c = CommandSpec n $ recoveryBetween parseStart parseEnd parseBody errStr
+  where
+    parseStart = do
+        void (string "\\begin") <?> "\\begin"
+        void (braces (string n)) <?> mkErrStr "" n " for begin"
 
-    op <- optional parseOptions
-    void (optional eol) -- Consumes a single newline if present, avoids altering the contents inside the begin/end block.
-    b <- p <?> mkErrStr "" n " content"
+    parseBody = do
+        op <- optional parseOptions
+        void (optional eol) -- Consumes a single newline if present
+        
+        b <- p <?> mkErrStr "" n " content"
+        
+        return $ PCommOpt (c b) (maybe POptionNone id op)
 
-    void (string "\\end") <?> "\\end"
-    void (braces (string n)) <?> mkErrStr "" n " for end"
+    parseEnd = void (string "\\end") *> braces (string n)
 
-    return $ PCommOpt (c b) (maybe POptionNone id op)
+    errStr = "\\end{" <> n <> "}"
 
 -- Parses a command and it's options.
 parseCommand :: [CommandSpec] -> Parser PCommOpt
@@ -334,13 +372,15 @@ parseFilepath = label "filepath" $ do
 -- The elements in a table row are separated by "|". A line ending is denoted by a "\\", that is two "\" characters.
 parseTable :: Parser [[[PText]]]
 parseTable = label "table" $ sepEndBy1
-    (sepBy1 parsePText (symbol "|"))
+    (lexeme $ sepBy1 parsePText (symbol "|"))
     (do
         void $ symbol "\\break"
-        void $ optional (string "{}"))
+        void $ optional (string "{}")
+        sc ) -- Consume trailing whitespace-
 
 parseList :: Parser [[PText]]
 parseList = label "list" $ many $ do
+    sc -- Consume leading whitespace.
     void $ symbol "\\item"
     void $ optional (string "{}")
     t <- parsePText
@@ -374,7 +414,7 @@ parseOptionMap = label "option pair" $ do
     colon <- optional (symbol ":")
     case colon of
         Just _ -> (,) (T.pack k) <$> lexeme parseOptionValue
-        Nothing -> invalidOptions $ T.pack ("Missing value for key " <> k)
+        Nothing -> invalidOptions (T.pack k) (T.pack $ "Missing value for key " <> k)
 
 -- Parses an option in value form., note that both integers and floats are returned as numbers, the parsing separation is simply
 -- because there's not a single parser for integers and floats.

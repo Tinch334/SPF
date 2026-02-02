@@ -3,7 +3,6 @@
 
 \config{titlesize}[size: 42]
 \config{parsize}[size: 12]
-\config{subsectionsize}[size: 17]
 \config{subsectionsize}[size: 15]
 
 \config{parindent}[indent: 25]
@@ -18,11 +17,9 @@
 \date{2\/2\/2026}
 
 
-
 \section{¿Que es \bold{SPF}?}
 Simple PDF, es un DSL para generar PDFs, es decir un lenguaje que al ser interpretado produce PDFs. Es más este informe esta hecho con \bold{SPF}.
 
-\section{Sobre \bold{SPF}}
 \subsection{Consideraciones de diseño}
 A la hora de diseñar \bold{SPF} me inspire en \bold{LaTeX}, pero sin mantenerme atado a sus convenciones o decisiones de diseño, lo trate como una fuente de inspiracion. En particular tome otra direccion en cuanto a la forma de los comandos, permitiendo solo un argumento; Al mismo tiempo las opciones deben tener asociada una clave indicando a que corresponde el valor. Finalmente simplifique la forma en la que estructura el documento, ya no es necesario separar el titulo y documento de forma explicita.
 
@@ -90,7 +87,7 @@ tableContents     ::= <text> ('|' <text>)* '\break'
 list              ::= '\begin{list}' <optionList> <listContents> '\end{list}'
 listContents      ::= '\item' <text>
 verbatim          ::= '\begin{verbatim}' <optionList> <verbatimContents> '\end{verbatim}'
-verbatimContents  ::= (<anyChar>)+ <notFollowedBy '\end'>
+verbatimContents  ::= (<anyChar>)+ (<notFollowedBy> '\end')>
 newpage           ::= '\newpage'
 hline             ::= '\hline' <optionList>
 
@@ -98,4 +95,19 @@ hline             ::= '\hline' <optionList>
 document    ::= (<config>)* <metadata> (<command>)+
 \end{verbatim}
 
-Hay una aclaracion importante sobre la sintaxis para \bold{verbatim}, esto es que acepta cualquier caracter hasta encontrar \italic{\"\\end\"}.
+\section{Funcionamiento}
+Para mantener el sistema lo mas modular posible \bold{SPF} esta dividido en componentes, cada una independiente de las demas. Dado un archivo en formato \bold{SPF} este atraviesa una serie de modulos para producir un PDF, en orden, son:
+
+\begin{list}[style: number]
+\item Parser: Se encuentra en \bold{Parser.hs}. Se encarga de \italic{parsear} el archivo, es decir convertir el texto del mismo en un AST. Cabe notar que en este punto no se validan los datos, el parser solo se ocupa de la correctitud \italic{sintactica} del archivo, no la \italic{semantica}. Puede fallar.
+\item Validador: Esta compuesto por mutiples archivos, se encuentran en el directorio \bold{Validation}. Valida los contenidos del AST generado por el parser. El trabajo principal del validador es verificar que las opciones en el archivo, tanto de configuracion como de los comandos sean correctas; Esto conlleva verificar que cada par \bold{clave:valor} sea del tipo y forma correcta para el comando o la configuracion a el que corresponden. Devuelve otro AST y puede fallar.
+\item Recursos: Se encuentra en \bold{Resources.hs}. Carga todos los recursos necesarios para typesetear el documento. Por un lado estan las fuentes, siempre deben cargarse. Por el otro lado estan los recursos especificados por el usuario, es posible incluir recursos externos en el archivo(Mediante el comando \bold{figure}), estos deben ser cargados en su totalidad antes de poder generar el documento. La carga de recursos puede fallar.
+\end{list}
+
+\subsection{Un poco mas sobre ASTs}
+
+
+\subsection{¿Como fallar?}
+Como manejar fallos en un programa de este tipo no es una pregunta facil de resolver, principalmente porque es posible tener \italic{muchos} fallos. Seria entonces ideal poder acumular todos los errores que ocurren mientras el programa procesa un archivo. Esto sin embargo no es posible, al menos del todo. No se pueden acumular errores de distintas secciones pues cada modulo depende de que el resultado de los anteriores sea correcto.
+
+Tenemos asi un compromiso, si bien no podemos acumular \italic{todos} los errores a lo largo del programa si podemos acumular \bold{ffe}
