@@ -14,7 +14,7 @@ module Datatypes.ValidatedTokens
     -- Main data types.
     , VComm(..)
     , VConfig(..)
-    , VText(..)
+    , VPara(..)
     -- Configuration data types.
     , StyleConfig(..)
     , LayoutConfig(..)
@@ -29,7 +29,7 @@ module Datatypes.ValidatedTokens
     , PageNumbering(..)
     , Spacing(..)
     , Font(..)
-    , TextStyle(..)
+    , TextType(..)
     , Justification(..)
     , ListStyle(..)
     ) where
@@ -51,9 +51,9 @@ data ValidatedDocument = ValidatedDocument
 
 -- Once the metadata has been validated location data is no longer needed.
 data ValidatedMetadata = ValidatedMetadata
-    { vmTitle  :: Maybe [VText]
-    , vmAuthor :: Maybe [VText]
-    , vmDate   :: Maybe [VText]
+    { vmTitle  :: Maybe [VPara]
+    , vmAuthor :: Maybe [VPara]
+    , vmDate   :: Maybe [VPara]
     } deriving (Eq)
 
 --------------------
@@ -74,12 +74,12 @@ type TableColumns = Int
 
 -- The maybe in the options indicates that they are optional. If found they are added with "Just", otherwise "Nothing" is used.
 -- The Nothing's are then replaced with the default values for those arguments.
-data VComm  = VSection      [VText] (Maybe Font) (Maybe FontSize)
-            | VSubsection   [VText] (Maybe Font) (Maybe FontSize)
+data VComm  = VSection      [VPara] (Maybe Font) (Maybe FontSize)
+            | VSubsection   [VPara] (Maybe Font) (Maybe FontSize)
             | VFigure       FilePath PageWidth (Maybe Caption)
-            | VTable        [[[VText]]] TableColumns
-            | VList         [[VText]] (Maybe ListStyle)
-            | VParagraph    [VText] (Maybe Font) (Maybe FontSize) (Maybe Justification)
+            | VTable        [[[VPara]]] TableColumns
+            | VList         [[VPara]] (Maybe ListStyle)
+            | VParagraph    [VPara] (Maybe Font) (Maybe FontSize) (Maybe Justification)
             | VVerbatim     [Text] (Maybe FontSize) (Maybe Bool)
             | VHLine        PageWidth (Maybe Pt)
             | VNewpage
@@ -254,7 +254,7 @@ data Spacing = Spacing Pt Pt
 data Font = Helvetica | Courier | Times
     deriving (Show, Eq, Ord)
 
-data TextStyle = Normal | Bold | Italic | Emphasised
+data TextType = Normal | Bold | Italic | Emphasised | Underlined | Verbatim
     deriving (Show, Eq, Ord)
 
 data Justification = JustifyLeft | JustifyRight | JustifyCenter | JustifyFull
@@ -264,17 +264,17 @@ data ListStyle = ListBullet | ListSquare | ListArrow | ListNumber
     deriving (Show, Eq, Ord)
 
 -- Text definition.
-data VText = VText
-    { textCnt  :: Text
-    , style :: TextStyle
-    } deriving (Eq, Ord)
+data VPara = VPara
+        { textCnt   :: Text
+        , textType  :: TextType
+        } deriving (Eq, Ord)
 
 
 --------------------
 -- SHOW INSTANCES
 --------------------
--- Flattens a list of VText into a single string for display.
-showVTextList :: [VText] -> String
+-- Flattens a list of VPara into a single string for display.
+showVTextList :: [VPara] -> String
 showVTextList = unwords . map show
 
 instance Show ValidatedDocument where
@@ -294,12 +294,14 @@ instance Show ValidatedMetadata where
         , "  Date:   " ++ maybe "-" showVTextList d
         ]
 
-instance Show VText where
-    show (VText t style) = case style of
+instance Show VPara where
+    show (VPara t style) = case style of
         Normal      -> T.unpack t
         Bold        -> "*" ++ T.unpack t ++ "*"
         Italic      -> "_" ++ T.unpack t ++ "_"
         Emphasised  -> "!" ++ T.unpack t ++ "!"
+        Underlined  -> "{" ++ T.unpack t ++ "}"
+        Verbatim    -> "|" ++ T.unpack t ++ "|"
 
 instance Show VComm where
     show (VSection txt _ _)     = "\n[SECTION] " ++ showVTextList txt

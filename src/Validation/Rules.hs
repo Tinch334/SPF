@@ -23,6 +23,7 @@ import qualified Data.List as L
 
 import GHC.Float (double2Int)
 import System.FilePath (isValid)
+
 import Text.Megaparsec (SourcePos)
 
 
@@ -149,17 +150,19 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $
 --------------------
 convertMeta :: DocumentMetadata -> Validation [LocatedError] ValidatedMetadata
 convertMeta (DocumentMetadata t a d) = Success $ ValidatedMetadata
-    (maybe Nothing (Just . convertText) t)
-    (maybe Nothing (Just . convertText) a)
-    (maybe Nothing (Just . convertText) d)
+    (maybe Nothing (Just . validateText) t)
+    (maybe Nothing (Just . validateText) a)
+    (maybe Nothing (Just . validateText) d)
 
-convertText :: [PText] -> [VText]
-convertText = map cnvInner
+validateText :: [PPara] -> [VPara]
+validateText = map vInner
   where
-    cnvInner (PNormal t)     = VText {textCnt = t, style = Normal}
-    cnvInner (PBold t)       = VText {textCnt = t, style = Bold}
-    cnvInner (PItalic t)     = VText {textCnt = t, style = Italic}
-    cnvInner (PEmphasised t) = VText {textCnt = t, style = Emphasised}
+    vInner (PNormal t)          = VPara {textCnt = t, textType = Normal}
+    vInner (PBold t)            = VPara {textCnt = t, textType = Bold}
+    vInner (PItalic t)          = VPara {textCnt = t, textType = Italic}
+    vInner (PEmphasised t)      = VPara {textCnt = t, textType = Emphasised}
+    vInner (PUnderlined t)      = VPara {textCnt = t, textType = Underlined}
+    vInner (PVerbatimPara t)    = VPara {textCnt = t, textType = Verbatim}
 
 
 validateCommand :: Located PCommOpt -> Validation [LocatedError] (Located VComm)
@@ -179,11 +182,11 @@ validateCommand (Located pos comm) = withPos pos $ case comm of
 -- Generic validator for options that expect font and size.
 genericFontCmd cons text (POptionMap o) =
   runSchema (ensureValidKeys ("Expected some of fields " ++ quoteList ["font", "size"]) ["font", "size"]
-    (cons (convertText text) 
+    (cons (validateText text) 
         <$> tryTextWith "font" (validateEnum fonts) "Unknown font"
         <*> tryNumberWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive"
     )) o
-genericFontCmd cons text POptionNone = Success $ cons (convertText text) Nothing Nothing
+genericFontCmd cons text POptionNone = Success $ cons (validateText text) Nothing Nothing
 
 namedFigure p (POptionMap o) =
     if isValid p then runSchema
@@ -195,46 +198,46 @@ namedFigure p (POptionMap o) =
     else Failure ["Invalid filepath " ++ quote (T.pack p)]
 namedFigure _ POptionNone = Failure ["Expected one numeric value (width)"]
 
-namedTable :: [[[PText]]] -> POption -> CommandValidationType
+namedTable :: [[[PPara]]] -> POption -> CommandValidationType
 namedTable cnt (POptionMap o) =
     let columnCount = runSchema (ensureValidKeys "Expected one numeric value (columns)" ["columns"] (requireNumberWith "columns" (validateNumInst (> 0) (\d -> double2Int d)) "Column number must be positive")) o
         in case columnCount of
             Success tc -> VTable <$> validateTableMatrix cnt tc <*> pure tc
             Failure e -> Failure e
   where
-    validateTableMatrix :: [[[PText]]] -> Int -> Validation [String] [[[VText]]]
+    validateTableMatrix :: [[[PPara]]] -> Int -> Validation [String] [[[VPara]]]
     validateTableMatrix c rLen =
         let cLen = map length c
             in if all (== rLen) cLen
-                then Success $ map (map convertText) c
+                then Success $ map (map validateText) c
                 else Failure ["Rows of different length in table"]
 namedTable _ POptionNone = Failure ["Expected one numeric value (columns)"]
 
-namedList :: [[PText]] -> POption -> CommandValidationType
+namedList :: [[PPara]] -> POption -> CommandValidationType
 namedList lst (POptionMap o) =
     runSchema
         ( ensureValidKeys
             ("Expected field " ++ quote "style" ++ " to be one of " ++ quoteList ["bullet", "square", "arrow", "number"])
             ["style"]
-            ( VList (map convertText lst)
+            ( VList (map validateText lst)
                 <$> tryTextWith "style" (validateEnum listStyles) ("Unknown list style. Expected one of " ++ quoteList ["bullet", "square", "arrow", "number"])
             )
         ) o
-namedList lst POptionNone = Success $ VList (map convertText lst) Nothing
+namedList lst POptionNone = Success $ VList (map validateText lst) Nothing
 
-namedParagraph :: [PText] -> POption -> CommandValidationType
+namedParagraph :: [PPara] -> POption -> CommandValidationType
 namedParagraph txt (POptionMap o) =
     runSchema
         ( ensureValidKeys
             ("Expected some of fields " ++ quoteList ["font", "size", "justification"])
             ["font", "size", "justification"]
-            ( VParagraph (convertText txt)
+            ( VParagraph (validateText txt)
                 <$> tryTextWith "font" (validateEnum fonts) "Unknown font"
                 <*> tryNumberWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive"
                 <*> tryTextWith "justification" (validateEnum justifications) ("Expected field " ++ quote "justification" ++ " to be one of " ++ quoteList ["left", "right", "centred", "full"])
             )
         ) o
-namedParagraph txt POptionNone = Success $ VParagraph (convertText txt) Nothing Nothing Nothing
+namedParagraph txt POptionNone = Success $ VParagraph (validateText txt) Nothing Nothing Nothing
 
 namedVerbatim :: [Text] -> POption -> CommandValidationType
 namedVerbatim code (POptionMap o) =

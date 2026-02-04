@@ -160,6 +160,12 @@ typesetElements elements = do
 pdfLift :: (MonadTrans t1, MonadTrans t2, Monad m, Monad (t2 m)) => m a -> t1 (t2 m) a
 pdfLift = lift . lift
 
+--makeStyledText :: VT.VPara -> VT.Font -> Int -> LoadedFonts -> Para ()
+makeStyledText (VT.VPara txtContent style) font cSize fonts = do
+    let styledFont = getFont fonts font style
+    setStyle (Font (PDFFont styledFont cSize) black black)
+    txt txtContent
+
 -- Checks if the cursor is below the bottom margin.
 checkSpace :: Typesetter (Bool)
 checkSpace = do
@@ -228,19 +234,19 @@ makeNewPage mode = do
 -- CONTENT TYPESETTING FUNCTIONS
 ------------------------
 -- Wrapper of "typesetContent", hides uncommon options.
-typesetContentSimple :: [VT.VText] -> VT.Font -> VT.FontSize -> VT.Justification -> Double -> Double -> Typesetter ()
-typesetContentSimple vText font size just beforeSpace afterSpace =
-    typesetContent (Left vText) font size just NormalPara 0 beforeSpace afterSpace
+typesetContentSimple :: [VT.VPara] -> VT.Font -> VT.FontSize -> VT.Justification -> Double -> Double -> Typesetter ()
+typesetContentSimple vPara font size just beforeSpace afterSpace =
+    typesetContent (Left vPara) font size just NormalPara 0 beforeSpace afterSpace
 
--- Typesets the given VText or paragraph, with the given options. Note that justification and indentation only have an effect in VText mode.
-typesetContent :: (Either [VT.VText] (TM CustomParaStyle StandardStyle ())) -> VT.Font -> VT.FontSize
+-- Typesets the given VPara or paragraph, with the given options. Note that justification and indentation only have an effect in VPara mode.
+typesetContent :: (Either [VT.VPara] (TM CustomParaStyle StandardStyle ())) -> VT.Font -> VT.FontSize
                 -> VT.Justification -> CustomParaStyle -> Double -> Double -> Double -> Typesetter ()
 typesetContent content font size just paraStyle indent beforeSpace afterSpace = do
     RenderEnv{..} <- ask
     RenderState{..} <- get
 
-    -- Maps VText tokens to PDF typesetting instructions. Defined with in function so we can use "let" defined variables.
-    let textGenerator vText = do
+    -- Maps VPara tokens to PDF typesetting instructions. Defined with in function so we can use "let" defined variables.
+    let textGenerator vPara = do
             let cSize = convertFontSize size
 
             -- Set justification and convert to PDF data.
@@ -252,12 +258,8 @@ typesetContent content font size just paraStyle indent beforeSpace afterSpace = 
  
             paragraph $ do
                 kern indent
-                -- Convert all text into HPDF paragraphs.
-                forM_ vText $ \(VT.VText txtContent style) -> do
-                    -- Apply styling to segment.
-                    let styledFont = getFont envFonts font style
-                    setStyle (Font (PDFFont styledFont cSize) black black)
-                    txt txtContent
+                forM_ vPara $ \vText -> do
+                    makeStyledText vText font cSize envFonts
 
     -- The content is converted into a list of renderable boxes. The style 'NormalParagraph' is used as the baseline context.
     let cnt = case content of
@@ -356,8 +358,8 @@ typesetTitlepage meta = do
             typesetContentSimple d font sizeDate VT.JustifyCenter 0 0
 
 -- Typesets the given paragraph.
-typesetParagraph :: [VT.VText] -> Maybe VT.Font -> Maybe VT.FontSize -> Maybe VT.Justification -> Typesetter ()
-typesetParagraph vText mFont mSize mJust = do
+typesetParagraph :: [VT.VPara] -> Maybe VT.Font -> Maybe VT.FontSize -> Maybe VT.Justification -> Typesetter ()
+typesetParagraph vPara mFont mSize mJust = do
     cfg <- asks envConfig
     let styleCfg = styles cfg
     let sizeCfg  = sizes cfg
@@ -369,11 +371,11 @@ typesetParagraph vText mFont mSize mJust = do
     let (VT.Pt indent) = rcParIndent spaceCfg
     let (VT.Spacing (VT.Pt beforeSpace) (VT.Pt afterSpace)) = rcParagraphSp spaceCfg
 
-    typesetContent (Left vText) font size just NormalPara indent beforeSpace afterSpace
+    typesetContent (Left vPara) font size just NormalPara indent beforeSpace afterSpace
 
 -- Typesets both sections and subsections. 
-typesetHeader :: [VT.VText] -> Maybe VT.Font -> Maybe VT.FontSize -> HeaderLevel -> Typesetter ()
-typesetHeader vText mFont mSize level = do
+typesetHeader :: [VT.VPara] -> Maybe VT.Font -> Maybe VT.FontSize -> HeaderLevel -> Typesetter ()
+typesetHeader vPara mFont mSize level = do
     RenderState{..} <- get
     cfg <- asks envConfig
     let styleCfg = styles cfg
@@ -400,10 +402,10 @@ typesetHeader vText mFont mSize level = do
     modify $ \s -> s { rsCounters = newCounters }
 
     let numbering = if numberingEnabled then T.pack $ label ++ ". " else ""
-    let fullText = if numberingEnabled then (VT.VText numbering VT.Bold):vText else vText
+    let fullText = if numberingEnabled then (VT.VPara numbering VT.Bold):vPara else vPara
 
     -- Create bookmark in PDF.
-    pdfLift $ newSectionWithPage (numbering <> mergeVText vText) Nothing Nothing rsCurrentPage (return ())
+    pdfLift $ newSectionWithPage (numbering <> mergeVText vPara) Nothing Nothing rsCurrentPage (return ())
     -- Typeset section text.
     typesetContentSimple fullText font size VT.JustifyLeft beforeSpace afterSpace
 
@@ -514,7 +516,7 @@ typesetFigureInner path gw@(VT.PageWidth givenWidth) mCap newpageAllowed = do
                 return (False, return ())
 
 -- Typesets the given list.
-typesetList :: [[VT.VText]] -> Maybe VT.ListStyle -> Typesetter ()
+typesetList :: [[VT.VPara]] -> Maybe VT.ListStyle -> Typesetter ()
 typesetList items mStyle = do
     cfg <- asks envConfig
     fonts <- asks envFonts
@@ -556,17 +558,14 @@ typesetList items mStyle = do
                     styleFunction i
                     kern $ sizeValue * 0.5
                     -- Convert all text into HPDF paragraphs.
-                    forM_ line $ \(VT.VText txtContent style) -> do
-                        -- Apply styling to segment.
-                        let styledFont = getFont fonts font style
-                        setStyle (Font (PDFFont styledFont (convertFontSize size)) black black)
-                        txt txtContent
+                    forM_ line $ \vText -> do
+                        makeStyledText vText font (convertFontSize size) fonts
 
         -- Typeset each line individually to properly control line spacing.
-        typesetContent (Right listElement) font size VT.JustifyLeft NormalPara 0 beforeLine afterLine
+        typesetContent (Right listElement) font (size) VT.JustifyLeft NormalPara 0 beforeLine afterLine
 
 -- Typesets the given table.
-typesetTable :: [[[VT.VText]]] -> VT.TableColumns -> Typesetter ()
+typesetTable :: [[[VT.VPara]]] -> VT.TableColumns -> Typesetter ()
 typesetTable tableContents columns = do
     RenderState{..} <- get
     RenderEnv{..} <- ask
@@ -593,12 +592,8 @@ typesetTable tableContents columns = do
                 let tText = do
                         setJustification Centered
                         paragraph $ do
-                            -- Convert all text into HPDF paragraphs.
-                            forM_ cell $ \(VT.VText txtContent style) -> do
-                                -- Apply styling to segment.
-                                let styledFont = getFont envFonts font style
-                                setStyle (Font (PDFFont styledFont cSize) black black)
-                                txt txtContent
+                            forM_ cell $ \vText -> do
+                                makeStyledText vText font cSize envFonts
 
                 -- Calculate cell position.
                 let cellX = marginX + (int2Double index * colWidth)
@@ -700,7 +695,7 @@ typesetVerbatim code mSize mNumbering = do
         else VerbatimPara (Rgb 0.94 0.94 0.94) 5 0 Nothing 0
 
     -- In case of no numbering and a line with spaces at the start the typesetting engine sees: "Space Space ....", since this is the start
-    -- of the line this is treated as unwanted glue and discarded. To solve this a zero width space is inserted, stopping this behaviour.
+    -- of the line this is treated as unwanted glue and discarded. To solve this a zero width space is inserted.
     let zws = T.singleton '\x200B'
 
     let formattedCode = do

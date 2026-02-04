@@ -44,7 +44,7 @@ unknownCommand c = recoverWith
     (PCommOpt (PParagraph [PNormal $ "\\" <> c]) POptionNone) 
     (UnknownCommand c)
 
-unknownText :: Text -> Parser PText
+unknownText :: Text -> Parser PPara
 unknownText c = recoverWith 
     (PNormal ("\\" <> c)) 
     (UnknownText c)
@@ -54,7 +54,7 @@ invalidOptions key msg = recoverWith
     (key, PText "") 
     (InvalidOptions msg)
 
-invalidMeta :: [PText] -> Parser [PText]
+invalidMeta :: [PPara] -> Parser [PPara]
 invalidMeta arg = recoverWith arg InvalidMeta
 
 unknownConfiguration :: Text -> Parser PConfigArg
@@ -161,7 +161,7 @@ parseMeta = DocumentMetadata
   where
     meta n = optional $ do
         void (string $ "\\" <> n)
-        arg <- braces parsePText
+        arg <- braces parsePPara
         o <- optional $ parseOptions
         case o of
             Nothing -> do
@@ -232,10 +232,10 @@ parseCommand lst = do
 -- Commands accepted in the document.
 documentCommandTable :: [CommandSpec]
 documentCommandTable =
-    [ mkSimpleCommand       "section"       parsePText      PSection
-    , mkSimpleCommand       "subsection"    parsePText      PSubsection
+    [ mkSimpleCommand       "section"       parsePPara      PSection
+    , mkSimpleCommand       "subsection"    parsePPara      PSubsection
     , mkSimpleCommand       "figure"        parseFilepath   PFigure
-    , mkBeginEndCommand     "paragraph"     parsePText      PParagraph
+    , mkBeginEndCommand     "paragraph"     parsePPara      PParagraph
     , mkBeginEndCommand     "table"         parseTable      PTable
     , mkBeginEndCommand     "list"          parseList       PList
     , mkBeginEndCommand     "verbatim"      parseVerbatim   PVerbatim
@@ -245,43 +245,91 @@ documentCommandTable =
 
 
 --------------------
+-- COMMAND PARSING FUNCTIONS
+--------------------
+-- Parses a filepath, doesn't check that it's valid. Follows POSIX standard "Fully portable filenames", adding spaces.
+parseFilepath :: Parser FilePath
+parseFilepath = label "filepath" $ do
+    t <- takeWhile1P (Just "filepath char") (\c -> DC.isAlphaNum c || elem c ("/\\-_. " :: String))
+    return (T.unpack t)
+
+-- The elements in a table row are separated by "|". A line ending is denoted by a "\\", that is two "\" characters.
+parseTable :: Parser [[[PPara]]]
+parseTable = label "table" $ sepEndBy1
+    (lexeme $ sepBy1 parsePPara (symbol "|"))
+    (do
+        void $ symbol "\\break"
+        void $ optional (string "{}")
+        sc ) -- Consume trailing whitespace-
+
+parseList :: Parser [[PPara]]
+parseList = label "list" $ many $ do
+    sc -- Consume leading whitespace.
+    void $ symbol "\\item"
+    void $ optional (string "{}")
+    t <- parsePPara
+    sc -- Consume trailing whitespace.
+
+    return t
+
+parseVerbatim :: Parser [Text]
+parseVerbatim = label "verbatim block" $ do
+    sepEndBy1 vLine eol
+
+  where
+    -- Type is needed, otherwise Haskell can't infer the type of the tokens.
+    vLine :: Parser Text
+    vLine = do
+        -- Stop parsing upon reaching and "\end" command.
+        notFollowedBy (string "\\end{verbatim}")
+        -- Consume everything but newlines.
+        takeWhileP (Just "code text") (`notElem` ['\n', '\r'])
+
+
+--------------------
 -- TEXT PARSING FUNCTIONS
 --------------------
--- Parses standalone blocks of text without commands, note that text modes are not commands.
+-- Parses standalone blocks of text without commands, note that paragraph modes are not commands.
 parseParagraph :: Parser PCommOpt
 parseParagraph = label "paragraph" $ do
-        t <- parsePText
+        t <- parsePPara
         void (optional eol)
         return $ PCommOpt (PParagraph t) POptionNone
 
-parsePText :: Parser [PText]
-parsePText = some (choice [parseSpecialText, PNormal <$> parseRawText])
+parsePPara :: Parser [PPara]
+parsePPara = some (choice [parseSpecialText, PNormal <$> parseRawText])
 
--- Similar idea to CommandSpec, simplified to the valid text types. In this case a quantifier isn't necessary, because all constructors take
--- a string as their argument.
-data TextType = TextType Text (Text -> PText)
-
-textTypesTable :: [TextType]
+-- Stores parsers for paragraph modes.
+textTypesTable :: [Parser PPara]
 textTypesTable = 
-    [ TextType  "bold"      PBold
-    , TextType  "italic"    PItalic
-    , TextType  "emph"      PEmphasised
+    [ paragraphTypeToParser "bold"      PBold
+    , paragraphTypeToParser "italic"    PItalic
+    , paragraphTypeToParser "emph"      PEmphasised
+    , paragraphTypeToParser "underline" PUnderlined
+    , parseVerbatimInline
+    , parseSpecialText
     ]
 
--- Creates a parser by applying the data constructor to the result of parsing the command name string; Followed by the parser for raw text.
-textTypeToParser :: TextType -> Parser PText
-textTypeToParser (TextType n c) = do
+-- Creates a parser for the given paragraph type.
+paragraphTypeToParser :: Text -> (Text -> PPara) -> Parser PPara
+paragraphTypeToParser n c = do
     void (string n) <?> mkErrStr "" n " command"
     t <- braces parseRawText <?> mkErrStr "" n " argument"
     return (c t)
 
-parseSpecialText :: Parser PText
+parseVerbatimInline :: Parser PPara
+parseVerbatimInline = do
+    void $ string "verbatim"
+    verb <- braces $ takeWhile1P (Just "verbatim content") (/= '}')
+    return $ PVerbatimPara verb
+
+parseSpecialText :: Parser PPara
 parseSpecialText = do
-    -- Forces parsePText to stop if a structural command is encountered.
+    -- Forces parsePPara to stop if a structural command is encountered.
     notFollowedBy (choice [string "\\item", string "\\end", string "\\break"])
     -- Parse text.
     void (char '\\') <?> "escape for special text"
-    choice (map (try . textTypeToParser) textTypesTable) <|> unknown where
+    choice (map try textTypesTable) <|> unknown where
         unknown = do
             c <- some letterChar
             unknownText (T.pack c)
@@ -304,21 +352,7 @@ parseRawTextLine = T.concat <$> some (try (T.singleton <$> escapedChar) <|> text
     -- commands would never match, since they would be treated as an escaped character.
     escapedChar = char '\\' *> oneOf controlChars <?> "escaped character"
 
--- Parses lines containing any characters until the specified end string is found.
-parseAnyText :: Text -> Parser [Text]
-parseAnyText end = label "any text block" $ do
-    sepEndBy1 vLine eol
 
-  where
-    -- Type is needed, otherwise Haskell can't infer the type of the tokens.
-    vLine :: Parser Text
-    vLine = do
-        -- Stop parsing upon reaching and "\end" command.
-        notFollowedBy (string end)
-        -- Consume everything but newlines.
-        takeWhileP (Just "code text") (`notElem` ['\n', '\r'])
-
---------------------
 -- CONFIGURATION PARSING FUNCTIONS
 --------------------
 parseConfigCommand :: Parser PConfig
@@ -360,38 +394,6 @@ parseConfigArg = label "config option" $ choice
     unknown = do
         c <- some letterChar
         unknownConfiguration (T.pack c)
-
-
---------------------
--- AUXILIARY PARSING FUNCTIONS
---------------------
--- Parses a filepath, doesn't check that it's valid. Follows POSIX standard "Fully portable filenames", adding spaces.
-parseFilepath :: Parser FilePath
-parseFilepath = label "filepath" $ do
-    t <- takeWhile1P (Just "filepath char") (\c -> DC.isAlphaNum c || elem c ("/\\-_. " :: String))
-    return (T.unpack t)
-
--- The elements in a table row are separated by "|". A line ending is denoted by a "\\", that is two "\" characters.
-parseTable :: Parser [[[PText]]]
-parseTable = label "table" $ sepEndBy1
-    (lexeme $ sepBy1 parsePText (symbol "|"))
-    (do
-        void $ symbol "\\break"
-        void $ optional (string "{}")
-        sc ) -- Consume trailing whitespace-
-
-parseList :: Parser [[PText]]
-parseList = label "list" $ many $ do
-    sc -- Consume leading whitespace.
-    void $ symbol "\\item"
-    void $ optional (string "{}")
-    t <- parsePText
-    sc -- Consume trailing whitespace.
-
-    return t
-
-parseVerbatim :: Parser [Text]
-parseVerbatim = parseAnyText "\\end"
 
 
 --------------------

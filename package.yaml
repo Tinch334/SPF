@@ -53,6 +53,9 @@ ghc-options:
 
 library:
   source-dirs: src
+  data-files:
+    - data/*.afm
+    - data/*.pfb
 
 executables:
   SPF-exe:

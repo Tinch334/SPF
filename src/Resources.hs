@@ -15,7 +15,6 @@ import Control.Concurrent.Async (mapConcurrently)
 
 import Data.Validation
 import qualified Data.Map as M
-
 import Data.Maybe (mapMaybe)
 import Data.List (nub)
 import qualified Data.ByteString.Lazy as BL
@@ -26,6 +25,8 @@ import GHC.Float (double2Int)
 
 import System.FilePath
 import System.Directory (doesFileExist)
+-- An auto-generated module that returns the path names for data files
+import Paths_SPF (getDataFileName)
 
 import Codec.Picture
 import Graphics.PDF.Fonts.Font (AnyFont)
@@ -136,20 +137,20 @@ loadResource (Located pos fullPath, Located _ originalPath) = do
 -- Loads all supported fonts.
 loadFonts :: IO LoadedFonts
 loadFonts = do
-    hInner <- loadFont SF.Helvetica
-    hbInner <- loadFont SF.Helvetica_Bold
-    hiInner <- loadFont SF.Helvetica_Oblique
-    hbiInner <- loadFont SF.Helvetica_BoldOblique
-    tInner <- loadFont SF.Times_Roman
-    tbInner <- loadFont SF.Times_Bold
-    tiInner <- loadFont SF.Times_Italic
-    tbiInner <- loadFont SF.Times_BoldItalic 
-    cInner <- loadFont SF.Courier
-    cbInner <- loadFont SF.Courier_Bold
-    ciInner <- loadFont SF.Courier_Oblique
-    cbiInner <- loadFont SF.Courier_BoldOblique
-    symbolsInner <- loadFont SF.Symbol
-    zapfInner <- loadFont SF.ZapfDingbats
+    hInner <- loadStandardFont SF.Helvetica
+    hbInner <- loadStandardFont SF.Helvetica_Bold
+    hiInner <- loadStandardFont SF.Helvetica_Oblique
+    hbiInner <- loadStandardFont SF.Helvetica_BoldOblique
+    tInner <- loadStandardFont SF.Times_Roman
+    tbInner <- loadStandardFont SF.Times_Bold
+    tiInner <- loadStandardFont SF.Times_Italic
+    tbiInner <- loadStandardFont SF.Times_BoldItalic 
+    cInner <- loadStandardFont SF.Courier
+    cbInner <- loadStandardFont SF.Courier_Bold
+    ciInner <- loadStandardFont SF.Courier_Oblique
+    cbiInner <- loadStandardFont SF.Courier_BoldOblique
+    symbolsInner <- loadStandardFont SF.Symbol
+    zapfInner <- loadStandardFont SF.ZapfDingbats
 
     let helveticaFamily = FontFamily hInner hbInner hiInner hbiInner
     let timesFamily = FontFamily tInner tbInner tiInner tbiInner
@@ -159,14 +160,14 @@ loadFonts = do
         { helvetica = helveticaFamily
         , times = timesFamily
         , courier = courierFamily
-        , symbols = symbolsInner
+        , code = cInner
         , zapf = zapfInner
         }
 
 -- Attempts to load a standard font.
-loadFont :: SF.FontName -> IO AnyFont
-loadFont f = do
-        fontOrErr <- SF.mkStdFont f
-        case fontOrErr of
-            Right lFont -> return lFont -- Loading standard fonts cannot fail.
-            Left _ -> error $ "INTERNAL: Failed to load font " ++ quote (T.pack $ show f)
+loadStandardFont :: SF.FontName -> IO AnyFont
+loadStandardFont f = do
+    fontOrErr <- SF.mkStdFont f
+    case fontOrErr of
+        Right lFont -> return lFont -- Loading standard fonts cannot fail.
+        Left _ -> error $ "INTERNAL: Failed to load font " ++ quote (T.pack $ show f)

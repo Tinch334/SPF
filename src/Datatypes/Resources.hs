@@ -35,6 +35,6 @@ data LoadedFonts = LoadedFonts
     { helvetica :: FontFamily
     , times     :: FontFamily
     , courier   :: FontFamily
-    , symbols   :: AnyFont
+    , code      :: AnyFont
     , zapf      :: AnyFont
     } deriving (Show, Eq)

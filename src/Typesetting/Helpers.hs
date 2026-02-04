@@ -27,7 +27,7 @@ import Graphics.PDF.Fonts.Font (AnyFont)
 -- CONVERSION FUNCTIONS
 ------------------------
 -- Takes the text from a list of VText.
-mergeVText :: [VText] -> Text
+mergeVText :: [VPara] -> Text
 mergeVText = foldl (\s vt -> s <> textCnt vt) ""
 
 -- Converts a page size token to it's size in points.
@@ -68,19 +68,23 @@ toRoman x
     | otherwise = ""
 
 -- Takes a font, style and returns the appropriate font.
-getFont :: LoadedFonts -> Font -> Datatypes.ValidatedTokens.TextStyle -> AnyFont
-getFont fonts family style = let
-    f = case family of
-        Datatypes.ValidatedTokens.Helvetica -> helvetica
-        Datatypes.ValidatedTokens.Courier -> courier
-        Datatypes.ValidatedTokens.Times -> times
-        _ -> error "INTERNAL: Given font has no family"
-    s = case style of
-        Normal -> normal
-        Bold -> bold
-        Italic -> italic
-        Emphasised -> boldItalic in
-    s (f fonts)
+getFont :: LoadedFonts -> Font -> Datatypes.ValidatedTokens.TextType -> AnyFont
+getFont fonts family style =
+    case style of
+        Datatypes.ValidatedTokens.Verbatim -> normal (courier fonts)
+        _ ->
+            let
+                f = case family of
+                    Datatypes.ValidatedTokens.Helvetica -> helvetica
+                    Datatypes.ValidatedTokens.Courier -> courier
+                    Datatypes.ValidatedTokens.Times -> times
+                    _ -> error "INTERNAL: Given font has no family"
+                s = case style of
+                    Bold -> bold
+                    Italic -> italic
+                    Emphasised -> boldItalic
+                    _ -> normal
+            in s (f fonts)
 
 ------------------------
 -- ELEMENT MAKER FUNCTIONS

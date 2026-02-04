@@ -11,7 +11,7 @@ module Datatypes.ParseTokens
     , PConfig(..)
     , PCommOpt(..)
     , PComm(..)
-    , PText(..)
+    , PPara(..)
     , PConfigArg(..)
     ) where
 
@@ -33,9 +33,9 @@ data ParsedDocument = ParsedDocument
 
 -- Location information is not included since there's no options to validate.
 data DocumentMetadata = DocumentMetadata
-    { mdTitle  :: Maybe [PText]
-    , mdAuthor :: Maybe [PText]
-    , mdDate   :: Maybe [PText]
+    { mdTitle  :: Maybe [PPara]
+    , mdAuthor :: Maybe [PPara]
+    , mdDate   :: Maybe [PPara]
     } deriving (Eq)
 
 
@@ -62,25 +62,27 @@ data PConfig = PConfig PConfigArg POption
 data PCommOpt = PCommOpt PComm POption
    deriving (Eq, Ord)
 
-data PComm  = PSection      [PText]
-            | PSubsection   [PText]
+data PComm  = PSection      [PPara]
+            | PSubsection   [PPara]
             | PFigure       FilePath
             -- The \begin and \end tags can be detected during parsing, an removed in favour of a singular tag. The "document" tag is not
             -- included since there has to be only one per document.
-            | PTable        [[[PText]]] -- The type a list of lists of lists, represents the rows(a list), having multiple columns(a list) each
+            | PTable        [[[PPara]]] -- The type a list of lists of lists, represents the rows(a list), having multiple columns(a list) each
                                        -- of which is a block of PText(a list).
-            | PList         [[PText]]
-            | PParagraph    [PText] -- Used for both regular paragraphs and those enclosed in begin/end.
+            | PList         [[PPara]]
+            | PParagraph    [PPara] -- Used for both regular paragraphs and those enclosed in begin/end.
             | PVerbatim     [Text]
             | PNewpage
             | PHLine
             deriving (Eq, Ord)
 
-
-data PText  = PNormal       Text
+-- All the elements that can be found in a paragraph.
+data PPara  = PNormal       Text
             | PBold         Text
             | PItalic       Text
             | PEmphasised   Text
+            | PUnderlined   Text
+            | PVerbatimPara Text
             deriving (Eq, Ord)
 
 data PConfigArg = PSize
@@ -112,7 +114,7 @@ data PConfigArg = PSize
 -- SHOW INSTANCES
 --------------------
 -- Flattens a list of PText into a single string for display.
-showPTextList :: [PText] -> String
+showPTextList :: [PPara] -> String
 showPTextList = unwords . map show
 
 -- Make verbose output more legible.
@@ -165,8 +167,10 @@ instance Show PComm where
     show PNewpage           = "  [NEWPAGE]"
     show PHLine             = "  [HLINE]"
 
-instance Show PText where
+instance Show PPara where
     show (PNormal t)        = T.unpack t
     show (PBold t)          = "*" ++ T.unpack t ++ "*"
     show (PItalic t)        = "_" ++ T.unpack t ++ "_"
     show (PEmphasised t)    = "!" ++ T.unpack t ++ "!"
+    show (PUnderlined t)    = "{" ++ T.unpack t ++ "}"
+    show (PVerbatimPara t)  = "|" ++ T.unpack t ++ "|"
