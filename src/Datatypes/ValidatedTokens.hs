@@ -66,7 +66,7 @@ newtype Pt = Pt Double
 newtype PageWidth = PageWidth Double
     deriving (Eq, Ord)
 
-newtype FontSize = FontSize Double
+newtype FontSize = FontSize Int
     deriving (Eq, Ord)
 
 type Caption = Text

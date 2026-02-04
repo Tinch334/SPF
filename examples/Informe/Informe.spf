@@ -119,7 +119,7 @@ Una vez que se tiene un AST valido falta la parte mas importante, transformarlo 
 
 Habiendo usado esta libreria puedo decir que si bien es muy poderosa \italic{tiene problemas}, el principal y del cual derivan la mayoria es que es una libreria con muy pocos usuarios. Como consequencia de esto hay muy poca informacion sobre la libreria. La documentacion esta incompleta, muchas funciones tienen explicaciones muy pobres, si es que tienen. Sumado a esto nunca se explica la estructura o flujo general de un programa hecho con \bold{HPDF}, ni como se conectan los distintos componentes de la libreria.
 
-Lo que me permitio entender como funciona la libreria fue el archivo de prueba(\bold{Test/test.hs}) en el repositorio del proyecto. Este prueba casi todas las funciones de la libreria generando un documento. Me permitio ver un ejemplo en funcionamiento de la misma al mismo tiempo que me permitia expermientar y realizar cambios para ver \italic{exactamente} como funcionaba la libreria.
+Lo que me permitio entender como funciona la libreria fue el archivo de prueba(\bold{Test\/test.hs}) en el repositorio del proyecto. Este prueba casi todas las funciones de la libreria generando un documento. Me permitio ver un ejemplo en funcionamiento de la misma al mismo tiempo que me permitia expermientar y realizar cambios para ver \italic{exactamente} como funcionaba la libreria.
 
 \subsection{Un error en HPDF}
 \figure{Img/WidthError.png}[width: 0.85, caption: "Un ejemplo del error"]

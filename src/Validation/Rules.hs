@@ -71,13 +71,13 @@ setToggle f = emptyVConfig { toggles = f (toggles emptyVConfig) }
 
 -- General schemas, there are several options that share the same values, avoids repetition.
 schemaSize :: (FontSize -> VConfig) -> Schema VConfig
-schemaSize setter = setter <$> requireNumberWith "size" (validateNumInst (> 0) FontSize) "Size must be positive"
+schemaSize setter = setter <$> requireIntegerWith "size" (validateNumInst (> 0) FontSize) "Size must be positive"
 
 schemaSpacing :: (Spacing -> VConfig) -> Schema VConfig
-schemaSpacing setter = setter <$> (Spacing <$> (Pt <$> requireNumber "before") <*> (Pt <$> requireNumber "after"))
+schemaSpacing setter = setter <$> (Spacing <$> (Pt <$> requireFloat "before") <*> (Pt <$> requireFloat "after"))
 
 schemaMargin :: (Pt -> VConfig) -> Schema VConfig
-schemaMargin setter = setter <$> requireNumberWith "margin" (validateNumInst (> 0) Pt) "Margin must be positive"
+schemaMargin setter = setter <$> requireFloatWith "margin" (validateNumInst (> 0) Pt) "Margin must be positive"
 
 schemaNumbering :: (Bool -> VConfig) -> Schema VConfig
 schemaNumbering setter = setter <$> requireBool "numbering"
@@ -92,8 +92,8 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $
              [ ensureValidKeys "Invalid page size" ["size"] 
                 (requireTextWith "size" (validateEnum pageSizes) "Unknown page size" <&> \x -> setLayout (\c -> c { pageSize = Just x }))
              , ensureValidKeys "Invalid custom size" ["width", "height"]
-                (SizeCustom <$> requireNumberWith "width" (validateNumInst (> 0) Pt) "Width > 0" 
-                            <*> requireNumberWith "height" (validateNumInst (> 0) Pt) "Height > 0" 
+                (SizeCustom <$> requireFloatWith "width" (validateNumInst (> 0) Pt) "Width > 0" 
+                            <*> requireFloatWith "height" (validateNumInst (> 0) Pt) "Height > 0" 
                             <&> \x -> setLayout (\c -> c { pageSize = Just x }))
              ]) (getOpts opt)
 
@@ -121,7 +121,7 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $
         PVerbatimSize   -> simpleSchema ["size"] (schemaSize (\x -> setSize (\c -> c { verbatimSize = Just x })))
         
         PParIndent -> simpleSchema ["indent"] 
-            (requireNumberWith "indent" (validateNumInst (> 0) Pt) "Indent > 0" <&> \x -> setSpacing (\c -> c { parIndent = Just x }))
+            (requireFloatWith "indent" (validateNumInst (> 0) Pt) "Indent > 0" <&> \x -> setSpacing (\c -> c { parIndent = Just x }))
 
         -- Spacing rules.
         PSectionspacing     -> simpleSchema ["before", "after"] (schemaSpacing (\x -> setSpacing (\c -> c { sectionSp = Just x })))
@@ -184,7 +184,7 @@ genericFontCmd cons text (POptionMap o) =
   runSchema (ensureValidKeys ("Expected some of fields " ++ quoteList ["font", "size"]) ["font", "size"]
     (cons (validateText text) 
         <$> tryTextWith "font" (validateEnum fonts) "Unknown font"
-        <*> tryNumberWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive"
+        <*> tryIntegerWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive"
     )) o
 genericFontCmd cons text POptionNone = Success $ cons (validateText text) Nothing Nothing
 
@@ -192,7 +192,7 @@ namedFigure p (POptionMap o) =
     if isValid p then runSchema
         (ensureValidKeys ("Expected some of fields " ++ quoteList ["width", "caption"]) ["width", "caption"]
             (VFigure p 
-                    <$> requireNumberWith "width" (validateNumInst (\n -> n > 0 && n <= 1) PageWidth) "Figure width must be between 0 and 1"
+                    <$> requireFloatWith "width" (validateNumInst (\n -> n > 0 && n <= 1) PageWidth) "Figure width must be between 0 and 1"
                     <*> tryText "caption"
             )) o
     else Failure ["Invalid filepath " ++ quote (T.pack p)]
@@ -200,7 +200,7 @@ namedFigure _ POptionNone = Failure ["Expected one numeric value (width)"]
 
 namedTable :: [[[PPara]]] -> POption -> CommandValidationType
 namedTable cnt (POptionMap o) =
-    let columnCount = runSchema (ensureValidKeys "Expected one numeric value (columns)" ["columns"] (requireNumberWith "columns" (validateNumInst (> 0) (\d -> double2Int d)) "Column number must be positive")) o
+    let columnCount = runSchema (ensureValidKeys "Expected one numeric value (columns)" ["columns"] (requireIntegerWith "columns" (validateNumInst (> 0) (\i -> i)) "Column number must be positive")) o
         in case columnCount of
             Success tc -> VTable <$> validateTableMatrix cnt tc <*> pure tc
             Failure e -> Failure e
@@ -233,7 +233,7 @@ namedParagraph txt (POptionMap o) =
             ["font", "size", "justification"]
             ( VParagraph (validateText txt)
                 <$> tryTextWith "font" (validateEnum fonts) "Unknown font"
-                <*> tryNumberWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive"
+                <*> tryIntegerWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive"
                 <*> tryTextWith "justification" (validateEnum justifications) ("Expected field " ++ quote "justification" ++ " to be one of " ++ quoteList ["left", "right", "centred", "full"])
             )
         ) o
@@ -246,7 +246,7 @@ namedVerbatim code (POptionMap o) =
             ("Expected some of fields" ++ quoteList ["size", "numbering"])
             ["size", "numbering"]
             ( VVerbatim code
-                <$> tryNumberWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive")
+                <$> tryIntegerWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive")
                 <*> tryBool "numbering"
         ) o
 namedVerbatim code POptionNone = Success $ VVerbatim code Nothing Nothing
@@ -258,8 +258,8 @@ namedHLine (POptionMap o) =
             ("Expected some of fields" ++ quoteList ["width", "thickness"])
             ["width", "thickness"]
             ( VHLine
-                <$> requireNumberWith "width" (validateNumInst (\n -> n > 0 && n <= 1) PageWidth) "HLine width must be between 0 and 1"
-                <*> tryNumberWith "thickness" (validateNumInst (> 0) Pt) "HLine thickness must be positive"
+                <$> requireFloatWith "width" (validateNumInst (\n -> n > 0 && n <= 1) PageWidth) "HLine width must be between 0 and 1"
+                <*> tryFloatWith "thickness" (validateNumInst (> 0) Pt) "HLine thickness must be positive"
             )
         ) o
 namedHLine POptionNone = Failure $ ["Expected one numeric value (width)"]

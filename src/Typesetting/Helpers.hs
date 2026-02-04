@@ -3,13 +3,11 @@
 module Typesetting.Helpers
     ( mergeVText
     , pageSizeToRect
-    , convertFontSize
-    , convertAdjustFontSize
-    , fromPt
+    , adjustFontSize
     , toRoman
     , getFont
-    , generateDocInfo )
-    where
+    , generateDocInfo
+    ) where
 
 import Datatypes.ValidatedTokens
 import Datatypes.Resources
@@ -17,7 +15,7 @@ import Typesetting.Styles
 
 import Data.Text (Text)
 
-import GHC.Float (double2Int)
+import GHC.Float (double2Int, int2Double)
 
 import Graphics.PDF
 import Graphics.PDF.Fonts.Font (AnyFont)
@@ -37,16 +35,9 @@ pageSizeToRect SizeA3 = PDFRect 0 0 841 1190
 pageSizeToRect SizeLegal = PDFRect 0 0 612 1009
 pageSizeToRect (SizeCustom (Pt w) (Pt h)) = PDFRect 0 0 w h
 
--- HPDF only accepts integer font sizes.
-convertFontSize :: Datatypes.ValidatedTokens.FontSize -> Int
-convertFontSize (FontSize pt) = double2Int pt
-
 -- Scale the given font size.
-convertAdjustFontSize :: Datatypes.ValidatedTokens.FontSize -> Double -> Int
-convertAdjustFontSize (FontSize pt) a = double2Int (pt * a)
-
-fromPt :: Pt -> Double
-fromPt (Pt s) = s
+adjustFontSize :: Datatypes.ValidatedTokens.FontSize -> Double -> Datatypes.ValidatedTokens.FontSize
+adjustFontSize (FontSize pt) a = FontSize (double2Int $ (int2Double pt) * a)
 
 -- Converts and integer to a Roman numeral.
 toRoman :: Int -> String
@@ -68,23 +59,21 @@ toRoman x
     | otherwise = ""
 
 -- Takes a font, style and returns the appropriate font.
-getFont :: LoadedFonts -> Font -> Datatypes.ValidatedTokens.TextType -> AnyFont
-getFont fonts family style =
-    case style of
-        Datatypes.ValidatedTokens.Verbatim -> normal (courier fonts)
-        _ ->
-            let
-                f = case family of
-                    Datatypes.ValidatedTokens.Helvetica -> helvetica
-                    Datatypes.ValidatedTokens.Courier -> courier
-                    Datatypes.ValidatedTokens.Times -> times
-                    _ -> error "INTERNAL: Given font has no family"
-                s = case style of
-                    Bold -> bold
-                    Italic -> italic
-                    Emphasised -> boldItalic
-                    _ -> normal
-            in s (f fonts)
+--getFont :: LoadedFonts -> Font -> Datatypes.ValidatedTokens.TextType -> AnyFont
+getFont fonts family style (Datatypes.ValidatedTokens.FontSize size) =
+    let
+        f = case family of
+            Datatypes.ValidatedTokens.Helvetica -> helvetica
+            Datatypes.ValidatedTokens.Courier -> courier
+            Datatypes.ValidatedTokens.Times -> times
+            _ -> error "INTERNAL: Given font has no family"
+        s = case style of
+            Bold -> bold
+            Italic -> italic
+            Emphasised -> boldItalic
+            _ -> normal
+
+    in (Font (PDFFont (s $ f fonts) size) black black)
 
 ------------------------
 -- ELEMENT MAKER FUNCTIONS

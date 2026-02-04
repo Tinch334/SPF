@@ -42,7 +42,8 @@ data DocumentMetadata = DocumentMetadata
 --------------------
 -- DATATYPE DEFINITIONS
 --------------------
-data POptionValue   = PNumber   Double
+data POptionValue   = PFloat    Double
+                    | PInteger  Int
                     | PText     Text
                     | PBool     Bool
                     deriving (Eq, Ord)
@@ -144,7 +145,7 @@ instance Show POption where
     show POptionNone = "(No Options)"
 
 instance Show POptionValue where
-    show (PNumber n) = show n
+    show (PFloat n) = show n
     show (PText t)   = show t
     show (PBool b)   = show b
 

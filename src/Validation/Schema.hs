@@ -7,7 +7,8 @@ module Validation.Schema
     -- Primitives.
     , requireText, tryText
     , requireTextWith, tryTextWith
-    , requireNumber, requireNumberWith, tryNumberWith
+    , requireFloat, requireFloatWith, tryFloatWith
+    , requireInteger, requireIntegerWith, tryIntegerWith
     , requireBool, tryBool
     , ensureValidKeys
     -- Generic validators.
@@ -95,9 +96,20 @@ asText :: POptionValue -> Maybe Text
 asText (PText t) = Just t
 asText _ = Nothing
 
-asNumber :: POptionValue -> Maybe Double
-asNumber (PNumber n) = Just n
-asNumber _ = Nothing
+-- This function has automatic value promotion. This is done so that if a user writes an integer in a float field it will still be accepted.
+asFloat :: POptionValue -> Maybe Double
+asFloat (PFloat n) = Just n
+asFloat (PInteger n) = Just $ fromIntegral n
+asFloat _ = Nothing
+
+-- This function has automatic value promotion. This is done so that if a user writes an float style value, with a 0 in the decimal part the
+-- value will still be accepted. For example "10.0" would be accepted but "10.2" would not.
+asInteger :: POptionValue -> Maybe Int
+asInteger (PInteger n) = Just n
+asInteger (PFloat n)
+    | n == fromInteger (round n) = Just $ round n
+    | otherwise = Nothing
+asInteger _ = Nothing
 
 asBool :: POptionValue -> Maybe Bool
 asBool (PBool b) = Just b
@@ -125,14 +137,24 @@ tryTextWith :: Text -> (Text -> Maybe a) -> String -> Schema (Maybe a)
 tryTextWith k vf err = getMaybeWith k (asText >=> vf) err
 
 
-requireNumber :: Text -> Schema Double
-requireNumber k = getRequiredWith k asNumber ("Expected number key for " ++ quote k)
+requireFloat :: Text -> Schema Double
+requireFloat k = getRequiredWith k asFloat ("Expected number key for " ++ quote k)
 
-requireNumberWith :: Text -> (Double -> Maybe a) -> String -> Schema a
-requireNumberWith k vf err = getRequiredWith k (asNumber >=> vf) err
+requireFloatWith :: Text -> (Double -> Maybe a) -> String -> Schema a
+requireFloatWith k vf err = getRequiredWith k (asFloat >=> vf) err
 
-tryNumberWith :: Text -> (Double -> Maybe a) -> String -> Schema (Maybe a)
-tryNumberWith k vf err = getMaybeWith k (asNumber >=> vf) err
+tryFloatWith :: Text -> (Double -> Maybe a) -> String -> Schema (Maybe a)
+tryFloatWith k vf err = getMaybeWith k (asFloat >=> vf) err
+
+
+requireInteger :: Text -> Schema Int
+requireInteger k = getRequiredWith k asInteger ("Expected integer key for " ++ quote k)
+
+requireIntegerWith :: Text -> (Int -> Maybe a) -> String -> Schema a
+requireIntegerWith k vf err = getRequiredWith k (asInteger >=> vf) err
+
+tryIntegerWith :: Text -> (Int -> Maybe a) -> String -> Schema (Maybe a)
+tryIntegerWith k vf err = getMaybeWith k (asInteger >=> vf) err
 
 
 requireBool :: Text -> Schema Bool

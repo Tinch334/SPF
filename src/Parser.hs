@@ -317,6 +317,7 @@ paragraphTypeToParser n c = do
     t <- braces parseRawText <?> mkErrStr "" n " argument"
     return (c t)
 
+-- The parsing function for a verbatim environment cannot be used because it accepts newlines.
 parseVerbatimInline :: Parser PPara
 parseVerbatimInline = do
     void $ string "verbatim"
@@ -425,14 +426,23 @@ parseOptionMap = label "option pair" $ do
 parseOptionValue :: Parser POptionValue
 parseOptionValue = label "option value" $ choice
     [ PBool <$> boolean
-    , PNumber . DS.toRealFloat <$> L.scientific -- Handles integrals, floating point numbers, etc automatically.
+    , number
     , PText <$> stringLiteral
     , PText . T.pack <$> identifier
     ]
 
   where
     boolean = string "true" *> return True <|> string "false" *> return False
+
+    -- Handles integrals, floating point numbers, etc automatically. This is done to avoid partial parsing errors. 
+    number = do
+        v <- L.scientific
+        case DS.floatingOrInteger v of
+            Left f -> return $ PFloat f
+            Right i -> return $ PInteger i
+
     stringLiteral = between (char '"') (char '"') parseRawTextLine
+    
     identifier = do
         t <- some alphaNumChar
         notFollowedBy (symbol ":")

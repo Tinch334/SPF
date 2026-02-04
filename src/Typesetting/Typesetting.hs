@@ -161,9 +161,9 @@ pdfLift :: (MonadTrans t1, MonadTrans t2, Monad m, Monad (t2 m)) => m a -> t1 (t
 pdfLift = lift . lift
 
 --makeStyledText :: VT.VPara -> VT.Font -> Int -> LoadedFonts -> Para ()
-makeStyledText (VT.VPara txtContent style) font cSize fonts = do
-    let styledFont = getFont fonts font style
-    setStyle (Font (PDFFont styledFont cSize) black black)
+makeStyledText (VT.VPara txtContent style) font size fonts = do
+    let styledFont = getFont fonts font style size
+    setStyle styledFont
     txt txtContent
 
 -- Checks if the cursor is below the bottom margin.
@@ -211,7 +211,7 @@ makeNewPage mode = do
         let (_, bottomMargin) = envVertMargin
         -- Get the page number centred in the bottom area of the margin.
         let rect = Rectangle (hMargin :+ (bottomMargin * 0.2)) ((envPageWidth - hMargin) :+ (bottomMargin * 0.6))
-        let font = getFont envFonts (rcFont $ styles envConfig) VT.Normal
+        let font = getFont envFonts (rcFont $ styles envConfig) VT.Normal (VT.FontSize 12)
 
         let pnStr = case numbering of
                 VT.NumberingArabic -> show newPageNumber
@@ -225,7 +225,7 @@ makeNewPage mode = do
         -- Whilst this function doesn't handle overflows from the render area properly they should never happen; Since a number would have to
         -- be as wide as the page area for that to be a problem.
         pdfLift $ drawWithPage rsCurrentPage $ do
-            displayFormattedText rect NormalParagraph (Font (PDFFont font 12) black black) $ do
+            displayFormattedText rect NormalParagraph font $ do
                 setJustification Centered
                 paragraph $ txt (T.pack pnStr)
 
@@ -247,8 +247,6 @@ typesetContent content font size just paraStyle indent beforeSpace afterSpace = 
 
     -- Maps VPara tokens to PDF typesetting instructions. Defined with in function so we can use "let" defined variables.
     let textGenerator vPara = do
-            let cSize = convertFontSize size
-
             -- Set justification and convert to PDF data.
             setJustification $ case just of
                     VT.JustifyLeft   -> LeftJustification
@@ -259,14 +257,14 @@ typesetContent content font size just paraStyle indent beforeSpace afterSpace = 
             paragraph $ do
                 kern indent
                 forM_ vPara $ \vText -> do
-                    makeStyledText vText font cSize envFonts
+                    makeStyledText vText font size envFonts
 
     -- The content is converted into a list of renderable boxes. The style 'NormalParagraph' is used as the baseline context.
     let cnt = case content of
             Left text -> textGenerator text
             Right block -> block
     --let styleObj = NormalPara $ PDFFont (getFont envFonts font Normal) (convertFontSize size)
-    let boxes = getBoxes paraStyle (Font (PDFFont (getFont envFonts font VT.Normal) (convertFontSize size)) black black) cnt
+    let boxes = getBoxes paraStyle (getFont envFonts font VT.Normal size) cnt
     
     fillBoxLoop boxes paraStyle
   where
@@ -320,10 +318,10 @@ typesetTitlepage meta = do
 
     let font = rcFont (styles envConfig)
 
-    let (VT.FontSize baseSize) = rcTitleSize (sizes envConfig)
-    let sizeTitle  = VT.FontSize baseSize
-    let sizeAuthor = VT.FontSize (baseSize * 0.6)
-    let sizeDate   = VT.FontSize (baseSize * 0.45)
+    let baseSize = rcTitleSize (sizes envConfig)
+    let sizeTitle  = baseSize
+    let sizeAuthor = adjustFontSize baseSize 0.6
+    let sizeDate   = adjustFontSize baseSize 0.45
 
     -- Element spacing
     let largeGap = envPageHeight * 0.05
@@ -479,7 +477,7 @@ typesetFigureInner path gw@(VT.PageWidth givenWidth) mCap newpageAllowed = do
         let finalCaption = if numberingEnabled then T.pack ("Figure " ++ show newNumber ++ ": ") <> caption else caption
 
         -- Generate and format the text, then put it in a box.
-        let boxes = getBoxes NormalPara (Font (PDFFont (getFont envFonts font VT.Normal) 12) black black) $ do
+        let boxes = getBoxes NormalPara (getFont envFonts font VT.Normal (VT.FontSize 12)) $ do
                 setJustification Centered
                 paragraph $ do 
                     txt finalCaption
@@ -524,12 +522,14 @@ typesetList items mStyle = do
     let sizeCfg  = sizes cfg
 
     let size = rcParSize sizeCfg
-    let (VT.FontSize sizeValue) = size
+    let (VT.FontSize sv) = size
+    let sizeValueFloat = int2Double sv
     let font = rcFont styleCfg
     let (VT.Spacing (VT.Pt beforeSpace) (VT.Pt afterSpace)) = rcListSp (spacing cfg)
 
     let styleToken = fromMaybe (rcListType styleCfg) mStyle
-    let styleZap = setStyle (Font (PDFFont (zapf fonts) (convertAdjustFontSize size 0.6)) black black)
+    let (VT.FontSize itemSize) = adjustFontSize size 0.6
+    let styleZap = setStyle (Font (PDFFont (zapf fonts) itemSize) black black)
 
     -- The style is a function that takes the item's position in the list and returns the element to typeset.
     let styleFunction = case styleToken of
@@ -543,23 +543,23 @@ typesetList items mStyle = do
                 styleZap
                 txt $ "➤"
             VT.ListNumber -> \n -> do
-                setStyle (Font (PDFFont (getFont fonts font VT.Normal) (convertFontSize size)) black black)
+                setStyle (getFont fonts font VT.Normal size)
                 txt $ T.pack $ show n ++ "."
 
     -- Typeset list.
     forM_ (zip items [1..(length items)]) $ \(line, i) -> do
         let beforeLine = if i == 1 then beforeSpace else 0
-        let afterLine = if i == length items then afterSpace else sizeValue * 0.7
+        let afterLine = if i == length items then afterSpace else sizeValueFloat * 0.7
 
         let listElement = do
                 setJustification LeftJustification
                 paragraph $ do
-                    kern sizeValue
+                    kern sizeValueFloat
                     styleFunction i
-                    kern $ sizeValue * 0.5
+                    kern $ sizeValueFloat * 0.5
                     -- Convert all text into HPDF paragraphs.
                     forM_ line $ \vText -> do
-                        makeStyledText vText font (convertFontSize size) fonts
+                        makeStyledText vText font size fonts
 
         -- Typeset each line individually to properly control line spacing.
         typesetContent (Right listElement) font (size) VT.JustifyLeft NormalPara 0 beforeLine afterLine
@@ -575,15 +575,15 @@ typesetTable tableContents columns = do
     modify $ \s -> s { rsCurrentY = rsCurrentY - beforeSpace }
 
     let font = rcFont (styles envConfig)
-    let cSize = convertFontSize (rcParSize (sizes envConfig))
+    let fs@(VT.FontSize size) = rcParSize $ sizes envConfig
 
     -- Calculate width of each column.
     let (VT.Pt marginX) = rcMarginHoz (layout envConfig)
     let (_, bottomMargin) = envVertMargin
     let colWidth = (envPageWidth - marginX * 2) / (int2Double columns) 
 
-    let cellBeforeSpacing = (int2Double cSize) * 0.4
-    let cellAfterSpacing = (int2Double cSize) * 0.35
+    let cellBeforeSpacing = (int2Double size) * 0.4
+    let cellAfterSpacing = (int2Double size) * 0.35
 
     -- Helper function to layout a single row without committing state changes yet.
     let layoutRow rowItems startY = do
@@ -593,7 +593,7 @@ typesetTable tableContents columns = do
                         setJustification Centered
                         paragraph $ do
                             forM_ cell $ \vText -> do
-                                makeStyledText vText font cSize envFonts
+                                makeStyledText vText font fs envFonts
 
                 -- Calculate cell position.
                 let cellX = marginX + (int2Double index * colWidth)
@@ -605,7 +605,7 @@ typesetTable tableContents columns = do
                 let verState = defaultVerState NormalParagraph
 
                 -- Make boxes and fill container.
-                let boxes = getBoxes NormalParagraph (Font (PDFFont (getFont envFonts font VT.Normal) cSize) black black) tText
+                let boxes = getBoxes NormalParagraph (getFont envFonts font VT.Normal fs) tText
                 let (action, usedContainer, remaining) = fillContainer verState container boxes
                 
                 -- Determine the bottom Y of this specific cell
@@ -672,11 +672,9 @@ typesetVerbatim code mSize mNumbering = do
     let sizeCfg = sizes cfg
     let spaceCfg = spacing cfg
     let layoutCfg = layout cfg
-
-    let codeFontType = VT.Courier
-    let (VT.FontSize codeFontSize) = fromMaybe (rcVerbatimSize sizeCfg) mSize
-    let styledFont = getFont fonts codeFontType VT.Normal
-    let pdfFont = PDFFont styledFont (double2Int codeFontSize)
+    
+    let fs@(VT.FontSize codeFontSize) = fromMaybe (rcVerbatimSize sizeCfg) mSize
+    let styledFont@(Font pdfFont _ _) = (Font (PDFFont (normal $ courier fonts) codeFontSize) black black)
 
     let numbering = fromMaybe (rcVerbatimNumbering (toggles cfg)) mNumbering
     let (VT.Spacing (VT.Pt beforeSpace) (VT.Pt afterSpace)) = rcVerbatimSp spaceCfg
@@ -691,7 +689,7 @@ typesetVerbatim code mSize mNumbering = do
     -- Line wrapping would be a problem if we simply typeset lines and numbers "normally", instead we use a "hanging indent". The cursor starts
     -- where the code starts (because of linePosition). We move back to the start of the line to draw the line number.
     let paraFormat = if numbering
-        then VerbatimPara (Rgb 0.94 0.94 0.94) 5 0 (Just $ codeFontSize * 0.5) totalGutter
+        then VerbatimPara (Rgb 0.94 0.94 0.94) 5 0 (Just $ (int2Double codeFontSize) * 0.5) totalGutter
         else VerbatimPara (Rgb 0.94 0.94 0.94) 5 0 Nothing 0
 
     -- In case of no numbering and a line with spaces at the start the typesetting engine sees: "Space Space ....", since this is the start
@@ -721,7 +719,7 @@ typesetVerbatim code mSize mNumbering = do
                     txt $ zws <> line
                     forceNewLine
 
-    typesetContent (Right formattedCode) codeFontType (VT.FontSize codeFontSize) VT.JustifyLeft paraFormat 0 beforeSpace afterSpace
+    typesetContent (Right formattedCode) (VT.Courier) fs VT.JustifyLeft paraFormat 0 beforeSpace afterSpace
 
 -- Draw a horizontal line at the cursors current position.
 typesetHLine :: VT.PageWidth -> Maybe VT.Pt -> Typesetter ()
