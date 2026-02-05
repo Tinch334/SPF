@@ -124,7 +124,7 @@ Lo que me permitió entender como funciona la librería fue el archivo de prueba
 \subsection{Un error en HPDF}
 Mientras estaba escribiendo un informe descubrí un bug en \verb{HPDF}, este error provoca que dadas ciertas condiciones el algoritmo de \italic{line breaking} no funcione. Gracias a errores de redondeo de punto flotante puede ocurrir que una palabra no sea lo suficientemente larga como para causar un \italic{line break} pero que si sea lo suficientemente larga como para exceder el margen de la caja donde está siendo typeseteada. Esto causa que el algoritmo deje de introducir \italic{line breaks} por completo.
 
-\begin{paragraph}[style: left]
+\begin{paragraph}[style: center]
 En la figura de abajo se ve como el bloque de texto \quote{autoexplicativa:} excede levemente el margen derecho, causando el bug antes descrito. En base a mi entendimiento de la librería para solucionar este bug es necesario modificar el codigo fuente de la misma, algo que excede el alcance del trabajo.
 \end{paragraph}
 

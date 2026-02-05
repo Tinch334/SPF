@@ -52,9 +52,9 @@ paragraphStyles = [("normal", StyleNormal), ("left", StyleLeft), ("right", Style
 listStyles :: [(Text, ListStyle)]
 listStyles = [("bullet", ListBullet), ("square", ListSquare), ("arrow", ListArrow), ("number", ListNumber)]
 
-
+-- Helper to generate error with expected values using enum lists.
 expectedFieldError :: Text ->[(Text, a)] -> String
-expectedFieldError field lst = "Expected field " ++ quote field ++ " to be one of " ++ (quoteList $ map fst listStyles)
+expectedFieldError field lst = "Expected field " ++ quote field ++ " to be one of " ++ (quoteList $ map fst lst)
 
 --------------------
 -- CONFIGURATION VALIDATION
