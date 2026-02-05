@@ -160,11 +160,18 @@ typesetElements elements = do
 pdfLift :: (MonadTrans t1, MonadTrans t2, Monad m, Monad (t2 m)) => m a -> t1 (t2 m) a
 pdfLift = lift . lift
 
---makeStyledText :: VT.VPara -> VT.Font -> Int -> LoadedFonts -> Para ()
+--makeStyledText :: VT.VPara -> VT.Font -> VT.FontSize -> LoadedFonts -> TM CustomParaStyle StandardStyle ()
 makeStyledText (VT.VPara txtContent style) font size fonts = do
-    let styledFont = getFont fonts font style size
+    let styledFont = case style of
+            VT.Verbatim -> getVerbatimFont fonts size
+            _ -> getFont fonts font style size
+
+    let finalText = case style of
+            VT.Quoted -> "“" <> txtContent <> "”"
+            _ -> txtContent
+
     setStyle styledFont
-    txt txtContent
+    txt finalText
 
 -- Checks if the cursor is below the bottom margin.
 checkSpace :: Typesetter (Bool)
@@ -674,7 +681,7 @@ typesetVerbatim code mSize mNumbering = do
     let layoutCfg = layout cfg
     
     let fs@(VT.FontSize codeFontSize) = fromMaybe (rcVerbatimSize sizeCfg) mSize
-    let styledFont@(Font pdfFont _ _) = (Font (PDFFont (normal $ courier fonts) codeFontSize) black black)
+    let styledFont@(Font pdfFont _ _) = getVerbatimFont fonts fs
 
     let numbering = fromMaybe (rcVerbatimNumbering (toggles cfg)) mNumbering
     let (VT.Spacing (VT.Pt beforeSpace) (VT.Pt afterSpace)) = rcVerbatimSp spaceCfg
@@ -697,7 +704,7 @@ typesetVerbatim code mSize mNumbering = do
     let zws = T.singleton '\x200B'
 
     let formattedCode = do
-            setWritingSystem UnknownWritingSystem
+            setWritingSystem UnknownWritingSystem -- Stops the typesetting engine from collapsing spaces.
             setJustification LeftJustification
             paragraph $ do
                 setStyle (Font pdfFont black black)

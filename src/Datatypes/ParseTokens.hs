@@ -82,7 +82,7 @@ data PPara  = PNormal       Text
             | PBold         Text
             | PItalic       Text
             | PEmphasised   Text
-            | PUnderlined   Text
+            | PQuoted       Text
             | PVerbatimPara Text
             deriving (Eq, Ord)
 
@@ -173,5 +173,5 @@ instance Show PPara where
     show (PBold t)          = "*" ++ T.unpack t ++ "*"
     show (PItalic t)        = "_" ++ T.unpack t ++ "_"
     show (PEmphasised t)    = "!" ++ T.unpack t ++ "!"
-    show (PUnderlined t)    = "{" ++ T.unpack t ++ "}"
+    show (PQuoted t)        = "\"" ++ T.unpack t ++ "\""
     show (PVerbatimPara t)  = "|" ++ T.unpack t ++ "|"

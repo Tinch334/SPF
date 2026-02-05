@@ -161,7 +161,7 @@ validateText = map vInner
     vInner (PBold t)            = VPara {textCnt = t, textType = Bold}
     vInner (PItalic t)          = VPara {textCnt = t, textType = Italic}
     vInner (PEmphasised t)      = VPara {textCnt = t, textType = Emphasised}
-    vInner (PUnderlined t)      = VPara {textCnt = t, textType = Underlined}
+    vInner (PQuoted t)          = VPara {textCnt = t, textType = Quoted}
     vInner (PVerbatimPara t)    = VPara {textCnt = t, textType = Verbatim}
 
 

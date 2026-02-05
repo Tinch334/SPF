@@ -305,7 +305,7 @@ textTypesTable =
     [ paragraphTypeToParser "bold"      PBold
     , paragraphTypeToParser "italic"    PItalic
     , paragraphTypeToParser "emph"      PEmphasised
-    , paragraphTypeToParser "underline" PUnderlined
+    , paragraphTypeToParser "quote"     PQuoted
     , parseVerbatimInline
     , parseSpecialText
     ]

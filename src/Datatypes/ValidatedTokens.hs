@@ -254,7 +254,7 @@ data Spacing = Spacing Pt Pt
 data Font = Helvetica | Courier | Times
     deriving (Show, Eq, Ord)
 
-data TextType = Normal | Bold | Italic | Emphasised | Underlined | Verbatim
+data TextType = Normal | Bold | Italic | Emphasised | Quoted | Verbatim
     deriving (Show, Eq, Ord)
 
 data Justification = JustifyLeft | JustifyRight | JustifyCenter | JustifyFull
@@ -300,7 +300,7 @@ instance Show VPara where
         Bold        -> "*" ++ T.unpack t ++ "*"
         Italic      -> "_" ++ T.unpack t ++ "_"
         Emphasised  -> "!" ++ T.unpack t ++ "!"
-        Underlined  -> "{" ++ T.unpack t ++ "}"
+        Quoted      -> "\"" ++ T.unpack t ++ "\""
         Verbatim    -> "|" ++ T.unpack t ++ "|"
 
 instance Show VComm where

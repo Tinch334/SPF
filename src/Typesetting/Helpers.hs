@@ -6,6 +6,7 @@ module Typesetting.Helpers
     , adjustFontSize
     , toRoman
     , getFont
+    , getVerbatimFont
     , generateDocInfo
     ) where
 
@@ -59,7 +60,7 @@ toRoman x
     | otherwise = ""
 
 -- Takes a font, style and returns the appropriate font.
---getFont :: LoadedFonts -> Font -> Datatypes.ValidatedTokens.TextType -> AnyFont
+--getFont :: LoadedFonts -> Font -> Datatypes.ValidatedTokens.TextType -> Datatypes.ValidatedTokens.FontSize -> StandardStyle
 getFont fonts family style (Datatypes.ValidatedTokens.FontSize size) =
     let
         f = case family of
@@ -75,6 +76,8 @@ getFont fonts family style (Datatypes.ValidatedTokens.FontSize size) =
 
     in (Font (PDFFont (s $ f fonts) size) black black)
 
+--getVerbatimFont :: LoadedFonts -> AnyFont
+getVerbatimFont fonts (Datatypes.ValidatedTokens.FontSize size) = (Font (PDFFont (normal $ courier fonts) size) black black)
 ------------------------
 -- ELEMENT MAKER FUNCTIONS
 ------------------------
