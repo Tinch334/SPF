@@ -11,7 +11,7 @@ module Datatypes.ParseTokens
     , PConfig(..)
     , PCommOpt(..)
     , PComm(..)
-    , PPara(..)
+    , PText(..)
     , PConfigArg(..)
     ) where
 
@@ -33,19 +33,19 @@ data ParsedDocument = ParsedDocument
 
 -- Location information is not included since there's no options to validate.
 data DocumentMetadata = DocumentMetadata
-    { mdTitle  :: Maybe [PPara]
-    , mdAuthor :: Maybe [PPara]
-    , mdDate   :: Maybe [PPara]
+    { mdTitle  :: Maybe [PText]
+    , mdAuthor :: Maybe [PText]
+    , mdDate   :: Maybe [PText]
     } deriving (Eq)
 
 
 --------------------
 -- DATATYPE DEFINITIONS
 --------------------
-data POptionValue   = PFloat    Double
-                    | PInteger  Int
-                    | PText     Text
-                    | PBool     Bool
+data POptionValue   = POptFloat     Double
+                    | POptInteger   Int
+                    | POptText      Text
+                    | POptBool      Bool
                     deriving (Eq, Ord)
 
 type POptionPair = (Text, POptionValue)
@@ -63,27 +63,27 @@ data PConfig = PConfig PConfigArg POption
 data PCommOpt = PCommOpt PComm POption
    deriving (Eq, Ord)
 
-data PComm  = PSection      [PPara]
-            | PSubsection   [PPara]
+data PComm  = PSection      [PText]
+            | PSubsection   [PText]
             | PFigure       FilePath
             -- The \begin and \end tags can be detected during parsing, an removed in favour of a singular tag. The "document" tag is not
             -- included since there has to be only one per document.
-            | PTable        [[[PPara]]] -- The type a list of lists of lists, represents the rows(a list), having multiple columns(a list) each
-                                       -- of which is a block of PText(a list).
-            | PList         [[PPara]]
-            | PParagraph    [PPara] -- Used for both regular paragraphs and those enclosed in begin/end.
+            | PTable        [[[PText]]] -- The type a list of lists of lists, represents the rows(a list), having multiple columns(a list) each
+                                       -- of which is a block of POptText(a list).
+            | PList         [[PText]]
+            | PParagraph    [PText] -- Used for both regular paragraphs and those enclosed in begin/end.
             | PVerbatim     [Text]
             | PNewpage
             | PHLine
             deriving (Eq, Ord)
 
 -- All the elements that can be found in a paragraph.
-data PPara  = PNormal       Text
+data PText  = PNormal       Text
             | PBold         Text
             | PItalic       Text
             | PEmphasised   Text
-            | PQuoted       Text
-            | PVerbatimPara Text
+            | PQuoteText    Text
+            | PVerbatimText Text
             deriving (Eq, Ord)
 
 data PConfigArg = PSize
@@ -102,6 +102,7 @@ data PConfigArg = PSize
                 | PSubsectionSize
                 | PVerbatimSize
                 | PJustification
+                | PParaStyle
                 | PListstyle
                 | PVerMargin
                 | PHozMargin
@@ -114,9 +115,9 @@ data PConfigArg = PSize
 --------------------
 -- SHOW INSTANCES
 --------------------
--- Flattens a list of PText into a single string for display.
-showPTextList :: [PPara] -> String
-showPTextList = unwords . map show
+-- Flattens a list of POptText into a single string for display.
+showPOptTextList :: [PText] -> String
+showPOptTextList = unwords . map show
 
 -- Make verbose output more legible.
 instance Show ParsedDocument where
@@ -137,7 +138,7 @@ instance Show DocumentMetadata where
         ]
       where 
         formatMaybe Nothing = "(None)"
-        formatMaybe (Just txts) = showPTextList txts
+        formatMaybe (Just txts) = showPOptTextList txts
 
 instance Show POption where
     show (POptionMap opts) = "{" ++ intercalate ", " (map showPair opts) ++ "}"
@@ -145,9 +146,9 @@ instance Show POption where
     show POptionNone = "(No Options)"
 
 instance Show POptionValue where
-    show (PFloat n) = show n
-    show (PText t)   = show t
-    show (PBool b)   = show b
+    show (POptFloat n) = show n
+    show (POptText t)   = show t
+    show (POptBool b)   = show b
 
 instance Show PConfig where
     show (PConfig arg opt) = show arg ++ " " ++ show opt
@@ -158,20 +159,20 @@ instance Show PCommOpt where
         _           -> show comm ++ " " ++ show opts
 
 instance Show PComm where
-    show (PSection txt)     = "\n[SECTION] " ++ showPTextList txt
-    show (PSubsection txt)  = "\n  [SUB] " ++ showPTextList txt
+    show (PSection txt)     = "\n[SECTION] " ++ showPOptTextList txt
+    show (PSubsection txt)  = "\n  [SUB] " ++ showPOptTextList txt
     show (PFigure path)     = "  [FIG] Path: " ++ path
     show (PTable rows)      = "  [TABLE] (" ++ show (length rows) ++ " rows)"
-    show (PList items)      = "  [LIST]\n" ++ unlines (map (\i -> "    - " ++ showPTextList i) items)
-    show (PParagraph txt)   = "  [PAR] " ++ showPTextList txt
+    show (PList items)      = "  [LIST]\n" ++ unlines (map (\i -> "    - " ++ showPOptTextList i) items)
+    show (PParagraph txt)   = "  [PAR] " ++ showPOptTextList txt
     show (PVerbatim code)   = "  [VERBATIM]\n" ++ unlines (map (\l -> "    |" ++ T.unpack l) code)
     show PNewpage           = "  [NEWPAGE]"
     show PHLine             = "  [HLINE]"
 
-instance Show PPara where
+instance Show PText where
     show (PNormal t)        = T.unpack t
     show (PBold t)          = "*" ++ T.unpack t ++ "*"
     show (PItalic t)        = "_" ++ T.unpack t ++ "_"
     show (PEmphasised t)    = "!" ++ T.unpack t ++ "!"
-    show (PQuoted t)        = "\"" ++ T.unpack t ++ "\""
-    show (PVerbatimPara t)  = "|" ++ T.unpack t ++ "|"
+    show (PQuoteText t)        = "\"" ++ T.unpack t ++ "\""
+    show (PVerbatimText t)  = "|" ++ T.unpack t ++ "|"

@@ -14,7 +14,7 @@ module Datatypes.ValidatedTokens
     -- Main data types.
     , VComm(..)
     , VConfig(..)
-    , VPara(..)
+    , VText(..)
     -- Configuration data types.
     , StyleConfig(..)
     , LayoutConfig(..)
@@ -31,6 +31,7 @@ module Datatypes.ValidatedTokens
     , Font(..)
     , TextType(..)
     , Justification(..)
+    , ParagraphStyle(..)
     , ListStyle(..)
     ) where
 
@@ -51,9 +52,9 @@ data ValidatedDocument = ValidatedDocument
 
 -- Once the metadata has been validated location data is no longer needed.
 data ValidatedMetadata = ValidatedMetadata
-    { vmTitle  :: Maybe [VPara]
-    , vmAuthor :: Maybe [VPara]
-    , vmDate   :: Maybe [VPara]
+    { vmTitle  :: Maybe [VText]
+    , vmAuthor :: Maybe [VText]
+    , vmDate   :: Maybe [VText]
     } deriving (Eq)
 
 --------------------
@@ -74,12 +75,12 @@ type TableColumns = Int
 
 -- The maybe in the options indicates that they are optional. If found they are added with "Just", otherwise "Nothing" is used.
 -- The Nothing's are then replaced with the default values for those arguments.
-data VComm  = VSection      [VPara] (Maybe Font) (Maybe FontSize)
-            | VSubsection   [VPara] (Maybe Font) (Maybe FontSize)
+data VComm  = VSection      [VText] (Maybe Font) (Maybe FontSize)
+            | VSubsection   [VText] (Maybe Font) (Maybe FontSize)
             | VFigure       FilePath PageWidth (Maybe Caption)
-            | VTable        [[[VPara]]] TableColumns
-            | VList         [[VPara]] (Maybe ListStyle)
-            | VParagraph    [VPara] (Maybe Font) (Maybe FontSize) (Maybe Justification)
+            | VTable        [[[VText]]] TableColumns
+            | VList         [[VText]] (Maybe ListStyle)
+            | VParagraph    [VText] (Maybe Font) (Maybe FontSize) (Maybe Justification) (Maybe ParagraphStyle)
             | VVerbatim     [Text] (Maybe FontSize) (Maybe Bool)
             | VHLine        PageWidth (Maybe Pt)
             | VNewpage
@@ -89,6 +90,7 @@ data VComm  = VSection      [VPara] (Maybe Font) (Maybe FontSize)
 data StyleConfig = StyleConfig
     { font          :: Maybe Font
     , justification :: Maybe Justification
+    , paraType      :: Maybe ParagraphStyle
     , listType      :: Maybe ListStyle
     } deriving (Show, Eq, Ord)
 
@@ -136,6 +138,7 @@ emptyStyle :: StyleConfig
 emptyStyle = StyleConfig
     { font          = Nothing
     , justification = Nothing
+    , paraType      = Nothing
     , listType      = Nothing
     }
 
@@ -188,6 +191,7 @@ defaultStyle :: StyleConfig
 defaultStyle = StyleConfig
     { font          = Just Times
     , justification = Just JustifyLeft
+    , paraType      = Just StyleNormal
     , listType      = Just ListBullet
     }
 
@@ -260,11 +264,14 @@ data TextType = Normal | Bold | Italic | Emphasised | Quoted | Verbatim
 data Justification = JustifyLeft | JustifyRight | JustifyCenter | JustifyFull
     deriving (Show, Eq, Ord)
 
+data ParagraphStyle = StyleNormal | StyleLeft | StyleRight | StyleNarrow
+    deriving (Show, Eq, Ord)
+
 data ListStyle = ListBullet | ListSquare | ListArrow | ListNumber
     deriving (Show, Eq, Ord)
 
 -- Text definition.
-data VPara = VPara
+data VText = VText
         { textCnt   :: Text
         , textType  :: TextType
         } deriving (Eq, Ord)
@@ -273,8 +280,8 @@ data VPara = VPara
 --------------------
 -- SHOW INSTANCES
 --------------------
--- Flattens a list of VPara into a single string for display.
-showVTextList :: [VPara] -> String
+-- Flattens a list of VText into a single string for display.
+showVTextList :: [VText] -> String
 showVTextList = unwords . map show
 
 instance Show ValidatedDocument where
@@ -294,8 +301,8 @@ instance Show ValidatedMetadata where
         , "  Date:   " ++ maybe "-" showVTextList d
         ]
 
-instance Show VPara where
-    show (VPara t style) = case style of
+instance Show VText where
+    show (VText t style) = case style of
         Normal      -> T.unpack t
         Bold        -> "*" ++ T.unpack t ++ "*"
         Italic      -> "_" ++ T.unpack t ++ "_"
@@ -304,15 +311,15 @@ instance Show VPara where
         Verbatim    -> "|" ++ T.unpack t ++ "|"
 
 instance Show VComm where
-    show (VSection txt _ _)     = "\n[SECTION] " ++ showVTextList txt
-    show (VSubsection txt _ _)  = "\n  [SUB] " ++ showVTextList txt
-    show (VParagraph txt _ _ _) = "  [PAR] " ++ showVTextList txt
-    show (VFigure fp w c)       = "  [FIG] " ++ fp ++ " (Width: " ++ show w ++ ")" ++ maybe "" (\x -> " Cap: " ++ T.unpack x) c
-    show (VTable _ cols)        = "  [TABLE] (" ++ show cols ++ " columns)"
-    show (VList items _)        = "  [LIST] (" ++ show (length items) ++ " items)"
-    show (VVerbatim code _ _)   = "  [VERBATIM]\n"  ++ unlines (map (\l -> "    |" ++ T.unpack l) code)
-    show (VHLine w _)           = "  [HLINE] Width: " ++ show w
-    show VNewpage               = "  [NEWPAGE]"
+    show (VSection txt _ _)         = "\n[SECTION] " ++ showVTextList txt
+    show (VSubsection txt _ _)      = "\n  [SUB] " ++ showVTextList txt
+    show (VParagraph txt _ _ _ _)   = "  [PAR] " ++ showVTextList txt
+    show (VFigure fp w c)           = "  [FIG] " ++ fp ++ " (Width: " ++ show w ++ ")" ++ maybe "" (\x -> " Cap: " ++ T.unpack x) c
+    show (VTable _ cols)            = "  [TABLE] (" ++ show cols ++ " columns)"
+    show (VList items _)            = "  [LIST] (" ++ show (length items) ++ " items)"
+    show (VVerbatim code _ _)       = "  [VERBATIM]\n"  ++ unlines (map (\l -> "    |" ++ T.unpack l) code)
+    show (VHLine w _)               = "  [HLINE] Width: " ++ show w
+    show VNewpage                   = "  [NEWPAGE]"
 
 instance Show VConfig where
     show cfg = unlines

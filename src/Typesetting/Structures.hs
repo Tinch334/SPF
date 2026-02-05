@@ -28,40 +28,41 @@ import Graphics.PDF
 ------------------------
 -- Replaces VConfig for internal use, to avoid having "fromJust" everywhere.
 data RCLayout = RCLayout
-    { rcPageSize      :: VT.PageSize
-    , rcNumbering     :: VT.PageNumbering
-    , rcMarginVert    :: VT.Pt
-    , rcMarginHoz     :: VT.Pt
+    { rcPageSize    :: VT.PageSize
+    , rcNumbering   :: VT.PageNumbering
+    , rcMarginVert  :: VT.Pt
+    , rcMarginHoz   :: VT.Pt
     }
 
 data RCStyles = RCStyles
-    { rcFont          :: VT.Font
-    , rcJustification :: VT.Justification
-    , rcListType      :: VT.ListStyle
+    { rcFont            :: VT.Font
+    , rcJustification   :: VT.Justification
+    , rcParaType        :: VT.ParagraphStyle
+    , rcListType        :: VT.ListStyle
     }
 
 data RCSizes = RCSizes
-    { rcParSize       :: VT.FontSize
-    , rcTitleSize     :: VT.FontSize
-    , rcSectionSize   :: VT.FontSize
-    , rcSubsectionSize:: VT.FontSize
-    , rcVerbatimSize  :: VT.FontSize
+    { rcParSize         :: VT.FontSize
+    , rcTitleSize       :: VT.FontSize
+    , rcSectionSize     :: VT.FontSize
+    , rcSubsectionSize  :: VT.FontSize
+    , rcVerbatimSize    :: VT.FontSize
     }
 
 data RCSpacing = RCSpacing
-    { rcSectionSp     :: VT.Spacing
-    , rcParagraphSp   :: VT.Spacing
-    , rcListSp        :: VT.Spacing
-    , rcTableSp       :: VT.Spacing
-    , rcFigureSp      :: VT.Spacing
-    , rcVerbatimSp    :: VT.Spacing
-    , rcParIndent     :: VT.Pt
+    { rcSectionSp   :: VT.Spacing
+    , rcParagraphSp :: VT.Spacing
+    , rcListSp      :: VT.Spacing
+    , rcTableSp     :: VT.Spacing
+    , rcFigureSp    :: VT.Spacing
+    , rcVerbatimSp  :: VT.Spacing
+    , rcParIndent   :: VT.Pt
     }
 
 data RCToggle = RCToggle
-    { rcSectionNumbering  :: Bool
-    , rcFigureNumbering   :: Bool
-    , rcVerbatimNumbering :: Bool
+    { rcSectionNumbering    :: Bool
+    , rcFigureNumbering     :: Bool
+    , rcVerbatimNumbering   :: Bool
     }
 
 data RenderConfig = RenderConfig
@@ -85,9 +86,9 @@ data RenderEnv = RenderEnv
 
 -- Read/Write environment, stores the state of the document whilst typesetting.
 data RenderState = RenderState
-    { rsCurrentY        :: Double
-    , rsCurrentPage     :: PDFReference PDFPage
-    , rsCounters        :: DocumentCounters
+    { rsCurrentY    :: Double
+    , rsCurrentPage :: PDFReference PDFPage
+    , rsCounters    :: DocumentCounters
     }
 
 data DocumentCounters = DocumentCounters

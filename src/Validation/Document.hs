@@ -48,6 +48,7 @@ mergeStyles :: StyleConfig -> StyleConfig -> StyleConfig
 mergeStyles o n = StyleConfig
     { font          = font          o   <|> font          n
     , justification = justification o   <|> justification n
+    , paraType      = paraType      o   <|> paraType      n
     , listType      = listType      o   <|> listType      n
     }
 

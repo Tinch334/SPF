@@ -44,17 +44,17 @@ unknownCommand c = recoverWith
     (PCommOpt (PParagraph [PNormal $ "\\" <> c]) POptionNone) 
     (UnknownCommand c)
 
-unknownText :: Text -> Parser PPara
+unknownText :: Text -> Parser PText
 unknownText c = recoverWith 
     (PNormal ("\\" <> c)) 
     (UnknownText c)
 
 invalidOptions :: Text -> Text -> Parser POptionPair
 invalidOptions key msg = recoverWith 
-    (key, PText "") 
+    (key, POptText "") 
     (InvalidOptions msg)
 
-invalidMeta :: [PPara] -> Parser [PPara]
+invalidMeta :: [PText] -> Parser [PText]
 invalidMeta arg = recoverWith arg InvalidMeta
 
 unknownConfiguration :: Text -> Parser PConfigArg
@@ -161,7 +161,7 @@ parseMeta = DocumentMetadata
   where
     meta n = optional $ do
         void (string $ "\\" <> n)
-        arg <- braces parsePPara
+        arg <- braces parsePText
         o <- optional $ parseOptions
         case o of
             Nothing -> do
@@ -213,14 +213,17 @@ mkBeginEndCommand n p c = CommandSpec n $ recoveryBetween parseStart parseEnd pa
         
         return $ PCommOpt (c b) (maybe POptionNone id op)
 
-    parseEnd = void (string "\\end") *> braces (string n)
+    parseEnd = do
+        sc -- Consume trailing whitespace.
+        void (string "\\end")
+        braces (string n)
 
     errStr = "\\end{" <> n <> "}"
 
 -- Parses a command and it's options.
 parseCommand :: [CommandSpec] -> Parser PCommOpt
 parseCommand lst = do
-    label "command" $ choice [try (cmdParser l <?> T.unpack (cmdName l)) | l <- lst] <|> try unknown
+    label "command" $ choice [(try . lexeme) (cmdParser l <?> T.unpack (cmdName l)) | l <- lst] <|> try unknown
   where
     -- Runs after all other commands are tried, detects invalid commands.
     unknown = do
@@ -232,10 +235,10 @@ parseCommand lst = do
 -- Commands accepted in the document.
 documentCommandTable :: [CommandSpec]
 documentCommandTable =
-    [ mkSimpleCommand       "section"       parsePPara      PSection
-    , mkSimpleCommand       "subsection"    parsePPara      PSubsection
+    [ mkSimpleCommand       "section"       parsePText      PSection
+    , mkSimpleCommand       "subsection"    parsePText      PSubsection
     , mkSimpleCommand       "figure"        parseFilepath   PFigure
-    , mkBeginEndCommand     "paragraph"     parsePPara      PParagraph
+    , mkBeginEndCommand     "paragraph"     parsePText      PParagraph
     , mkBeginEndCommand     "table"         parseTable      PTable
     , mkBeginEndCommand     "list"          parseList       PList
     , mkBeginEndCommand     "verbatim"      parseVerbatim   PVerbatim
@@ -254,20 +257,20 @@ parseFilepath = label "filepath" $ do
     return (T.unpack t)
 
 -- The elements in a table row are separated by "|". A line ending is denoted by a "\\", that is two "\" characters.
-parseTable :: Parser [[[PPara]]]
+parseTable :: Parser [[[PText]]]
 parseTable = label "table" $ sepEndBy1
-    (lexeme $ sepBy1 parsePPara (symbol "|"))
+    (lexeme $ sepBy1 parsePText (symbol "|"))
     (do
         void $ symbol "\\break"
         void $ optional (string "{}")
         sc ) -- Consume trailing whitespace-
 
-parseList :: Parser [[PPara]]
+parseList :: Parser [[PText]]
 parseList = label "list" $ many $ do
     sc -- Consume leading whitespace.
     void $ symbol "\\item"
     void $ optional (string "{}")
-    t <- parsePPara
+    t <- parsePText
     sc -- Consume trailing whitespace.
 
     return t
@@ -292,41 +295,41 @@ parseVerbatim = label "verbatim block" $ do
 -- Parses standalone blocks of text without commands, note that paragraph modes are not commands.
 parseParagraph :: Parser PCommOpt
 parseParagraph = label "paragraph" $ do
-        t <- parsePPara
+        t <- parsePText
         void (optional eol)
         return $ PCommOpt (PParagraph t) POptionNone
 
-parsePPara :: Parser [PPara]
-parsePPara = some (choice [parseSpecialText, PNormal <$> parseRawText])
+parsePText :: Parser [PText]
+parsePText = some (choice [parseSpecialText, PNormal <$> parseRawText])
 
 -- Stores parsers for paragraph modes.
-textTypesTable :: [Parser PPara]
+textTypesTable :: [Parser PText]
 textTypesTable = 
     [ paragraphTypeToParser "bold"      PBold
     , paragraphTypeToParser "italic"    PItalic
     , paragraphTypeToParser "emph"      PEmphasised
-    , paragraphTypeToParser "quote"     PQuoted
+    , paragraphTypeToParser "quote"     PQuoteText
     , parseVerbatimInline
     , parseSpecialText
     ]
 
 -- Creates a parser for the given paragraph type.
-paragraphTypeToParser :: Text -> (Text -> PPara) -> Parser PPara
+paragraphTypeToParser :: Text -> (Text -> PText) -> Parser PText
 paragraphTypeToParser n c = do
     void (string n) <?> mkErrStr "" n " command"
     t <- braces parseRawText <?> mkErrStr "" n " argument"
     return (c t)
 
 -- The parsing function for a verbatim environment cannot be used because it accepts newlines.
-parseVerbatimInline :: Parser PPara
+parseVerbatimInline :: Parser PText
 parseVerbatimInline = do
-    void $ string "verbatim"
+    void $ string "verb"
     verb <- braces $ takeWhile1P (Just "verbatim content") (/= '}')
-    return $ PVerbatimPara verb
+    return $ PVerbatimText verb
 
-parseSpecialText :: Parser PPara
+parseSpecialText :: Parser PText
 parseSpecialText = do
-    -- Forces parsePPara to stop if a structural command is encountered.
+    -- Forces parsePText to stop if a structural command is encountered.
     notFollowedBy (choice [string "\\item", string "\\end", string "\\break"])
     -- Parse text.
     void (char '\\') <?> "escape for special text"
@@ -384,6 +387,7 @@ parseConfigArg = label "config option" $ choice
     , PVerbatimSize         <$ string "verbatimsize"
     , PJustification        <$ string "justification"
     , PListstyle            <$ string "liststyle"
+    , PParaStyle            <$ string "parastyle"
     , PVerMargin            <$ string "vertmargin"
     , PHozMargin            <$ string "hozmargin"
     , PSectionNumbering     <$ string "sectionnumbering"
@@ -425,10 +429,10 @@ parseOptionMap = label "option pair" $ do
 -- because there's not a single parser for integers and floats.
 parseOptionValue :: Parser POptionValue
 parseOptionValue = label "option value" $ choice
-    [ PBool <$> boolean
+    [ POptBool <$> boolean
     , number
-    , PText <$> stringLiteral
-    , PText . T.pack <$> identifier
+    , POptText <$> stringLiteral
+    , POptText . T.pack <$> identifier
     ]
 
   where
@@ -438,8 +442,8 @@ parseOptionValue = label "option value" $ choice
     number = do
         v <- L.scientific
         case DS.floatingOrInteger v of
-            Left f -> return $ PFloat f
-            Right i -> return $ PInteger i
+            Left f -> return $ POptFloat f
+            Right i -> return $ POptInteger i
 
     stringLiteral = between (char '"') (char '"') parseRawTextLine
     

@@ -46,9 +46,15 @@ pageNumberings = [("arabic", NumberingArabic), ("roman", NumberingRoman), ("none
 justifications :: [(Text, Justification)]
 justifications = [("left", JustifyLeft), ("right", JustifyRight), ("center", JustifyCenter), ("full", JustifyFull)]
 
+paragraphStyles :: [(Text, ParagraphStyle)]
+paragraphStyles = [("normal", StyleNormal), ("left", StyleLeft), ("right", StyleRight), ("narrow", StyleNarrow)]
+
 listStyles :: [(Text, ListStyle)]
 listStyles = [("bullet", ListBullet), ("square", ListSquare), ("arrow", ListArrow), ("number", ListNumber)]
 
+
+expectedFieldError :: Text ->[(Text, a)] -> String
+expectedFieldError field lst = "Expected field " ++ quote field ++ " to be one of " ++ (quoteList $ map fst listStyles)
 
 --------------------
 -- CONFIGURATION VALIDATION
@@ -90,7 +96,7 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $
         -- Layout rules.
         PSize -> runSchema (choiceSchema 
              [ ensureValidKeys "Invalid page size" ["size"] 
-                (requireTextWith "size" (validateEnum pageSizes) "Unknown page size" <&> \x -> setLayout (\c -> c { pageSize = Just x }))
+                (requireTextWith "size" (validateEnum pageSizes) (expectedFieldError "size" pageSizes) <&> \x -> setLayout (\c -> c { pageSize = Just x }))
              , ensureValidKeys "Invalid custom size" ["width", "height"]
                 (SizeCustom <$> requireFloatWith "width" (validateNumInst (> 0) Pt) "Width > 0" 
                             <*> requireFloatWith "height" (validateNumInst (> 0) Pt) "Height > 0" 
@@ -98,20 +104,23 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $
              ]) (getOpts opt)
 
         PPagenumbering -> simpleSchema ["numbering"] 
-            (requireTextWith "numbering" (validateEnum pageNumberings) "Unknown numbering" <&> \x -> setLayout (\c -> c { numbering = Just x }))
+            (requireTextWith "numbering" (validateEnum pageNumberings) (expectedFieldError "numbering" pageNumberings) <&> \x -> setLayout (\c -> c { numbering = Just x }))
 
         PVerMargin  -> simpleSchema ["margin"] (schemaMargin (\x -> setLayout (\c -> c { marginVert = Just x })))
         PHozMargin  -> simpleSchema ["margin"] (schemaMargin (\x -> setLayout (\c -> c { marginHoz = Just x })))
 
         -- Style rules.
         PFont -> simpleSchema ["font"] 
-            (requireTextWith "font" (validateEnum fonts) "Unknown font" <&> \x -> setStyle (\c -> c { font = Just x }))
+            (requireTextWith "font" (validateEnum fonts) (expectedFieldError "font" fonts) <&> \x -> setStyle (\c -> c { font = Just x }))
         
         PJustification -> simpleSchema ["justification"] 
-            (requireTextWith "justification" (validateEnum justifications) "Unknown justification" <&> \x -> setStyle (\c -> c { justification = Just x }))
+            (requireTextWith "justification" (validateEnum justifications) (expectedFieldError "justification" justifications) <&> \x -> setStyle (\c -> c { justification = Just x }))
+
+        PParaStyle -> simpleSchema ["style"]
+            (requireTextWith "style" (validateEnum paragraphStyles) (expectedFieldError "style" paragraphStyles) <&> \x -> setStyle (\c -> c { paraType = Just x }))
 
         PListstyle -> simpleSchema ["style"]
-            (requireTextWith "style" (validateEnum listStyles) "Unknown list style" <&> \x -> setStyle (\c -> c { listType = Just x }))
+            (requireTextWith "style" (validateEnum listStyles) (expectedFieldError "style" listStyles) <&> \x -> setStyle (\c -> c { listType = Just x }))
 
         -- Size rules.
         PParsize        -> simpleSchema ["size"] (schemaSize (\x -> setSize (\c -> c { paragraphSize = Just x })))
@@ -121,7 +130,7 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $
         PVerbatimSize   -> simpleSchema ["size"] (schemaSize (\x -> setSize (\c -> c { verbatimSize = Just x })))
         
         PParIndent -> simpleSchema ["indent"] 
-            (requireFloatWith "indent" (validateNumInst (> 0) Pt) "Indent > 0" <&> \x -> setSpacing (\c -> c { parIndent = Just x }))
+            (requireFloatWith "indent" (validateNumInst (> 0) Pt) "Paragraph indent must be a positive value" <&> \x -> setSpacing (\c -> c { parIndent = Just x }))
 
         -- Spacing rules.
         PSectionspacing     -> simpleSchema ["before", "after"] (schemaSpacing (\x -> setSpacing (\c -> c { sectionSp = Just x })))
@@ -150,19 +159,19 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $
 --------------------
 convertMeta :: DocumentMetadata -> Validation [LocatedError] ValidatedMetadata
 convertMeta (DocumentMetadata t a d) = Success $ ValidatedMetadata
-    (maybe Nothing (Just . validateText) t)
-    (maybe Nothing (Just . validateText) a)
-    (maybe Nothing (Just . validateText) d)
+    (maybe Nothing (Just . convertText) t)
+    (maybe Nothing (Just . convertText) a)
+    (maybe Nothing (Just . convertText) d)
 
-validateText :: [PPara] -> [VPara]
-validateText = map vInner
+convertText :: [PText] -> [VText]
+convertText = map vInner
   where
-    vInner (PNormal t)          = VPara {textCnt = t, textType = Normal}
-    vInner (PBold t)            = VPara {textCnt = t, textType = Bold}
-    vInner (PItalic t)          = VPara {textCnt = t, textType = Italic}
-    vInner (PEmphasised t)      = VPara {textCnt = t, textType = Emphasised}
-    vInner (PQuoted t)          = VPara {textCnt = t, textType = Quoted}
-    vInner (PVerbatimPara t)    = VPara {textCnt = t, textType = Verbatim}
+    vInner (PNormal t)          = VText {textCnt = t, textType = Normal}
+    vInner (PBold t)            = VText {textCnt = t, textType = Bold}
+    vInner (PItalic t)          = VText {textCnt = t, textType = Italic}
+    vInner (PEmphasised t)      = VText {textCnt = t, textType = Emphasised}
+    vInner (PQuoteText t)          = VText {textCnt = t, textType = Quoted}
+    vInner (PVerbatimText t)    = VText {textCnt = t, textType = Verbatim}
 
 
 validateCommand :: Located PCommOpt -> Validation [LocatedError] (Located VComm)
@@ -182,11 +191,11 @@ validateCommand (Located pos comm) = withPos pos $ case comm of
 -- Generic validator for options that expect font and size.
 genericFontCmd cons text (POptionMap o) =
   runSchema (ensureValidKeys ("Expected some of fields " ++ quoteList ["font", "size"]) ["font", "size"]
-    (cons (validateText text) 
-        <$> tryTextWith "font" (validateEnum fonts) "Unknown font"
+    (cons (convertText text) 
+        <$> tryTextWith "font" (validateEnum fonts) (expectedFieldError "font" fonts)
         <*> tryIntegerWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive"
     )) o
-genericFontCmd cons text POptionNone = Success $ cons (validateText text) Nothing Nothing
+genericFontCmd cons text POptionNone = Success $ cons (convertText text) Nothing Nothing
 
 namedFigure p (POptionMap o) =
     if isValid p then runSchema
@@ -198,46 +207,47 @@ namedFigure p (POptionMap o) =
     else Failure ["Invalid filepath " ++ quote (T.pack p)]
 namedFigure _ POptionNone = Failure ["Expected one numeric value (width)"]
 
-namedTable :: [[[PPara]]] -> POption -> CommandValidationType
+namedTable :: [[[PText]]] -> POption -> CommandValidationType
 namedTable cnt (POptionMap o) =
     let columnCount = runSchema (ensureValidKeys "Expected one numeric value (columns)" ["columns"] (requireIntegerWith "columns" (validateNumInst (> 0) (\i -> i)) "Column number must be positive")) o
         in case columnCount of
             Success tc -> VTable <$> validateTableMatrix cnt tc <*> pure tc
             Failure e -> Failure e
   where
-    validateTableMatrix :: [[[PPara]]] -> Int -> Validation [String] [[[VPara]]]
+    validateTableMatrix :: [[[PText]]] -> Int -> Validation [String] [[[VText]]]
     validateTableMatrix c rLen =
         let cLen = map length c
             in if all (== rLen) cLen
-                then Success $ map (map validateText) c
+                then Success $ map (map convertText) c
                 else Failure ["Rows of different length in table"]
 namedTable _ POptionNone = Failure ["Expected one numeric value (columns)"]
 
-namedList :: [[PPara]] -> POption -> CommandValidationType
+namedList :: [[PText]] -> POption -> CommandValidationType
 namedList lst (POptionMap o) =
     runSchema
         ( ensureValidKeys
-            ("Expected field " ++ quote "style" ++ " to be one of " ++ quoteList ["bullet", "square", "arrow", "number"])
+            ("Expected field " ++ quote "style")
             ["style"]
-            ( VList (map validateText lst)
-                <$> tryTextWith "style" (validateEnum listStyles) ("Unknown list style. Expected one of " ++ quoteList ["bullet", "square", "arrow", "number"])
+            ( VList (map convertText lst)
+                <$> tryTextWith "style" (validateEnum listStyles) (expectedFieldError "style" listStyles)
             )
         ) o
-namedList lst POptionNone = Success $ VList (map validateText lst) Nothing
+namedList lst POptionNone = Success $ VList (map convertText lst) Nothing
 
-namedParagraph :: [PPara] -> POption -> CommandValidationType
+namedParagraph :: [PText] -> POption -> CommandValidationType
 namedParagraph txt (POptionMap o) =
     runSchema
         ( ensureValidKeys
-            ("Expected some of fields " ++ quoteList ["font", "size", "justification"])
-            ["font", "size", "justification"]
-            ( VParagraph (validateText txt)
+            ("Expected some of fields " ++ quoteList ["font", "size", "justification", "style"])
+            ["font", "size", "justification", "style"]
+            ( VParagraph (convertText txt)
                 <$> tryTextWith "font" (validateEnum fonts) "Unknown font"
                 <*> tryIntegerWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive"
-                <*> tryTextWith "justification" (validateEnum justifications) ("Expected field " ++ quote "justification" ++ " to be one of " ++ quoteList ["left", "right", "centred", "full"])
+                <*> tryTextWith "justification" (validateEnum justifications) (expectedFieldError "justification" justifications)
+                <*> tryTextWith "style" (validateEnum paragraphStyles) (expectedFieldError "style" paragraphStyles)
             )
         ) o
-namedParagraph txt POptionNone = Success $ VParagraph (validateText txt) Nothing Nothing Nothing
+namedParagraph txt POptionNone = Success $ VParagraph (convertText txt) Nothing Nothing Nothing Nothing
 
 namedVerbatim :: [Text] -> POption -> CommandValidationType
 namedVerbatim code (POptionMap o) =
@@ -246,8 +256,9 @@ namedVerbatim code (POptionMap o) =
             ("Expected some of fields" ++ quoteList ["size", "numbering"])
             ["size", "numbering"]
             ( VVerbatim code
-                <$> tryIntegerWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive")
+                <$> tryIntegerWith "size" (validateNumInst (> 0) FontSize) "Font size must be positive"
                 <*> tryBool "numbering"
+            )
         ) o
 namedVerbatim code POptionNone = Success $ VVerbatim code Nothing Nothing
 

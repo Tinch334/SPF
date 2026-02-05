@@ -93,26 +93,26 @@ getRequiredWith k vf err = Schema $ \o ->
         Nothing -> Failure ["Missing key " ++ quote k]
 
 asText :: POptionValue -> Maybe Text
-asText (PText t) = Just t
+asText (POptText t) = Just t
 asText _ = Nothing
 
 -- This function has automatic value promotion. This is done so that if a user writes an integer in a float field it will still be accepted.
 asFloat :: POptionValue -> Maybe Double
-asFloat (PFloat n) = Just n
-asFloat (PInteger n) = Just $ fromIntegral n
+asFloat (POptFloat n) = Just n
+asFloat (POptInteger n) = Just $ fromIntegral n
 asFloat _ = Nothing
 
 -- This function has automatic value promotion. This is done so that if a user writes an float style value, with a 0 in the decimal part the
 -- value will still be accepted. For example "10.0" would be accepted but "10.2" would not.
 asInteger :: POptionValue -> Maybe Int
-asInteger (PInteger n) = Just n
-asInteger (PFloat n)
+asInteger (POptInteger n) = Just n
+asInteger (POptFloat n)
     | n == fromInteger (round n) = Just $ round n
     | otherwise = Nothing
 asInteger _ = Nothing
 
 asBool :: POptionValue -> Maybe Bool
-asBool (PBool b) = Just b
+asBool (POptBool b) = Just b
 asBool _ = Nothing
 
 --------------------

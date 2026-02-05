@@ -26,7 +26,7 @@ import Graphics.PDF.Fonts.Font (AnyFont)
 -- CONVERSION FUNCTIONS
 ------------------------
 -- Takes the text from a list of VText.
-mergeVText :: [VPara] -> Text
+mergeVText :: [VText] -> Text
 mergeVText = foldl (\s vt -> s <> textCnt vt) ""
 
 -- Converts a page size token to it's size in points.

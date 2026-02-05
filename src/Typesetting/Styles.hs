@@ -7,48 +7,58 @@ import Graphics.PDF.Typesetting
 
 
 -- HPDF allows definition of custom paragraph styles, this controls how the paragraph is typeset and allows for style changes.
-data CustomParaStyle    = VerbatimPara Color Double Double (Maybe Double) Double
-                        -- Verbatim arguments: Colour of box, margins of box, right size adjust, code offset off vertical line, gutter width.
+data CustomParaStyle    = NormalPara
+                        -- Colour of box, margins of box, right size adjust, code offset off vertical line, gutter width.
                         -- The Maybe in the second to last argument is used to enable/disable the line and line numbering.
-                        | NormalPara
+                        | VerbatimPara Color Double Double (Maybe Double) Double
+                        | RightPara Double
+                        | LeftPara Double
+                        | NarrowPara Double
+                        deriving (Eq)
+                        
 
--- We use "StandardStyle" as the second parameter since Paragraph style requires a text style.
+-- We use "StandardStyle" as the second parameter since Paragraph style requires adjust text style. Use the automatically derived Eq instance.
 instance ComparableStyle CustomParaStyle where
-    -- Update pattern match
-    isSameStyleAs (VerbatimPara _ _ _ _ _) (VerbatimPara _ _ _ _ _) = True
-    isSameStyleAs NormalPara NormalPara = True
-    isSameStyleAs _ _ = False
+    isSameStyleAs = (==)
 
 instance ParagraphStyle CustomParaStyle StandardStyle where
     -- Paragraph width with respect to the normal value.
-    lineWidth (VerbatimPara _ _ a _ _) w _ = w - a
-    lineWidth _ w _ = w
+    lineWidth (VerbatimPara _ _ adjust _ _) width _ = width - adjust
+    lineWidth (RightPara adjust) width _ = width * adjust
+    lineWidth (LeftPara adjust) width _ = width * adjust
+    lineWidth (NarrowPara adjust) width _ = width * adjust
+    lineWidth _ width _ = width
     
     -- Paragraph start position with respect to the normal value.
     linePosition (VerbatimPara _ _ _ _ gutter) _ _ = gutter
+    linePosition (RightPara adjust) width _ = (1 - adjust) * width
+    linePosition (NarrowPara adjust) width _ = ((1 - adjust) / 2) * width
     linePosition _ _ _ = 0.0
 
-    -- Paragraph change, allows for changing the content of a paragraph before the line breaking algorithm is run.
+    -- Sets the style of the interline glues.
+    interline _ = Nothing
+
+    -- Paragraph change, allows for changing the content of adjust paragraph before the line breaking algorithm is run.
     paragraphChange s _ l = (s, l)
 
     -- Paragraph Style, gets the paragraph bounding box, can be used to apply additional effects.
-    paragraphStyle (VerbatimPara c m _ mLineOffset gutter) = Just $ \(Rectangle (xa :+ ya) (xb :+ yb)) b -> do
+    paragraphStyle (VerbatimPara colour margin _ mLineOffset gutter) = Just $ \(Rectangle (xa :+ ya) (xb :+ yb)) drawAction -> do
         -- Note that "xa" represents the start position of the code, the box needs to be drawn from the left gutter.
-        let boxLeft = xa - gutter - m
-        let f = Rectangle (boxLeft :+ (ya - m)) ((xb + m) :+ (yb + m))
+        let boxLeft = xa - gutter - margin
+        let f = Rectangle (boxLeft :+ (ya - margin)) ((xb + margin) :+ (yb + margin))
         
-        fillColor c
+        fillColor colour
         fill f
 
-        -- Draw a vertical line relative to xa.
+        -- Draw adjust vertical line relative to xa.
         case mLineOffset of
             Just offset -> do
                 strokeColor (Rgb 0.6 0.6 0.6) 
                 setWidth 1
                 let lineX = xa - offset 
-                stroke $ Line lineX (ya - m) lineX (yb + m)
+                stroke $ Line lineX (ya - margin) lineX (yb + margin)
             Nothing -> return ()
 
-        b
+        drawAction
         return ()
     paragraphStyle _ = Nothing

@@ -58,7 +58,7 @@ textChars   ::= (<nonSpecialChars>)+ <textChars> | '\' <specialChars> <textChars
 
 #| Configuración del documento
 config      ::= '\config{' <configName> '}' <optionList>
-configName  ::= 'size' | 'pagenumbering' | ... | 'verbatimnumbering'
+configName  ::= 'size' | 'pagenumbering' | ... | 'verbnumbering'
 
 #| Metadata del documento
 metadata    ::= <title> <author> <date>
@@ -74,7 +74,7 @@ command ::= <text>
         | <figure>
         | <table>
         | <list>
-        | <verbatim>
+        | <verb>
         | <newpage>
         | <hline>
 
@@ -86,8 +86,8 @@ table             ::= '\begin{table}' <optionList> <tableContents> '\end{table}'
 tableContents     ::= <text> ('|' <text>)* '\break'
 list              ::= '\begin{list}' <optionList> <listContents> '\end{list}'
 listContents      ::= '\item' <text>
-verbatim          ::= '\begin{verbatim}' <optionList> <verbatimContents> '\end{verbatim}'
-verbatimContents  ::= (<anyChar>)+ (<notFollowedBy> '\end')>
+verb          ::= '\begin{verb}' <optionList> <verbContents> '\end{verb}'
+verbContents  ::= (<anyChar>)+ (<notFollowedBy> '\end')>
 newpage           ::= '\newpage'
 hline             ::= '\hline' <optionList>
 
@@ -96,30 +96,44 @@ document    ::= (<config>)* <metadata> (<command>)+
 \end{verbatim}
 
 \section{Funcionamiento}
-Para mantener el sistema lo más modular posible \bold{SPF} está dividido en componentes, cada una independiente de las demás. Dado un archivo en formato \bold{SPF} este atraviesa una serie de módulos para producir un PDF, en orden, son:
+Para mantener el sistema lo más modular posible \verb{SPF} está dividido en componentes, cada una independiente de las demás. Dado un archivo en formato \verb{SPF} este atraviesa una serie de módulos para producir un PDF, en orden, son:
 
 \begin{list}[style: number]
-\item Parser: Se encuentra en \bold{Parser.hs}. Se encarga de \italic{parsear} el archivo, es decir convertir el texto del mismo en un AST. Cabe notar que en este punto no se validan los datos, el parser solo se ocupa de la correctitud \italic{sintáctica} del archivo, no la \italic{semántica}. Puede fallar.
-\item Validador: Está compuesto por múltiples archivos, se encuentran en el directorio \bold{Validation}. Valida los contenidos del AST generado por el parser. El trabajo principal del validador es verificar que las opciones en el archivo, tanto de configuración como de los comandos sean correctas; Esto conlleva verificar que cada par \bold{clave:valor} sea del tipo y forma correcta para el comando o la configuración a él que corresponden. Devuelve otro AST y puede fallar.
-\item Recursos: Se encuentra en \bold{Resources.hs}. Carga todos los recursos necesarios para typesetter el documento. Por un lado están las fuentes, siempre deben cargarse. Por el otro lado están los recursos especificados por el usuario, deben ser cargados antes de comenzar a typsetear el documento, esta carga pude fallar.
+\item Parser: Se encuentra en \verb{Parser.hs}. Se encarga de \italic{parsear} el archivo, es decir convertir el texto del mismo en un AST. Cabe notar que en este punto no se validan los datos, el parser solo se ocupa de la correctitud \italic{sintáctica} del archivo, no la \italic{semántica}. Puede fallar.
+\item Validador: Está compuesto por múltiples archivos, se encuentran en el directorio \verb{Validation}. Valida los contenidos del AST generado por el parser. El trabajo principal del validador es verificar que las opciones en el archivo, tanto de configuración como de los comandos sean correctas; Esto conlleva verificar que cada par \verb{clave:valor} sea del tipo y forma correcta para el comando o la configuración a él que corresponden. Devuelve otro AST y puede fallar.
+\item Recursos: Se encuentra en \verb{Resources.hs}. Carga todos los recursos necesarios para typesetter el documento. Por un lado están las fuentes, siempre deben cargarse. Por el otro lado están los recursos especificados por el usuario, deben ser cargados antes de comenzar a typsetear el documento, esta carga pude fallar.
 \end{list}
 
 \subsection{Un poco más sobre ASTs}
-En un principio los ASTs usados simplemente almacenaban una lista de todos los comandos utilizados en el documento. Rapidamente me di cuenta de que esto era una mala idea. En primer lugar no habia separacion entre tipos de datos, todos eran \italic{comandos} en una lista. Lo que llevaba a un segundo problema era necesario iterar repetidas veces sobre esta lista para obtener distintos tipos de comandos (Configuracion, metadata, etc). Hacer esto es ineficiente y no escala bien. Para solucionar esto los ASTs se separaron en componentes funcionales, donde cada una responde a un tipo de comando. De esta forma solo se itera sobre una lista cuando es necesario recorrerla.
+En un principio los ASTs usados simplemente almacenaban una lista de todos los comandos utilizados en el documento. Rápidamente me di cuenta de que esto era una mala idea. En primer lugar no había separación entre tipos de datos, todos eran \italic{comandos} en una lista. Lo que llevaba a un segundo problema era necesario iterar repetidas veces sobre esta lista para obtener distintos tipos de comandos (Configuración, metadata, etc). Hacer esto es ineficiente y no escala bien. Para solucionar esto los ASTs se separaron en componentes funcionales, donde cada una responde a un tipo de comando. De esta forma solo se itera sobre una lista cuando es necesario recorrerla.
 
 \subsection{¿Como fallar?}
 Cómo manejar fallos en un programa de este tipo no es una pregunta facil de resolver, principalmente porque es posible tener \italic{muchos} fallos. Seria entonces ideal poder acumular todos los errores que ocurren mientras el programa procesa un archivo. Esto sin embargo no es posible, al menos del todo. No se pueden acumular errores de distintas secciones pues cada módulo depende de que el resultado de los anteriores sea correcto. Llegamos así a un compromiso, si bien no podemos acumular \italic{todos} los errores a lo largo del programa si podemos acumular los errores de cada etapa. Esto es más eficiente, pues le permite solucionar múltiples problemas al mismo tiempo, haciendo que se deba ejecutar el programa menos veces.
 
 En el parser esto se hace usando \italic{delayed parse errors}. Estos son errores que no provocan que el parser falle inmediatamente, los errores acumulados se toman en cuenta al final del paseo, donde sí hay por lo menos uno el parser falla. Cabe notar que es posible obtener un error \"normal\", haciendo que el parser falle inmediatamente, esto ocurre ya que los \italic{delayed parse errors} deben implementarse manualmente, uno a uno; Por lo tanto no es posible cubrir todos los casos posibles, se cubrieron los errores mas comunes y fáciles de producir.
 
-El resto de los módulos utiliza el paquete \bold{Validation}, su descripción es bastante autoexplicativa: \italic{A data-type like Either but with an accumulating Applicative}. Es decir cumple la misma función que \bold{either}, dándonos un resultado o un error, pero permitiéndonos acumular errores. Para que esto sea posible el tipo de datos del error debe ser un semigrupo, en este caso se usa una lista de \bold{LocatedError}, son errores que contienen la ubicación aproximada, indicando que parte del archivo provocó el error.
+El resto de los módulos utiliza el paquete \verb{Validation}, su descripción es bastante autoexplicativa: \italic{A data-type like Either but with an accumulating Applicative}. Es decir cumple la misma función que \verb{Either}, dándonos un resultado o un error, pero permitiéndonos acumular errores. Para que esto sea posible el tipo de datos del error debe ser un semigrupo, en este caso se usa una lista de \verb{LocatedError}, son errores que contienen la ubicación aproximada, indicando que parte del archivo provocó el error.
 
 \subsection{Generando PDFs}
-Una vez que se tiene un AST valido falta la parte mas importante, transformarlo en un PDF. Para hacer esto utilice la libreria \bold{HPDF}. Elegi esta libreria por un motivo simple, es la unica libreria para generar PDFs escrita en Haskell.
+Una vez que se tiene un AST valido falta la parte más importante, transformarlo en un PDF. Para hacer esto utilice la librería \verb{HPDF}. Elegí esta librería por un motivo simple, es la única librería para generar PDFs escrita en Haskell.
 
-Habiendo usado esta libreria puedo decir que si bien es muy poderosa \italic{tiene problemas}, el principal y del cual derivan la mayoria es que es una libreria con muy pocos usuarios. Como consequencia de esto hay muy poca informacion sobre la libreria. La documentacion esta incompleta, muchas funciones tienen explicaciones muy pobres, si es que tienen. Sumado a esto nunca se explica la estructura o flujo general de un programa hecho con \bold{HPDF}, ni como se conectan los distintos componentes de la libreria.
+Habiendo usado esta librería puedo decir que si bien es muy poderosa \italic{tiene problemas}, el principal y del cual derivan la mayoría es que es una librería con muy pocos usuarios. Como consecuencia de esto hay muy poca información sobre la librería. La documentación esta incompleta, muchas funciones tienen explicaciones muy pobres, si es que tienen. Sumado a esto nunca se explica la estructura o flujo general de un programa hecho con \verb{HPDF}, ni como se conectan los distintos componentes de la librería.
 
-Lo que me permitio entender como funciona la libreria fue el archivo de prueba(\bold{Test\/test.hs}) en el repositorio del proyecto. Este prueba casi todas las funciones de la libreria generando un documento. Me permitio ver un ejemplo en funcionamiento de la misma al mismo tiempo que me permitia expermientar y realizar cambios para ver \italic{exactamente} como funcionaba la libreria.
+Lo que me permitió entender como funciona la librería fue el archivo de prueba en el repositorio del proyecto(\verb{github.com/hsyl20/HPDF/blob/master/Test/test.hs}). Este prueba casi todas las funciones de la librería generando un documento. Me permitió ver un ejemplo en funcionamiento de la misma al mismo tiempo que me permitía experimentar y realizar cambios para ver \italic{exactamente} como funcionaba la librería.
 
 \subsection{Un error en HPDF}
+Mientras estaba escribiendo un informe descubrí un bug en \verb{HPDF}, este error provoca que dadas ciertas condiciones el algoritmo de \italic{line breaking} no funcione. Gracias a errores de redondeo de punto flotante puede ocurrir que una palabra no sea lo suficientemente larga como para causar un \italic{line break} pero que si sea lo suficientemente larga como para exceder el margen de la caja donde está siendo typeseteada. Esto causa que el algoritmo deje de introducir \italic{line breaks} por completo.
+
+\begin{paragraph}[style: left]
+En la figura de abajo se ve como el bloque de texto \quote{autoexplicativa:} excede levemente el margen derecho, causando el bug antes descrito. En base a mi entendimiento de la librería para solucionar este bug es necesario modificar el codigo fuente de la misma, algo que excede el alcance del trabajo.
+\end{paragraph}
+
 \figure{Img/WidthError.png}[width: 0.85, caption: "Un ejemplo del error"]
+
+\section{Mas sobre typesetting}
+Hasta el momento he mencionado varias veces \italic{typesetting}, pero no explique concretamente que es, formalmente se describe como:
+
+
+\begin{paragraph}[justification: center]
+        Como: \italic{El proceso de organizar, formatear y disponer el texto y elementos graficos en una pagina}
+\end{paragraph}
