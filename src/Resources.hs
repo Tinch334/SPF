@@ -32,6 +32,7 @@ import Codec.Picture
 import Graphics.PDF.Fonts.Font (AnyFont)
 import qualified Graphics.PDF.Fonts.StandardFont as SF
 import Graphics.Svg (loadSvgFile)
+import Graphics.Text.TrueType (buildCache)
 import Graphics.Rasterific.Svg (loadCreateFontCache, renderSvgDocument)
 import qualified Graphics.Svg.Types as ST
 
@@ -90,8 +91,7 @@ loadResource (Located pos fullPath, Located _ originalPath) = do
                             _ -> Nothing
 
                     -- Font cache for font rendering.
-                    cache <- loadCreateFontCache "fonty-texture-cache"
-                    -- Render image with no coordinate transformation.
+                    cache <- buildCache
                     (render, _) <- renderSvgDocument cache size dpi doc
 
                     -- Convert the image buffer into a "DynamicImage".

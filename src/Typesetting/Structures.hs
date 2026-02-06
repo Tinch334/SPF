@@ -1,3 +1,5 @@
+{-# LANGUAGE StrictData #-}
+
 module Typesetting.Structures
     ( RCLayout(..)
     , RCStyles(..)
@@ -18,7 +20,7 @@ import qualified Datatypes.ValidatedTokens as VT
 import Datatypes.Resources
 
 import Control.Monad.Reader
-import Control.Monad.State.Lazy
+import Control.Monad.State.Strict
 
 import Graphics.PDF
 
@@ -87,7 +89,7 @@ data RenderEnv = RenderEnv
 -- Read/Write environment, stores the state of the document whilst typesetting.
 data RenderState = RenderState
     { rsCurrentY    :: Double
-    , rsCurrentPage :: PDFReference PDFPage
+    , rsCurrentPage :: ~(PDFReference PDFPage) -- Keep page reference lazy.
     , rsCounters    :: DocumentCounters
     }
 

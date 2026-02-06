@@ -3,6 +3,7 @@
 
 \config{titlesize}[size: 42]
 \config{parsize}[size: 12]
+\config{sectionsize}[size: 20]
 \config{subsectionsize}[size: 15]
 
 \config{parindent}[indent: 25]
@@ -17,16 +18,16 @@
 \date{2\/2\/2026}
 
 
-\section{¿Que es \bold{SPF}?}
-Simple PDF, es un DSL para generar PDFs, es decir un lenguaje que al ser interpretado produce PDFs, este informe está hecho con \bold{SPF}. Decidí hacer \bold{SPF} porque me interesaba que el proyecto hiciese algo más que dar salida a la consola. Considerando que desde que conocí \bold{LaTeX} me interesó el typesetting este proyecto era la excusa ideal para interiorizarme más en el tema.
+\section{¿Que es \verb{SPF}?}
+Simple PDF, es un DSL para generar PDFs, es decir un lenguaje que al ser interpretado produce PDFs, este informe está hecho con \verb{SPF}. Decidí hacer \verb{SPF} porque me interesaba hacer un proyecto que hiciese algo más que dar salida a la consola. Considerando que desde que conocí \verb{LaTeX} me interesó el typesetting este proyecto era la excusa ideal para interiorizarme más en el tema.
 
 \subsection{Consideraciones de diseño}
-A la hora de diseñar \bold{SPF} me inspire en \bold{LaTeX}, pero sin mantenerme atado a sus convenciones o decisiones de diseño, lo trate como una fuente de inspiración. En particular toma otra dirección en cuanto a la forma de los comandos, permitiendo solo un argumento; Al mismo tiempo las opciones deben tener asociada una clave indicando a qué corresponde el valor. Finalmente simplifique la forma en la que estructura el documento, ya no es necesario separar el título y documento de forma explícita.
+A la hora de diseñar \verb{SPF} me inspire en \verb{LaTeX}, pero sin mantenerme atado a sus convenciones o decisiones de diseño, lo trate como una fuente de inspiración. En particular toma otra dirección en cuanto a la forma de los comandos, permitiendo solo un argumento. Junto con esto las opciones deben tener asociada una clave indicando a qué campo corresponde el valor, hice esto porque la forma de escribir opciones en \verb{LaTeX} es confusa; Se pueden combinar opciones con y sin clave, algo que en mi opinión es confuso y se presta a errores. Finalmente simplifique la forma en la que estructura el documento, en \verb{LaTeX} esa complejidad permite 
 
-Los comandos implementados son un subconjunto de los disponibles en \bold{LaTeX}, elegidos para permitir generar documentos (mayormente)completos, manteniendo al mismo tiempo la cantidad total de comandos baja.
+Los comandos implementados son un subconjunto de los disponibles en \verb{LaTeX}, elegidos para permitir generar documentos (mayormente)completos, manteniendo al mismo tiempo la cantidad total de comandos baja. Cabe notar que los nombres y argumentos de los comandos no se copiaron exactamente, mi objetivo era que este subconjunto tenga una \italic{funcionalidad} similar a la de sus contrapartes en LaTeX.
 
 \subsection{Sintaxis}
-Para representar la sintaxis se usan ciertas convenciones; El símbolo \bold{*} indica cero o más ocurrencias de lo que encierra mientras que el \bold{+} indica una o mas ocurrencias. Los comentarios no están incluidos pues no son parte de la sintaxis en si, son añadidos en el parser para la conveniencia del usuario. A continuación se presenta la sintaxis concreta de \bold{SPF}:
+Para representar la sintaxis se usan ciertas convenciones; El símbolo \bold{*} indica cero o más ocurrencias de lo que encierra mientras que el \bold{+} indica una o mas ocurrencias. Los comentarios no están incluidos pues no son parte de la sintaxis en si, son añadidos para la conveniencia del usuario y no resultan en tokens al parsear. A continuación se presenta la sintaxis concreta de \bold{SPF}:
 
 \begin{verbatim}[numbering: false]
 digit           ::= '0' | '1' | ... | '9'
@@ -79,15 +80,14 @@ command ::= <text>
         | <hline>
 
 paragraph         ::= '\begin{paragraph}' <optionList> <text> '\end{paragraph}'
-section           ::= '\section{'<text> '}' <optionList>
-subsection        ::= '\subsection{'<text> '}' <optionList>
+section           ::= '\section{' <text> '}' <optionList>
+subsection        ::= '\subsection{' <text> '}' <optionList>
 figure            ::= '\figure{' <filepath> '}' <optionList>
 table             ::= '\begin{table}' <optionList> <tableContents> '\end{table}'
 tableContents     ::= <text> ('|' <text>)* '\break'
 list              ::= '\begin{list}' <optionList> <listContents> '\end{list}'
 listContents      ::= '\item' <text>
-verb          ::= '\begin{verb}' <optionList> <verbContents> '\end{verb}'
-verbContents  ::= (<anyChar>)+ (<notFollowedBy> '\end')>
+verb              ::= '\begin{verb}' <optionList> (<anyChar>)+ '\end{verb}'
 newpage           ::= '\newpage'
 hline             ::= '\hline' <optionList>
 
@@ -101,39 +101,91 @@ Para mantener el sistema lo más modular posible \verb{SPF} está dividido en co
 \begin{list}[style: number]
 \item Parser: Se encuentra en \verb{Parser.hs}. Se encarga de \italic{parsear} el archivo, es decir convertir el texto del mismo en un AST. Cabe notar que en este punto no se validan los datos, el parser solo se ocupa de la correctitud \italic{sintáctica} del archivo, no la \italic{semántica}. Puede fallar.
 \item Validador: Está compuesto por múltiples archivos, se encuentran en el directorio \verb{Validation}. Valida los contenidos del AST generado por el parser. El trabajo principal del validador es verificar que las opciones en el archivo, tanto de configuración como de los comandos sean correctas; Esto conlleva verificar que cada par \verb{clave:valor} sea del tipo y forma correcta para el comando o la configuración a él que corresponden. Devuelve otro AST y puede fallar.
-\item Recursos: Se encuentra en \verb{Resources.hs}. Carga todos los recursos necesarios para typesetter el documento. Por un lado están las fuentes, siempre deben cargarse. Por el otro lado están los recursos especificados por el usuario, deben ser cargados antes de comenzar a typsetear el documento, esta carga pude fallar.
+\item Recursos: Se encuentra en \verb{Resources.hs}. Carga todos los recursos necesarios para typesetter el documento. Por un lado están las fuentes, deben cargarse siempre, si esto falla el typesetting no puede realizarse. Por el otro lado están los recursos especificados por el usuario, también deben ser cargados antes de comenzar a type setear el documento, esta carga puede fallar.
+\item Typesetter: El último eslabón de la cadena, toma el AST producido por el validador junto con los recursos cargados y los utiliza para generar un PDF.
 \end{list}
 
 \subsection{Un poco más sobre ASTs}
-En un principio los ASTs usados simplemente almacenaban una lista de todos los comandos utilizados en el documento. Rápidamente me di cuenta de que esto era una mala idea. En primer lugar no había separación entre tipos de datos, todos eran \italic{comandos} en una lista. Lo que llevaba a un segundo problema era necesario iterar repetidas veces sobre esta lista para obtener distintos tipos de comandos (Configuración, metadata, etc). Hacer esto es ineficiente y no escala bien. Para solucionar esto los ASTs se separaron en componentes funcionales, donde cada una responde a un tipo de comando. De esta forma solo se itera sobre una lista cuando es necesario recorrerla.
+En un principio los ASTs usados simplemente almacenaban una lista de todos los comandos utilizados en el documento. Rápidamente me di cuenta de que esto era una mala idea. En primer lugar no había separación entre los distintos tipos lógicos de tokens, todos eran \italic{comandos} en una lista. Lo que llevaba a un segundo problema era necesario iterar repetidas veces sobre esta lista para obtener distintos tipos de tokens. Hacer esto es ineficiente y no escala bien.
+
+Para solucionar esto los ASTs se separaron en componentes funcionales, donde cada una corresponde a un tipo de comando. De esta forma hay una separación lógica entre los tokens; Al mismo tiempo solo se tira sobre una lista cuando es necesario recorrerla, mejorando la eficiencia y haciendo más rápido el programa.
 
 \subsection{¿Como fallar?}
-Cómo manejar fallos en un programa de este tipo no es una pregunta facil de resolver, principalmente porque es posible tener \italic{muchos} fallos. Seria entonces ideal poder acumular todos los errores que ocurren mientras el programa procesa un archivo. Esto sin embargo no es posible, al menos del todo. No se pueden acumular errores de distintas secciones pues cada módulo depende de que el resultado de los anteriores sea correcto. Llegamos así a un compromiso, si bien no podemos acumular \italic{todos} los errores a lo largo del programa si podemos acumular los errores de cada etapa. Esto es más eficiente, pues le permite solucionar múltiples problemas al mismo tiempo, haciendo que se deba ejecutar el programa menos veces.
+Cómo manejar fallos en un programa de este tipo no es una pregunta facil de resolver, principalmente porque es posible tener \italic{muchos} fallos. Seria entonces ideal poder acumular todos los errores que ocurren mientras el programa procesa un archivo; De esta forma el usuario podría solucionar múltiples errores al mismo tiempo, haciendo que se deba ejecutar el programa menos veces. Esto sin embargo no es posible, al menos del todo. No se pueden acumular errores de distintas secciones pues cada módulo depende de que el resultado de los anteriores sea correcto. Llegamos así a un compromiso, si bien no podemos acumular \italic{todos} los errores a lo largo del programa si podemos acumular los errores de cada etapa.
 
-En el parser esto se hace usando \italic{delayed parse errors}. Estos son errores que no provocan que el parser falle inmediatamente, los errores acumulados se toman en cuenta al final del paseo, donde sí hay por lo menos uno el parser falla. Cabe notar que es posible obtener un error \"normal\", haciendo que el parser falle inmediatamente, esto ocurre ya que los \italic{delayed parse errors} deben implementarse manualmente, uno a uno; Por lo tanto no es posible cubrir todos los casos posibles, se cubrieron los errores mas comunes y fáciles de producir.
+En el parser esto se hace usando \italic{delayed parse errors}. Estos son errores que no provocan que el parser falle inmediatamente, los errores acumulados se toman en cuenta al final del paseo, donde sí hay por lo menos uno el parser falla. Cabe notar que es posible obtener un error, que haga que el parser falle inmediatamente, esto puede ocurrir por uno de dos motivos. Por un lado los \italic{delayed parse errors} deben implementarse manualmente; No es posible cubrir todos los casos, se cubrieron los errores más comunes y fáciles de producir. Por el otro lado no siempre es posible recuperarse de un error de parseo, generalmente debido a que el fallo deja contenido sin consumir del archivo, este contenido no encaja con ninguna de las reglas del parser, por lo que no puede seguir. A continuación se presenta un ejemplo: 
 
-El resto de los módulos utiliza el paquete \verb{Validation}, su descripción es bastante autoexplicativa: \italic{A data-type like Either but with an accumulating Applicative}. Es decir cumple la misma función que \verb{Either}, dándonos un resultado o un error, pero permitiéndonos acumular errores. Para que esto sea posible el tipo de datos del error debe ser un semigrupo, en este caso se usa una lista de \verb{LocatedError}, son errores que contienen la ubicación aproximada, indicando que parte del archivo provocó el error.
+\begin{verbatim}[numbering: false]
+\sectio{Digital Typography}
+^     
+Posición del cursor
+\end{verbatim}
+
+El comando \verb{\sectio} es invalido, al parsearlo el parser produce un \italic{delayed parse error} y se recupera, continuando el parseo:
+
+\begin{verbatim}[numbering: false]
+\sectio{Digital Typography}
+       ^
+       Posición del cursor
+\end{verbatim}
+
+El comando \verb{{Digital ...} es invalido, mas aun este error no es un error del que el parser se pueda recuperar, ya que al fallar el parser de comandos no hay ningún parser que consuma \verb{{Digital ...}. Si bien se podría hacer que al fallar el parser de comandos consuma la string restante, esto corre el riesgo de generar mensajes de error más confusos para el usuario. En el caso de un bloque \verb{begin/end}, se consumiría el inicio del bloque pero no el fin, generando un mensaje de error inapropiado cuando el parser encuentre \verb{\end{...}.
+
+El resto de los módulos utiliza el paquete \verb{Validation}, su descripción es bastante autoexplicativa: \italic{A data-type like Either but with an accumulating Applicative}. Es decir cumple la misma función que \verb{Either}, dándonos un resultado o un error, pero permitiéndonos acumular errores de forma facil; Esta facilidad viene de la mano de que el acumulador de errores es un functor aplicativo, lo que permite concatenar validaciones fácilmente mediante \verb{<*>}.
 
 \subsection{Generando PDFs}
 Una vez que se tiene un AST valido falta la parte más importante, transformarlo en un PDF. Para hacer esto utilice la librería \verb{HPDF}. Elegí esta librería por un motivo simple, es la única librería para generar PDFs escrita en Haskell.
 
-Habiendo usado esta librería puedo decir que si bien es muy poderosa \italic{tiene problemas}, el principal y del cual derivan la mayoría es que es una librería con muy pocos usuarios. Como consecuencia de esto hay muy poca información sobre la librería. La documentación esta incompleta, muchas funciones tienen explicaciones muy pobres, si es que tienen. Sumado a esto nunca se explica la estructura o flujo general de un programa hecho con \verb{HPDF}, ni como se conectan los distintos componentes de la librería.
+Habiendo usado esta librería puedo decir que si bien es muy poderosa \italic{tiene problemas}, el principal y del cual derivan la mayoría es que es una librería con muy pocos usuarios. Como consecuencia de esto hay muy poca información sobre la librería. La documentación está incompleta, muchas funciones tienen explicaciones muy pobres, si es que tienen. Sumado a esto nunca se explica la estructura o flujo general de un programa hecho con \verb{HPDF}, ni cómo se conectan los distintos componentes de la librería.
 
-Lo que me permitió entender como funciona la librería fue el archivo de prueba en el repositorio del proyecto(\verb{github.com/hsyl20/HPDF/blob/master/Test/test.hs}). Este prueba casi todas las funciones de la librería generando un documento. Me permitió ver un ejemplo en funcionamiento de la misma al mismo tiempo que me permitía experimentar y realizar cambios para ver \italic{exactamente} como funcionaba la librería.
+Lo que me permitió entender cómo funciona la librería fue el archivo de prueba en el repositorio del proyecto(\verb{github.com/hsyl20/HPDF/blob/master/Test/test.hs}). Este prueba casi todas las funciones de la librería generando un documento. Me permitió ver un ejemplo en funcionamiento de la misma al mismo tiempo que me permitía experimentar y realizar cambios para ver \italic{exactamente} como funcionaba la librería.
 
-\subsection{Un error en HPDF}
-Mientras estaba escribiendo un informe descubrí un bug en \verb{HPDF}, este error provoca que dadas ciertas condiciones el algoritmo de \italic{line breaking} no funcione. Gracias a errores de redondeo de punto flotante puede ocurrir que una palabra no sea lo suficientemente larga como para causar un \italic{line break} pero que si sea lo suficientemente larga como para exceder el margen de la caja donde está siendo typeseteada. Esto causa que el algoritmo deje de introducir \italic{line breaks} por completo.
+\subsection{Un bug en HPDF}
+Mientras estaba escribiendo un informe descubrí un bug en \verb{HPDF}, provoca que dadas ciertas condiciones el algoritmo de \italic{line breaking} no funcione. Gracias a errores de redondeo de punto flotante puede ocurrir que una palabra no sea lo suficientemente larga como para causar un \italic{line break} pero que si sea lo suficientemente larga como para exceder el margen de la caja donde está siendo typeseteada. Esto causa que el algoritmo deje de introducir \italic{line breaks} por completo.
 
-\begin{paragraph}[style: center]
-En la figura de abajo se ve como el bloque de texto \quote{autoexplicativa:} excede levemente el margen derecho, causando el bug antes descrito. En base a mi entendimiento de la librería para solucionar este bug es necesario modificar el codigo fuente de la misma, algo que excede el alcance del trabajo.
-\end{paragraph}
+En la figura de abajo se ve como el bloque de texto \quote{autoexplicativa:} excede levemente el margen derecho, causando el bug antes descrito. Notar que esto no ocurre siempre, solo cuando un bloque de texto y la linea(\verb{kern + glue + margin}) generan una combinacion \italic{problematica}. En base a mi entendimiento de la librería para solucionar este bug es necesario modificar el codigo fuente de la misma, algo que excede el alcance del trabajo.
 
 \figure{Img/WidthError.png}[width: 0.85, caption: "Un ejemplo del error"]
 
-\section{Mas sobre typesetting}
-Hasta el momento he mencionado varias veces \italic{typesetting}, pero no explique concretamente que es, formalmente se describe como:
-
-
-\begin{paragraph}[justification: center]
-        Como: \italic{El proceso de organizar, formatear y disponer el texto y elementos graficos en una pagina}
+\section{¿Como hacer typesetting?}
+\begin{paragraph}[justification: full, style: narrow]
+    \italic{Typesetting es el proceso de organizar, formatear y disponer texto y elementos gráficos asociados en una página, se busca mejorar la legibilidad y estética. Si esto se hace bien los lectores no van a darse cuenta de que lo que están leyendo fue organizado de forma rígida y poco natural.}
 \end{paragraph}
+\begin{paragraph}[justification: right, style: narrow]
+    \italic{Donald E. Knut - Digital Typography(1999)}
+\end{paragraph}
+
+\subsection{El algoritmo}
+El problema a solucionar parece engañosamente simple, dada una serie de elementos \italic{acomodarlos} como mejor colocarlos en una(o mas) paginas de forma que el resultado sea estetico y legible. Este problema se puede abstraer, en lugar de elementos discretos pensamos en \bold{cajas}, no importa que contienen(Texto, figuras, tablas, etc), lo importante es su tamaño.
+
+El algoritmo implementado esta enfocado en ser lo mas simple posible, en particular no queria que implicase hacer multiples pasadas ni backtracking, algo que el algoritmo de \verb{LaTeX} hace. Considerando esto y luego de algunas pruebas llegue a la conclusion de que un algoritmo basado en un cursor vertical es suficiente, especialmente al combinarlo con las funcionalidades de \verb{HPDF}. Esto deriva en un algoritmo muy simple y facil de implementar. Una aproximacion en pseudocodigo es:
+
+\begin{verbatim}
+typeset [] = done
+typeset (elem:xs) = 
+    when checkSpace makeNewPage
+
+    case elem of
+        Paragraph p -> typesetParagraph p
+        ...
+        List l -> typesetList l
+        ...
+        Newpage -> makeNewPage
+\end{verbatim}
+
+Antes de typesetear un elemento se verifica que haya suficiente espacio en la pagina, si no es asi se crea una pagina nueva, lo que automaticamente mueve el cursor al principio de la nueva pagina. Luego se typesetea el elemento correspondiente, ajustando el cursor segun es necesario. Esto ser repite hasta que no queden mas elementos que typesetear.
+
+\subsection{Los detalles}
+A la hora de implementar el algoritmo quedo claro que era necesario mantener un estado entre llamadas de funcion. En un principio utilice una monada \verb{StateT} para almacenar todos los datos. Si bien esto funcionaba presentaba un problema conceptual, esta monada tenia valores que eran solo de lectura, como la configuracion; Sin embargo al estar una monada \verb{StateT} podian ser modificados.
+
+Para solucionar esto se usan dos monadas concatenadas, primero una monada \verb{ReaderT} su \italic{environment} almacena los valores solo de lectura y su monada es una monada \verb{StateT}. A su vez esta almacena en su \italic{state} a todos los valores dinamicos, su monada es la monada \verb{PDF} que almacena el documento que esta siendo typeseteado. En Haskell esto se expresa de la siguiente forma:
+
+\begin{verbatim}[numbering: false]
+type Typesetter a = ReaderT RenderEnv (StateT RenderState PDF) a
+\end{verbatim}
+
+En cuanto a las estructuras \verb{RenderEnv} y \verb{RenderState} la unico notable es que todos sus campos, menos uno, son estrictos. De lo contrario un PDF largo podria llenar la \verb{RAM} o causar un \verb{StackOverflow} debido a thunks sin evaluar.
+
+\section{Desafios}
+\subsection{Bookmarks}
+\subsection{Evitando bloat}

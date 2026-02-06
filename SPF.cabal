@@ -44,7 +44,8 @@ library
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
-      HPDF
+      FontyFruity
+    , HPDF
     , JuicyPixels
     , async
     , base >=4.7 && <5
@@ -74,7 +75,8 @@ executable SPF-exe
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      HPDF
+      FontyFruity
+    , HPDF
     , JuicyPixels
     , SPF
     , async
@@ -106,7 +108,8 @@ test-suite SPF-test
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      HPDF
+      FontyFruity
+    , HPDF
     , JuicyPixels
     , SPF
     , async

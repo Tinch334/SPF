@@ -15,11 +15,11 @@ import Datatypes.Resources
 import Typesetting.Styles
 
 import Data.Text (Text)
+import qualified Data.Text as T
 
 import GHC.Float (double2Int, int2Double)
 
-import Graphics.PDF
-import Graphics.PDF.Fonts.Font (AnyFont)
+import Graphics.PDF hiding (FontSize, TextType, Helvetica, Courier)
 
 
 ------------------------
@@ -27,7 +27,7 @@ import Graphics.PDF.Fonts.Font (AnyFont)
 ------------------------
 -- Takes the text from a list of VText.
 mergeVText :: [VText] -> Text
-mergeVText = foldl (\s vt -> s <> textCnt vt) ""
+mergeVText = T.concat . map textCnt
 
 -- Converts a page size token to it's size in points.
 pageSizeToRect :: PageSize -> PDFRect
@@ -37,10 +37,10 @@ pageSizeToRect SizeLegal = PDFRect 0 0 612 1009
 pageSizeToRect (SizeCustom (Pt w) (Pt h)) = PDFRect 0 0 w h
 
 -- Scale the given font size.
-adjustFontSize :: Datatypes.ValidatedTokens.FontSize -> Double -> Datatypes.ValidatedTokens.FontSize
+adjustFontSize :: FontSize -> Double -> FontSize
 adjustFontSize (FontSize pt) a = FontSize (double2Int $ (int2Double pt) * a)
 
--- Converts and integer to a Roman numeral.
+-- Converts an integer to a Roman numeral.
 toRoman :: Int -> String
 toRoman 0 = ""
 toRoman x
@@ -60,13 +60,13 @@ toRoman x
     | otherwise = ""
 
 -- Takes a font, style and returns the appropriate font.
---getFont :: LoadedFonts -> Font -> Datatypes.ValidatedTokens.TextType -> Datatypes.ValidatedTokens.FontSize -> StandardStyle
-getFont fonts family style (Datatypes.ValidatedTokens.FontSize size) =
+getFont :: LoadedFonts -> Font -> TextType -> FontSize -> StandardStyle
+getFont fonts family style (FontSize size) =
     let
         f = case family of
-            Datatypes.ValidatedTokens.Helvetica -> helvetica
-            Datatypes.ValidatedTokens.Courier -> courier
-            Datatypes.ValidatedTokens.Times -> times
+            Helvetica -> helvetica
+            Courier -> courier
+            Times -> times
             _ -> error "INTERNAL: Given font has no family"
         s = case style of
             Bold -> bold
@@ -76,8 +76,11 @@ getFont fonts family style (Datatypes.ValidatedTokens.FontSize size) =
 
     in (Font (PDFFont (s $ f fonts) size) black black)
 
---getVerbatimFont :: LoadedFonts -> AnyFont
-getVerbatimFont fonts (Datatypes.ValidatedTokens.FontSize size) = (Font (PDFFont (normal $ courier fonts) size) black black)
+-- Gets font used for verbatim environments.
+getVerbatimFont :: LoadedFonts -> FontSize -> StandardStyle
+getVerbatimFont fonts (FontSize size) = (Font (PDFFont (normal $ courier fonts) size) black black)
+
+
 ------------------------
 -- ELEMENT MAKER FUNCTIONS
 ------------------------

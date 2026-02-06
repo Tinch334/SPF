@@ -13,14 +13,14 @@ import Typesetting.Styles
 
 import Control.Monad
 import Control.Monad.Reader
-import Control.Monad.State.Lazy
+import Control.Monad.State.Strict
 
 import qualified Data.Map as M
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Maybe (fromJust, fromMaybe, isJust)
 
-import GHC.Float (int2Double, double2Int)
+import GHC.Float (int2Double)
 
 import Graphics.PDF
 import Graphics.PDF.Typesetting.WritingSystem
@@ -148,10 +148,10 @@ typesetElements elements = do
                 typesetList list style
             VT.VVerbatim code font background ->
                 typesetVerbatim code font background
-            VT.VNewpage ->
-                makeNewPage Numbered
             VT.VHLine width thick ->
                 typesetHLine width thick
+            VT.VNewpage ->
+                makeNewPage Numbered
 
 
 ------------------------
@@ -195,7 +195,7 @@ makeNewPage mode = do
     let (topMargin, bottomMargin) = envVertMargin
     
     -- Update state.
-    modify $ \s -> s { rsCurrentPage = newPage, rsCurrentY = envPageHeight - topMargin }
+    modify' $ \s -> s { rsCurrentPage = newPage, rsCurrentY = envPageHeight - topMargin }
 
     -- If appropriate, print debug information.
     when envDebug (pdfLift $ drawWithPage newPage $ do
@@ -213,7 +213,7 @@ makeNewPage mode = do
 
         let newPageNumber = dcPage rsCounters + 1
         -- Update page number.
-        modify $ \s -> s { rsCounters = rsCounters { dcPage = newPageNumber } }
+        modify' $ \s -> s { rsCounters = rsCounters { dcPage = newPageNumber } }
 
         let (VT.Pt hMargin) = rcMarginHoz (layout envConfig)
         let (_, bottomMargin) = envVertMargin
@@ -310,7 +310,7 @@ typesetContent content font size just paraStyle indent beforeSpace afterSpace = 
         if null remainingBoxes
             then
                 -- Text fits on page, update cursor to the bottom of the placed text plus paragraph spacing.
-                modify $ \s -> s { rsCurrentY = newBottomY - afterSpace }
+                modify' $ \s -> s { rsCurrentY = newBottomY - afterSpace }
             else do
                 -- Overflow, force new page and render remaining boxes.
                 makeNewPage Numbered
@@ -322,7 +322,7 @@ typesetTitlepage meta = do
     RenderEnv{..} <- ask
 
     -- Move the cursor down to separate any title elements.
-    modify $ \s -> s { rsCurrentY = envPageHeight * 0.85 }
+    modify' $ \s -> s { rsCurrentY = envPageHeight * 0.85 }
 
     let font = rcFont (styles envConfig)
 
@@ -348,10 +348,10 @@ typesetTitlepage meta = do
     when (isJust mTitle && isJust mAuthor) $ do
         -- It's necessary to get the cursor position both times since typesetting, first the title and then the line, changes it.
         cy <- gets rsCurrentY
-        modify $ \s -> s { rsCurrentY = cy - smallGap }
+        modify' $ \s -> s { rsCurrentY = cy - smallGap }
         typesetHLine (VT.PageWidth 0.6) (Just $ VT.Pt 2.0)
         cy <- gets rsCurrentY
-        modify $ \s -> s { rsCurrentY = cy - smallGap }
+        modify' $ \s -> s { rsCurrentY = cy - smallGap }
 
     case mAuthor of
         Nothing -> return ()
@@ -367,7 +367,6 @@ typesetTitlepage meta = do
 typesetParagraph :: [VT.VText] -> Maybe VT.Font -> Maybe VT.FontSize -> Maybe VT.Justification -> Maybe VT.ParagraphStyle -> Typesetter ()
 typesetParagraph vText mFont mSize mJust mStyle = do
     cfg <- asks envConfig
-    fonts <- asks envFonts
     let styleCfg = styles cfg
     let sizeCfg  = sizes cfg
     let spaceCfg = spacing cfg
@@ -379,7 +378,7 @@ typesetParagraph vText mFont mSize mJust mStyle = do
     let (VT.Pt indent) = rcParIndent spaceCfg
     let (VT.Spacing (VT.Pt beforeSpace) (VT.Pt afterSpace)) = rcParagraphSp spaceCfg
 
-    let paraSize = 0.7
+    let paraSize = 0.75
     let para = case style of
             VT.StyleNormal -> NormalPara
             VT.StyleLeft -> LeftPara paraSize
@@ -414,7 +413,7 @@ typesetHeader vText mFont mSize level = do
                    , show (dcSection rsCounters) ++ "." ++ show next )
 
     -- Update counter state.
-    modify $ \s -> s { rsCounters = newCounters }
+    modify' $ \s -> s { rsCounters = newCounters }
 
     let numbering = if numberingEnabled then T.pack $ label ++ ". " else ""
     let fullText = if numberingEnabled then (VT.VText numbering VT.Bold):vText else vText
@@ -459,7 +458,7 @@ typesetFigureInner path gw@(VT.PageWidth givenWidth) mCap newpageAllowed = do
             drawXObject img
 
     -- Update cursor by the height of the figure, spacing after it is added later.
-    modify $ \s -> s { rsCurrentY = figureY }
+    modify' $ \s -> s { rsCurrentY = figureY }
     cs <- checkSpace
 
     -- Check if there's enough space to fit the figure, if there's not create a new page and typeset it there.
@@ -479,7 +478,7 @@ typesetFigureInner path gw@(VT.PageWidth givenWidth) mCap newpageAllowed = do
 
     -- Get updated state, with figure and possibly caption changes to cursor position.
     RenderState{..} <- get
-    modify $ \s -> s { rsCurrentY = rsCurrentY - afterSpace }
+    modify' $ \s -> s { rsCurrentY = rsCurrentY - afterSpace }
 
   where
     -- The signature is fromJustuired, otherwise Haskell complains about inferring a concrete type.
@@ -519,7 +518,7 @@ typesetFigureInner path gw@(VT.PageWidth givenWidth) mCap newpageAllowed = do
         if null remainingBoxes
             then do
                 -- Text fits on page, add caption; Then update cursor to the bottom of the placed text plus paragraph spacing.
-                modify $ \s -> s { rsCurrentY = newBottomY - afterSpace, rsCounters = rsCounters { dcFigure = newNumber } }
+                modify' $ \s -> s { rsCurrentY = newBottomY - afterSpace, rsCounters = rsCounters { dcFigure = newNumber } }
 
                 -- If appropriate, print debug information.
                 when envDebug (pdfLift $ drawWithPage rsCurrentPage $ do
@@ -589,7 +588,7 @@ typesetTable tableContents columns = do
 
     -- Get table spacing and update cursor to reflect it, this is done because the row typesetting function gets the state.
     let (VT.Spacing (VT.Pt beforeSpace) (VT.Pt afterSpace)) = rcTableSp (spacing envConfig)
-    modify $ \s -> s { rsCurrentY = rsCurrentY - beforeSpace }
+    modify' $ \s -> s { rsCurrentY = rsCurrentY - beforeSpace }
 
     let font = rcFont (styles envConfig)
     let fs@(VT.FontSize size) = rcParSize $ sizes envConfig
@@ -662,7 +661,7 @@ typesetTable tableContents columns = do
             then do
                 -- It fits, draw it and update the cursor position.
                 pdfLift $ drawWithPage rsCurrentPage drawAction
-                modify $ \s -> s { rsCurrentY = nextY }
+                modify' $ \s -> s { rsCurrentY = nextY }
             else do
                 -- It does not fit, create a new page and typeset it there.
                 makeNewPage Numbered
@@ -674,11 +673,11 @@ typesetTable tableContents columns = do
                 -- Typeset it on the new page. It's worth noting that there are no guarantees that the table will fit on an empty page, it
                 -- could simply be too big.
                 pdfLift $ drawWithPage rsCurrentPage drawActionNew
-                modify $ \s -> s { rsCurrentY = nextYNew }
+                modify' $ \s -> s { rsCurrentY = nextYNew }
 
     -- Get updated cursor and space after the table.
     RenderState{..} <- get
-    modify $ \s -> s { rsCurrentY = rsCurrentY - afterSpace }
+    modify' $ \s -> s { rsCurrentY = rsCurrentY - afterSpace }
 
 -- Typeset the given text preserving all spaces and escaping no characters.
 typesetVerbatim :: [Text] -> Maybe VT.FontSize -> Maybe Bool -> Typesetter ()
@@ -688,7 +687,6 @@ typesetVerbatim code mSize mNumbering = do
 
     let sizeCfg = sizes cfg
     let spaceCfg = spacing cfg
-    let layoutCfg = layout cfg
     
     let fs@(VT.FontSize codeFontSize) = fromMaybe (rcVerbatimSize sizeCfg) mSize
     let (Font pdfFont _ _) = getVerbatimFont fonts fs
@@ -762,4 +760,4 @@ typesetHLine (VT.PageWidth width) mThick = do
         stroke $ Line xStart y xEnd y
 
     -- Update cursor taking into account line thickness
-    modify $ \s -> s { rsCurrentY = y + thickness}
+    modify' $ \s -> s { rsCurrentY = y + thickness}
