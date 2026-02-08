@@ -370,7 +370,7 @@ parseConfigCommand = label "configuration command" $ do
 -- Parses configuration arguments.
 parseConfigArg :: Parser PConfigArg
 parseConfigArg = label "config option" $ choice
-    [ PSize                 <$ string "size"
+    [ PSize                 <$ string "pagesize"
     , PPagenumbering        <$ string "pagenumbering"
     , PSectionspacing       <$ string "sectionspacing"
     , PParagraphspacing     <$ string "paragraphspacing"

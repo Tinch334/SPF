@@ -26,53 +26,6 @@ import Graphics.PDF
 import Graphics.PDF.Typesetting.WritingSystem
 
 
-------------------------
--- INITIALIZATION FUNCTIONS
-------------------------
--- Removes all "Maybe" from configuration.
-toRenderConfig :: VT.VConfig -> RenderConfig
-toRenderConfig cfg = RenderConfig
-    { layout = RCLayout 
-        { rcPageSize    = fromJust (VT.pageSize   l)
-        , rcNumbering   = fromJust (VT.numbering  l)
-        , rcMarginVert  = fromJust (VT.marginVert l)
-        , rcMarginHoz   = fromJust (VT.marginHoz  l)
-        }
-    , styles = RCStyles
-        { rcFont            = fromJust (VT.font          s)
-        , rcJustification   = fromJust (VT.justification s)
-        , rcParaType        = fromJust (VT.paraType      s)
-        , rcListType        = fromJust (VT.listType      s)
-        }
-    , sizes = RCSizes
-        { rcParSize         = fromJust (VT.paragraphSize  sz)
-        , rcTitleSize       = fromJust (VT.titleSize      sz)
-        , rcSectionSize     = fromJust (VT.sectionSize    sz)
-        , rcSubsectionSize  = fromJust (VT.subsectionSize sz)
-        , rcVerbatimSize    = fromJust (VT.verbatimSize   sz)
-        }
-    , spacing = RCSpacing
-        { rcSectionSp   = fromJust (VT.sectionSp   sp)
-        , rcParagraphSp = fromJust (VT.paragraphSp sp)
-        , rcListSp      = fromJust (VT.listSp      sp)
-        , rcTableSp     = fromJust (VT.tableSp     sp)
-        , rcFigureSp    = fromJust (VT.figureSp    sp)
-        , rcVerbatimSp  = fromJust (VT.verbatimSp  sp)
-        , rcParIndent   = fromJust (VT.parIndent   sp)
-        }
-    , toggles = RCToggle
-        { rcSectionNumbering    = fromJust (VT.sectionNumbering    t)
-        , rcFigureNumbering     = fromJust (VT.figureNumbering     t)
-        , rcVerbatimNumbering   = fromJust (VT.verbatimNumbering   t)
-        }
-    }
-  where
-    l  = VT.layout cfg
-    s  = VT.styles cfg
-    sz = VT.sizes cfg
-    sp = VT.spacing cfg
-    t  = VT.toggles cfg
-
 typesetDocument :: VT.ValidatedDocument -> ResourceMap -> LoadedFonts -> FilePath -> Bool -> IO ()
 typesetDocument (VT.ValidatedDocument cfg meta cnt) res fonts outPath dbg = do
     let rConfig = toRenderConfig cfg
@@ -233,7 +186,7 @@ makeNewPage mode = do
         -- Whilst this function doesn't handle overflows from the render area properly they should never happen; Since a number would have to
         -- be as wide as the page area for that to be a problem.
         pdfLift $ drawWithPage rsCurrentPage $ do
-            displayFormattedText rect NormalParagraph font $ do
+            displayFormattedText rect NormalPara font $ do
                 setJustification Centered
                 paragraph $ txt (T.pack pnStr)
 

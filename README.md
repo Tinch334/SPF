@@ -72,7 +72,7 @@ The first section of the document allows you to set variables that control the d
 
 | Variable | Description | Options & Values |
 | --- | --- | --- |
-| `size` | Page size | `{a4, a3, legal}` or `{width: <number>, height: <number>}` |
+| `pagesize` | Page size | `{a4, a3, legal}` or `{width: <number>, height: <number>}` |
 | `pagenumbering` | Page numbering style | `{arabic, roman, none}` |
 | `sectionspacing` | Space around sections | `{before: <number>, after: <number>}` |
 | `paragraphspacing` | Space around paragraphs | `{before: <number>, after: <number>}` |

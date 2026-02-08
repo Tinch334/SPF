@@ -7,15 +7,20 @@ module Typesetting.Helpers
     , toRoman
     , getFont
     , getVerbatimFont
+    , toRenderConfig
     , generateDocInfo
     ) where
 
 import Datatypes.ValidatedTokens
+import qualified Datatypes.ValidatedTokens as VT
 import Datatypes.Resources
 import Typesetting.Styles
+import Typesetting.Structures
+import qualified Typesetting.Structures as TS
 
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Maybe (fromJust)
 
 import GHC.Float (double2Int, int2Double)
 
@@ -79,6 +84,50 @@ getFont fonts family style (FontSize size) =
 -- Gets font used for verbatim environments.
 getVerbatimFont :: LoadedFonts -> FontSize -> StandardStyle
 getVerbatimFont fonts (FontSize size) = (Font (PDFFont (normal $ courier fonts) size) black black)
+
+-- Removes all "Maybe" from configuration.
+toRenderConfig :: VConfig -> RenderConfig
+toRenderConfig cfg = RenderConfig
+    { TS.layout = RCLayout 
+        { rcPageSize    = fromJust (pageSize   l)
+        , rcNumbering   = fromJust (numbering  l)
+        , rcMarginVert  = fromJust (marginVert l)
+        , rcMarginHoz   = fromJust (marginHoz  l)
+        }
+    , TS.styles = RCStyles
+        { rcFont            = fromJust (font          s)
+        , rcJustification   = fromJust (justification s)
+        , rcParaType        = fromJust (paraType      s)
+        , rcListType        = fromJust (listType      s)
+        }
+    , TS.sizes = RCSizes
+        { rcParSize         = fromJust (paragraphSize  sz)
+        , rcTitleSize       = fromJust (titleSize      sz)
+        , rcSectionSize     = fromJust (sectionSize    sz)
+        , rcSubsectionSize  = fromJust (subsectionSize sz)
+        , rcVerbatimSize    = fromJust (verbatimSize   sz)
+        }
+    , TS.spacing = RCSpacing
+        { rcSectionSp   = fromJust (sectionSp   sp)
+        , rcParagraphSp = fromJust (paragraphSp sp)
+        , rcListSp      = fromJust (listSp      sp)
+        , rcTableSp     = fromJust (tableSp     sp)
+        , rcFigureSp    = fromJust (figureSp    sp)
+        , rcVerbatimSp  = fromJust (verbatimSp  sp)
+        , rcParIndent   = fromJust (parIndent   sp)
+        }
+    , TS.toggles = RCToggle
+        { rcSectionNumbering    = fromJust (sectionNumbering    t)
+        , rcFigureNumbering     = fromJust (figureNumbering     t)
+        , rcVerbatimNumbering   = fromJust (verbatimNumbering   t)
+        }
+    }
+  where
+    l  = VT.layout cfg
+    s  = VT.styles cfg
+    sz = VT.sizes cfg
+    sp = VT.spacing cfg
+    t  = VT.toggles cfg
 
 
 ------------------------
