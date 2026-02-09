@@ -25,8 +25,6 @@ import GHC.Float (double2Int)
 
 import System.FilePath
 import System.Directory (doesFileExist)
--- An auto-generated module that returns the path names for data files
-import Paths_SPF (getDataFileName)
 
 import Codec.Picture
 import Graphics.PDF.Fonts.Font (AnyFont)

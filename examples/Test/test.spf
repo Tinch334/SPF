@@ -1,5 +1,5 @@
 // Document start
-\config{size}[size: a4]
+\config{pagesize}[size: a4]
 \config{pagenumbering}[numbering: roman]
 \config{vertmargin}[margin: 40]
 \config{hozmargin}[margin: 40]
@@ -33,30 +33,28 @@
 //Metadata Testing
 \title{Comprehensive SPF Test Suite}
 \author{Test Runner}
-\date{Today :)}
+\date{Whenever this is read :)}
 
-
-// -----------------------------------------------------------
-// Document Content & Command Testing
-// -----------------------------------------------------------
 
 \section{Structural Commands}[font: helvetica, size: 22]
 
 \begin{paragraph}
-This document tests the capabilities of the \bold{Simple PDF Format}. This paragraph demonstrates standard text wrapping and justification defined in the global config. We can also use \italic{italicized text} and \emph{emphasised text} (which renders as bold-italic).
+This document tests the capabilities of the \bold{Simple PDF Format}. This paragraph demonstrates standard text wrapping and justification defined in the global config. We can also use \italic{italicized text} and \emph{emphasised text} (which renders as bold and italic).
 \end{paragraph}
 
-\subsection{Subsection Testing}[font: courier, size: 14]
+\subsection{Subsection \emph{Testing}}[font: courier, size: 14]
 
 \begin{paragraph}[justification: center, font: helvetica]
 This paragraph overrides global settings. It is centered and uses the Helvetica font.
 \end{paragraph}
 
+\begin{paragraph}[justification: full, style: right]
+This paragraph \italic{also} overrides global settings, it has a cool style!
+\end{paragraph}
+
 \section{List Styles}
 
-\begin{paragraph}
 Testing different list styles:
-\end{paragraph}
 
 \begin{list}
 \item Default item \italic{one}
@@ -85,11 +83,13 @@ Testing different list styles:
 
 \subsection{Figures}
 
-\begin{paragraph}
 Below is a test figure loaded from the source files.
-\end{paragraph}
 
-\figure{logo.jpg}[width: 0.3, caption: "The Haskell Logo"]
+\figure{logo.png}[width: 0.3, caption: "The Haskell Logo"]
+
+Loading an \emph{svg} image:
+
+\figure{Color and ratio.svg}[width: 0.7, caption: "An SVG image"]
 
 \subsection{Horizontal Lines}
 
@@ -102,9 +102,6 @@ Standard separator:
 Custom thick separator:
 \end{paragraph}
 \hline[width: 0.2, thickness: 3]
-
-
-\newpage
 
 \section{Advanced Structures}
 
@@ -138,8 +135,3 @@ File validated
 Resources loaded
 Compilation succeeded, result in "file.pdf"
 \end{verbatim}
-
-\subsection{Vector image}
-Loading an \emph{svg} image:
-
-\figure{Color and ratio.svg}[width: 0.7, caption: "An SVG image"]

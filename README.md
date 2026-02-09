@@ -141,7 +141,8 @@ For both commands the options are: `font: <font>`, `size: <number>`.
 There are two commands that handle the :
 * `\newpage`: Forces a page break.
 * `\hline`: Draws a horizontal line.
-    * **Options:** `width: <number>`(mandatory), `thickness: <number>`
+ 
+For the last command options are: `width: <number>`(mandatory), `thickness: <number>`
 
 #### Figures
 In order to include images into the document the command used is: `\figure{<path>}[options]`, which inserts an image. The supported formats are: `jpg`, `png`, `bmp` and `svg`. The options are: `width: <number>`(mandatory), `caption: <text>`.
@@ -166,7 +167,7 @@ Creating a table is done by the use of the table environment. Rows are separated
 ```
 The option is: `columns: <number>`(mandatory).
 
-#### Verbatim (Code Blocks)
+#### Verbatim (Code Block)
 Creates a block of text rendered in a monospaced font, preserving whitespace and line breaks.
 
 ```latex
@@ -175,7 +176,7 @@ Creates a block of text rendered in a monospaced font, preserving whitespace and
   No formatting is applied
 \end{verbatim}
 ```
-**Options**: `size: <number>`, `numbering: {true, false}`.
+The options are: `size: <number>`, `numbering: {true, false}`.
 
 #### Paragraphs
 Paragraphs are normally created automatically by leaving a blank line between text. However, you can explicitly define them:
@@ -184,4 +185,4 @@ Paragraphs are normally created automatically by leaving a blank line between te
   This is a specific paragraph block.
 \end{paragraph}
 ```
-**Options**: `size: <number>`, `font: {helvetica, times, courier}` , `justification: {left, right, center, full}`.
+**Options**: `size: <number>`, `font: {helvetica, times, courier}`, `justification: {left, right, center, full}, style: {normal, left, right, narrow}`.
