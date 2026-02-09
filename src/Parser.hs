@@ -300,7 +300,10 @@ parseParagraph = label "paragraph" $ do
         return $ PCommOpt (PParagraph t) POptionNone
 
 parsePText :: Parser [PText]
-parsePText = some (choice [parseSpecialText, PNormal <$> parseRawText])
+parsePText = some $ do
+    res <- choice [parseSpecialText, PNormal <$> parseRawText]
+    void (optional eol) -- Consume a single newline between text.
+    return res
 
 -- Stores parsers for paragraph modes.
 textTypesTable :: [Parser PText]

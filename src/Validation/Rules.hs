@@ -98,8 +98,8 @@ validateConfig (Located pos (PConfig arg opt)) = withPos pos $
              [ ensureValidKeys "Invalid page size" ["size"] 
                 (requireTextWith "size" (validateEnum pageSizes) (expectedFieldError "size" pageSizes) <&> \x -> setLayout (\c -> c { pageSize = Just x }))
              , ensureValidKeys "Invalid custom size" ["width", "height"]
-                (SizeCustom <$> requireFloatWith "width" (validateNumInst (> 0) Pt) "Width > 0" 
-                            <*> requireFloatWith "height" (validateNumInst (> 0) Pt) "Height > 0" 
+                (SizeCustom <$> requireFloatWith "width" (validateNumInst (> 0) Pt) "Page width must be positive" 
+                            <*> requireFloatWith "height" (validateNumInst (> 0) Pt) "Page height must be positive" 
                             <&> \x -> setLayout (\c -> c { pageSize = Just x }))
              ]) (getOpts opt)
 

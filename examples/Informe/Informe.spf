@@ -131,7 +131,7 @@ El comando \verb{\sectio} es invalido, al parsearlo el parser produce un \italic
 
 El comando \verb{{Digital ...} es invalido, mas aun este error no es un error del que el parser se pueda recuperar, ya que al fallar el parser de comandos no hay ningún parser que consuma \verb{{Digital ...}. Si bien se podría hacer que al fallar el parser de comandos consuma la string restante, esto corre el riesgo de generar mensajes de error más confusos para el usuario. En el caso de un bloque \verb{begin/end}, se consumiría el inicio del bloque pero no el fin, generando un mensaje de error inapropiado cuando el parser encuentre \verb{\end{...}.
 
-El resto de los módulos utiliza el paquete \verb{Validation}, su descripción es bastante autoexplicativa: \italic{A data-type like Either but with an accumulating Applicative}. Es decir cumple la misma función que \verb{Either}, dándonos un resultado o un error, pero permitiéndonos acumular errores de forma fácil; Esta facilidad viene de la mano de que el acumulador de errores es un functor aplicativo, lo que permite concatenar validaciones fácilmente mediante \verb{<*>}.
+El resto de los módulos utiliza el paquete \verb{Validation}, su descripción es bastante autoexplicativa: \italic{A data-type like Either but with an accumulating Applicative}. Es decir cumple la misma función que \verb{Either}, dándonos un resultado o un error, pero permitiéndonos acumular errores de forma fácil; Esta facilidad viene de la mano de que el acumulador de errores es un functor aplicativo, lo que permite concatenar validaciones fácilmente mediante.
 
 \subsection{Generando PDFs}
 Una vez que se tiene un AST valido falta la parte más importante, transformarlo en un PDF. Para hacer esto utilice la librería \verb{HPDF}. Elegí esta librería por un motivo simple, es la única librería para generar PDFs escrita en Haskell.
@@ -173,9 +173,9 @@ typeset (elem:xs) =
         Newpage -> makeNewPage
 \end{verbatim}
 
-El segundo algoritmo es significativamente mas complejo, para una explicacion en detalle ver \italic{Donald E. Knut - Breaking Paragraphs Into Lines - Digital Typography(1999)}. Afortunadamente no fue necesario implementar este algoritmo, el modulo \verb{Typesetting} de \verb{HPDF}, posee funciones que implementan el algoritmo antes mencionado; Estas son \verb{fillContainer} y \verb{displayFormattedText}. Ambas funciones cumplen la misma funcion, reciben un estilo, un contenedor y un bloque de texto; Este sera typeseteado dentro de los limites fijados por el contenedor, con el estilo dado.
+El segundo algoritmo es significativamente mas complejo, para una explicación en detalle ver \italic{Donald E. Knut - Breaking Paragraphs Into Lines - Digital Typography(1999)}. Afortunadamente no fue necesario implementar este algoritmo, el modulo \verb{Typesetting} de \verb{HPDF}, posee funciones que implementan el algoritmo antes mencionado; Estas son \verb{fillContainer} y \verb{displayFormattedText}. Ambas funciones cumplen la misma función, reciben un estilo, un contenedor y un bloque de texto; Este será typeseteado dentro de los límites fijados por el contenedor, con el estilo dado.
 
-Si bien la segunda funcion es mas sencilla de usar tiene una limitacion importante, si el texto dado no entra completamente en el contenedor lo descarta, \verb{fillContainer} por el otro lado retorna el contenido que no se pudo typesetear. Debido a esto es usada para typesetear casi todos los elementos del documento.
+Si bien la segunda función es más sencilla de usar tiene una limitación importante, si el texto dado no entra completamente en el contenedor lo descarta, \verb{fillContainer} por el otro lado retorna el contenido que no se pudo typesetear. Debido a esto es usada para typesetear casi todos los elementos del documento.
 
 \subsection{Las estructuras}
 A la hora de implementar el algoritmo quedó claro que era necesario mantener un estado a medida que se genera el documento. En un principio utilice una monada \verb{StateT} para almacenar todos los datos. Si bien esto funcionaba presentaba un problema conceptual, esta monada tenía valores que eran solo de lectura, como la configuración; Sin embargo debido al tipo de la monada podían ser modificados.
@@ -190,9 +190,66 @@ En cuanto a las estructuras \verb{RenderEnv} y \verb{RenderState} la único nota
 
 \section{Desafios}
 \subsection{Validando de forma eficiente}
+A la hora de validar los contenidos del AST generado por el parser me encontré con un problema, cómo hacer esto de forma fácil y escalable. La primera solución implementada era simple pero no escalable, se basaba en escribir todas las permutaciones posibles para cada comando. Esta es la implementación original de la validacion de la opcion de configuracion \verb{pagesize}, con la opcion \verb{custom}:
 
-Hablar sobre los schema
+\begin{verbatim}
+[("width", PInt w), ("height", PInt h)] -> Success $ VPageSize (SizeCustom (fromIntegral w) (fromIntegral h))
+[("width", PFloat w), ("height", PFloat h)] -> Success $ VPageSize (SizeCustom w h)
+[("width", PFloat w), ("height", PInt h)] -> Success $ VPageSize (SizeCustom w (fromIntegral h))
+[("width", PInt w), ("height", PFloat h)] -> Success $ VPageSize (SizeCustom (fromIntegral w) h)
+[("height", PInt h), ("width", PInt w)] -> Success $ VPageSize (SizeCustom (fromIntegral w) (fromIntegral h))
+[("height", PFloat h), ("width", PFloat w)] -> Success $ VPageSize (SizeCustom w h)
+[("height", PFloat h), ("width", PInt w)] -> Success $ VPageSize (SizeCustom (fromIntegral w) h)
+[("height", PInt h), ("width", PFloat w)] -> Success $ VPageSize (SizeCustom w (fromIntegral h))
+\end{verbatim}
+
+Estaba claro que este método no era viable, no escalaba en lo más mínimo. Después de intentar varias ideas, llegue a una solución que es tanto simple como escalable, gracias al uso de functores aplicativos. Se presenta abajo:
+
+\begin{verbatim}
+newtype Schema a = Schema {
+    runSchema :: [POptionPair] -> Validation [String] a
+}
+
+instance Functor Schema where
+    fmap f (Schema g) = Schema (\o -> fmap f (g o))
+
+instance Applicative Schema where
+    pure x = Schema (\_ -> Success x)
+    (Schema f) <*> (Schema g) = Schema (\o -> f o <*> g o)
+\end{verbatim}
+
+La solución que diseñe se basa en los \verb{Schema}, son estructuras que encapsulan una función que transforma opciones, en la forma de una lista de \verb{POptionPair}, en una \verb{Validation}. La instancia de functores aplicativos es lo que hace escalable a este diseño, pues múltiples validaciones pueden concatenarse mediante \verb{<*>}. Al mismo tiempo también se utilizan funciones de validación genéricas, que permiten ver si una clave de cierto tipo esta presente y\/o si cumple una condición dada. A modo de comparación presentamos la version actual del validador de \verb{pagesize}, con la opción \verb{custom}:
+
+\begin{verbatim}
+ensureValidKeys "Invalid custom size" ["width", "height"]
+    (SizeCustom <$> requireFloatWith "width" (validateNumInst (> 0) Pt) "Width > 0" 
+       <*> requireFloatWith "height" (validateNumInst (> 0) Pt) "Height > 0" 
+       <&> \x -> setLayout (\c -> c { pageSize = Just x }))
+\end{verbatim}
 
 \subsection{Bookmarks}
+Cuando se crea una sección o subsección también se crea una \italic{bookmark} en el PDF, esto es un link que lleva a el lugar donde se encuentra la sección o subsección, según corresponda; El problema es la forma en la que la referencia se pasa a la función usada:
 
-\subsection{Evitando bloat}
+\begin{verbatim}
+newSectionWithPage :: Text -> Maybe Color -> Maybe OutlineStyle -> PDFReference PDFPage -> PDF () -> PDF ()
+\end{verbatim}
+
+El ultimo argumento de esta función es el elemento al que debe hacer referencia el link, sin embargo no es posible pasar el elemento de forma directa. Esto se debe a que la función de typeseteo no retorna un \verb{PDF ()}, sino un \verb{Typesetter ()}. La solución a este problema sería realizar el typeseteo del elemento dentro del \italic{scope} de \verb{newSectionWithPage}. El problema con esto es que al hacer eso se pierde el estado actualizado de \verb{StateT}. 
+
+La solución para \quote{sacar} el estado del \italic{scope} seria usar \verb{liftIO} y una referencia, sin embargo la monada \verb{PDF ()} no tiene una instancia de esta. Intente luego utilizar \verb{unsafePerformIO} dado que la generación del PDF es secuencial, sin embargo esto llevaba a un deadlock:
+
+\begin{verbatim}
+SPF-exe: thread blocked indefinitely in an MVar operation
+\end{verbatim}
+
+Segun mi entendimiento esto ocurre ya que Haskell utiliza evaluación \italic{lazy}, donde el thread principal espera el resultado del \verb{unsafePerformIO}, mientras que el thread que debe producir ese resultado no se ejecuta pues Haskell es lazy; Lo que produce un deadlock.
+
+Considerando esta limitación decidí no pasarle ninguna referencia a \verb{newSectionWithPage}, esto causa que el link lleve al principio de la página donde esta el elemento, no el elemento en sí. Si bien no es una implementación ideal la considero suficiente, dado que la función principal de las \italic{bookmarks} es la navegación a la página correspondiente con la cabecera.
+
+Para leer más sobre \verb{unsafePerformIO}:
+
+\begin{list}
+\item \verb{https://hoogle.haskell.org/?hoogle=unsafePerformIO}
+\item \verb{https://www.cs.tufts.edu/comp/150PLD/Notes/IOMonad.pptx}
+\item \verb{https://discourse.haskell.org/t/using-unsafeperformio-safely/4146}
+\end{list}
