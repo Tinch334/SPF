@@ -72,28 +72,28 @@ The first section of the document allows you to set variables that control the d
 
 | Variable | Description | Options & Values |
 | --- | --- | --- |
-| `pagesize` | Page size | `{a4, a3, legal}` or `{width: <number>, height: <number>}` |
-| `pagenumbering` | Page numbering style | `{arabic, roman, none}` |
-| `sectionspacing` | Space around sections | `{before: <number>, after: <number>}` |
-| `paragraphspacing` | Space around paragraphs | `{before: <number>, after: <number>}` |
-| `listspacing` | Space around lists | `{before: <number>, after: <number>}` |
-| `tablespacing` | Space around tables | `{before: <number>, after: <number>}` |
-| `figurespacing` | Space around figures | `{before: <number>, after: <number>}` |
-| `verbatimspacing` | Space around verbatim blocks | `{before: <number>, after: <number>}` |
-| `parindent` | Paragraph indentation | `{indent: <number>}` |
-| `font` | Document font | `{helvetica, times, courier}` |
-| `parsize` | Paragraph font size | `{size: <number>}` |
-| `titlesize` | Title font size | `{size: <number>}` |
-| `sectionsize` | Section header size | `{size: <number>}` |
-| `subsectionsize` | Subsection header size | `{size: <number>}` |
-| `verbatimsize` | Verbatim font size | `{size: <number>}` |
-| `justification` | Paragraph justification | `{left, right, center, full}` |
-| `liststyle` | List item marker style | `{bullet, square, arrow, number}` |
-| `vertmargin` | Vertical page margins | `{margin: <number>}` |
-| `hozmargin` | Horizontal page margins | `{margin: <number>}` |
-| `sectionnumbering` | Set section numbering | `{numbering: <true/false>}` |
-| `figurenumbering` | Set figure numbering | `{numbering: <true/false>}` |
-| `verbatimnumbering` | Set line numbering in verbatim environment | `{numbering: <true/false>}` |
+| `pagesize` | Page size | `size: {a4, a3, legal}` or `width: <float>, height: <float>` |
+| `pagenumbering` | Page numbering style | `numbering: {arabic, roman, none}` |
+| `sectionspacing` | Space around sections | `before: <float>, after: <float>` |
+| `paragraphspacing` | Space around paragraphs | `before: <float>, after: <float>` |
+| `listspacing` | Space around lists | `before: <float>, after: <float>` |
+| `tablespacing` | Space around tables | `before: <float>, after: <float>` |
+| `figurespacing` | Space around figures | `before: <float>, after: <float>` |
+| `verbatimspacing` | Space around verbatim blocks | `before: <float>, after: <float>` |
+| `parindent` | Paragraph indentation | `indent: <float>` |
+| `font` | Document font | `font: {helvetica, times, courier}` |
+| `parsize` | Paragraph font size | `size: <integer>` |
+| `titlesize` | Title font size | `size: <integer>` |
+| `sectionsize` | Section header size | `size: <integer>` |
+| `subsectionsize` | Subsection header size | `size: <integer>` |
+| `verbatimsize` | Verbatim font size | `size: <integer>` |
+| `justification` | Paragraph justification | `justification: {left, right, center, full}` |
+| `liststyle` | List item marker style | `style: {bullet, square, arrow, number}` |
+| `vertmargin` | Vertical page margins | `margin: <float>` |
+| `hozmargin` | Horizontal page margins | `margin: <float>` |
+| `sectionnumbering` | Set section numbering | `numbering: {true, false}` |
+| `figurenumbering` | Set figure numbering | `numbering: {true, false}` |
+| `verbatimnumbering` | Set line numbering in verbatim environment | `numbering: {true, false}` |
 
 ### 2. Metadata
 These commands set the properties of the documents title page and metadata. They do not accept options. 
@@ -105,7 +105,7 @@ These commands set the properties of the documents title page and metadata. They
 These commands are used to structure and format the main body of the text, they may be used in any order. Keep in mind that there must be **some** content, an empty document cannot be typeset.
 
 #### Text & Formatting
-For _regular_ text, that is to say text without any modifiers the text must be entered into the file without any commands. The following modifiers are available for text:
+For *regular* text, that is to say text without any modifiers the text must be entered into the file without any commands. The following modifiers are available for text:
 * `\bold{text}`: **Bold** text.
 * `\italic{text}`: *Italic* text.
 * `\emph{text}`: ***Emphasized*** text.
@@ -130,19 +130,33 @@ There are certain characters that have a special meaning in SPF, because of that
 Lorem \"ipsum\" dolor \| sit amet \\.
 ```
 
+#### Command and paragraph separation
+There must be at least one empty line between a paragraph and a subsequent command, to indicate the end of the paragraph:
+```
+Lorem ipsum dolor sit amet, \italic{consectetur adipiscing elit.}
+Mauris consectetur augue vitae neque aliquam fringilla.
+Etiam eget sollicitudin sem.                                
+                                <--- Separation, this is valid
+\command{argument}
+
+Etiam eget sollicitudin sem. Nulla euismod \emph{consectetur consectetur.
+Suspendisse ullamcorper} fringilla leo, vitae semper metus pretium quis.
+\command{argument}              <--- No separation, this is invalid
+```
+
 #### Sections & subsections
 There are two commands that create sections and subsections respectively:
 -   `\section{Title}[options]`: Creates a section header.
 -   `\subsection{Title}[options]`: Creates a subsection header.
 
-For both commands the options are: `font: <font>`, `size: <number>`.
+For both commands the options are: `font: <font>`, `size: <integer>`.
 
 #### Format
 There are two commands that handle the :
 * `\newpage`: Forces a page break.
 * `\hline`: Draws a horizontal line.
- 
-For the last command options are: `width: <number>`(mandatory), `thickness: <number>`
+
+For the last command options are: `width: <float>`(mandatory), `thickness: <float>`
 
 #### Figures
 In order to include images into the document the command used is: `\figure{<path>}[options]`, which inserts an image. The supported formats are: `jpg`, `png`, `bmp` and `svg`. The options are: `width: <number>`(mandatory), `caption: <text>`.
@@ -158,14 +172,15 @@ Creating lists is done by the use of the list environment:
 The option is: `style: {bullet, square, arrow, number}`.
 
 #### Tables
-Creating a table is done by the use of the table environment. Rows are separated by `\break` and columns by `|`:
+Creating a table is done by the use of the table environment. Rows are separated by `\break`, which may include `{}` and columns by `|`:
 ```latex
 \begin{table}[columns: 3]
   Header 1 | Header 2 | Header 3 \break
-  Cell 1   | Cell 2   | Cell 3
+  Cell 1   | Cell 2   | Cell 3 \break{}
+  Cell 4   | Cell 5   | Cell 6
 \end{table}
 ```
-The option is: `columns: <number>`(mandatory).
+The option is: `columns: <integer>`(mandatory).
 
 #### Verbatim (Code Block)
 Creates a block of text rendered in a monospaced font, preserving whitespace and line breaks.
@@ -176,13 +191,13 @@ Creates a block of text rendered in a monospaced font, preserving whitespace and
   No formatting is applied
 \end{verbatim}
 ```
-The options are: `size: <number>`, `numbering: {true, false}`.
+The options are: `size: <integer>`, `numbering: {true, false}`.
 
 #### Paragraphs
 Paragraphs are normally created automatically by leaving a blank line between text. However, you can explicitly define them:
 ```latex
 \begin{paragraph}
-  This is a specific paragraph block.
+This is a specific paragraph block.
 \end{paragraph}
 ```
-**Options**: `size: <number>`, `font: {helvetica, times, courier}`, `justification: {left, right, center, full}, style: {normal, left, right, narrow}`.
+The options are: `size: <integer>`, `font: {helvetica, times, courier}`, `justification: {left, right, center, full}, style: {normal, left, right, narrow}`.

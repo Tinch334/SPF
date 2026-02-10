@@ -22,7 +22,7 @@
 Simple PDF, es un DSL para generar PDFs, es decir un lenguaje que al ser interpretado produce PDFs, este informe está hecho con \verb{SPF}. Decidí hacer \verb{SPF} porque me interesaba hacer un proyecto que hiciese algo más que dar salida a la consola. Considerando que desde que conocí \verb{LaTeX} me interesó el typesetting este proyecto era la excusa ideal para interiorizarme más en el tema.
 
 \subsection{Consideraciones de diseño}
-A la hora de diseñar \verb{SPF} me inspire en \verb{LaTeX}, pero sin mantenerme atado a sus convenciones o decisiones de diseño, lo trate como una fuente de inspiración. En particular toma otra dirección en cuanto a la forma de los comandos, permitiendo solo un argumento. Junto con esto las opciones deben tener asociada una clave indicando a qué campo corresponde el valor, hice esto porque la forma de escribir opciones en \verb{LaTeX} es confusa; Se pueden combinar opciones con y sin clave, algo que en mi opinión es confuso y se presta a errores. Finalmente simplifique la forma en la que estructura el documento, en \verb{LaTeX} esa complejidad permite 
+A la hora de diseñar \verb{SPF} me inspire en \verb{LaTeX}, pero sin mantenerme atado a sus convenciones o decisiones de diseño, lo trate como una fuente de inspiración. En particular toma otra dirección en cuanto a la forma de los comandos, permitiendo solo un argumento. Junto con esto las opciones deben tener asociada una clave indicando a qué campo corresponde el valor, hice esto porque la forma de escribir opciones en \verb{LaTeX} es confusa; Se pueden combinar opciones con y sin clave, algo que en mi opinión es confuso y se presta a errores. Finalmente simplifique la forma en la que estructura el documento, eliminando commandos y ambientes que son innecesarios en un DSL sencillo.
 
 Los comandos implementados son un subconjunto de los disponibles en \verb{LaTeX}, elegidos para permitir generar documentos (mayormente)completos, manteniendo al mismo tiempo la cantidad total de comandos baja. Cabe notar que los nombres y argumentos de los comandos no se copiaron exactamente, mi objetivo era que este subconjunto tenga una \italic{funcionalidad} similar a la de sus contrapartes en LaTeX.
 
@@ -190,7 +190,7 @@ En cuanto a las estructuras \verb{RenderEnv} y \verb{RenderState} la único nota
 
 \section{Desafios}
 \subsection{Validando de forma eficiente}
-A la hora de validar los contenidos del AST generado por el parser me encontré con un problema, cómo hacer esto de forma fácil y escalable. La primera solución implementada era simple pero no escalable, se basaba en escribir todas las permutaciones posibles para cada comando. Esta es la implementación original de la validacion de la opcion de configuracion \verb{pagesize}, con la opcion \verb{custom}:
+A la hora de validar los contenidos del AST generado por el parser me encontré con un problema, cómo hacer esto de forma fácil y escalable. La primera solución implementada era simple pero no escalable, se basaba en escribir todas las permutaciones posibles para cada comando. Esta es la implementación original de la validación de la opcion de configuracion \verb{pagesize}, con la opcion \verb{custom}:
 
 \begin{verbatim}
 [("width", PInt w), ("height", PInt h)] -> Success $ VPageSize (SizeCustom (fromIntegral w) (fromIntegral h))
@@ -234,7 +234,7 @@ Cuando se crea una sección o subsección también se crea una \italic{bookmark}
 newSectionWithPage :: Text -> Maybe Color -> Maybe OutlineStyle -> PDFReference PDFPage -> PDF () -> PDF ()
 \end{verbatim}
 
-El ultimo argumento de esta función es el elemento al que debe hacer referencia el link, sin embargo no es posible pasar el elemento de forma directa. Esto se debe a que la función de typeseteo no retorna un \verb{PDF ()}, sino un \verb{Typesetter ()}. La solución a este problema sería realizar el typeseteo del elemento dentro del \italic{scope} de \verb{newSectionWithPage}. El problema con esto es que al hacer eso se pierde el estado actualizado de \verb{StateT}. 
+El último argumento de esta función es el elemento al que debe hacer referencia el link, sin embargo no es posible pasar el elemento de forma directa. Esto se debe a que la función de typeseteo no retorna un \verb{PDF ()}, sino un \verb{Typesetter ()}. La solución a este problema sería realizar el typeseteo del elemento dentro del \italic{scope} de \verb{newSectionWithPage}. El problema con esto es que al hacer eso se pierde el estado actualizado de \verb{StateT}. 
 
 La solución para \quote{sacar} el estado del \italic{scope} seria usar \verb{liftIO} y una referencia, sin embargo la monada \verb{PDF ()} no tiene una instancia de esta. Intente luego utilizar \verb{unsafePerformIO} dado que la generación del PDF es secuencial, sin embargo esto llevaba a un deadlock:
 
