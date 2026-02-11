@@ -119,11 +119,13 @@ test-suite SPF-test
     , directory
     , filepath
     , ghc-internal
-    , megaparsec >=9.0
+    , hspec
+    , megaparsec
     , mtl
     , optparse-applicative
     , optparse-simple
     , rasterific-svg
+    , raw-strings-qq
     , safe-coloured-text
     , scientific
     , svg-tree

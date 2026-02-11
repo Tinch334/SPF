@@ -76,3 +76,8 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - SPF
+    - hspec
+    - raw-strings-qq
+    - text
+    - megaparsec
+    - validation

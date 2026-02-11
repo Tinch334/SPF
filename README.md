@@ -22,6 +22,11 @@ stack build
 
 This will install all necessary packages and compile the project. Keep in mind that both steps might take some time to finish.
 
+To run the proyect's tests:
+```bash
+stack test
+```
+
 Finally, to run the project:
 
 ```bash

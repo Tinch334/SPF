@@ -15,7 +15,7 @@
 
 \title{Simple PDF}
 \author{Martín Goñi}
-\date{9\/2\/2026}
+\date{10\/2\/2026}
 
 
 \section{¿Que es \verb{SPF}?}
@@ -246,10 +246,19 @@ Segun mi entendimiento esto ocurre ya que Haskell utiliza evaluación \italic{la
 
 Considerando esta limitación decidí no pasarle ninguna referencia a \verb{newSectionWithPage}, esto causa que el link lleve al principio de la página donde esta el elemento, no el elemento en sí. Si bien no es una implementación ideal la considero suficiente, dado que la función principal de las \italic{bookmarks} es la navegación a la página correspondiente con la cabecera.
 
+\subsection{Tests}
+
+
+\section{Recursos usados}
 Para leer más sobre \verb{unsafePerformIO}:
 
 \begin{list}
 \item \verb{https://hoogle.haskell.org/?hoogle=unsafePerformIO}
 \item \verb{https://www.cs.tufts.edu/comp/150PLD/Notes/IOMonad.pptx}
 \item \verb{https://discourse.haskell.org/t/using-unsafeperformio-safely/4146}
+\end{list}
+
+\begin{list}
+\item \verb{https://hspec.github.io/writing-specs.html}
+\item \verb{https://hspec.github.io/expectations.html}
 \end{list}
