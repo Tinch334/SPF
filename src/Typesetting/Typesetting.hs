@@ -204,7 +204,6 @@ typesetContent :: (Either [VT.VText] (TM CustomParaStyle StandardStyle ())) -> V
                 -> VT.Justification -> CustomParaStyle -> Double -> Double -> Double -> Typesetter ()
 typesetContent content font size just paraStyle indent beforeSpace afterSpace = do
     RenderEnv{..} <- ask
-    RenderState{..} <- get
 
     -- Maps VText tokens to PDF typesetting instructions. Defined with in function so we can use "let" defined variables.
     let textGenerator vText = do
@@ -217,8 +216,8 @@ typesetContent content font size just paraStyle indent beforeSpace afterSpace = 
  
             paragraph $ do
                 kern indent
-                forM_ vText $ \vText -> do
-                    makeStyledText vText font size envFonts
+                forM_ vText $ \vt -> do
+                    makeStyledText vt font size envFonts
 
     -- The content is converted into a list of renderable boxes. The style 'NormalParagraph' is used as the baseline context.
     let cnt = case content of
@@ -231,7 +230,7 @@ typesetContent content font size just paraStyle indent beforeSpace afterSpace = 
   where
     -- Fills containers page by page.
     fillBoxLoop [] _ = return () -- Done
-    fillBoxLoop boxes paraStyle = do
+    fillBoxLoop boxes ps = do
         RenderEnv{..} <- ask
         RenderState{..} <- get
             
@@ -245,7 +244,7 @@ typesetContent content font size just paraStyle indent beforeSpace afterSpace = 
         -- The mkContainer function defines a container based on it's top left point.
         let container = mkContainer marginX (rsCurrentY - beforeSpace) width height 0
         -- Generate a vertical style with the given paragraph style.
-        let verState = defaultVerState paraStyle
+        let verState = defaultVerState ps
         -- Fill container.
         let (drawAction, usedContainer, remainingBoxes) = fillContainer verState container boxes
 
@@ -267,7 +266,7 @@ typesetContent content font size just paraStyle indent beforeSpace afterSpace = 
             else do
                 -- Overflow, force new page and render remaining boxes.
                 makeNewPage Numbered
-                fillBoxLoop remainingBoxes paraStyle
+                fillBoxLoop remainingBoxes ps
 
 -- Generates the title-page.
 typesetTitlepage :: VT.ValidatedMetadata -> Typesetter ()
