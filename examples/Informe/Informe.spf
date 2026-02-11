@@ -23,7 +23,7 @@
 Simple PDF, es un DSL para generar PDFs, es decir un lenguaje que al ser interpretado produce PDFs, este informe está hecho con \verb{SPF}. Decidí hacer \verb{SPF} porque me interesaba hacer un proyecto que hiciese algo más que dar salida a la consola. Considerando que desde que conocí \verb{LaTeX} me interesó el typesetting este proyecto era la excusa ideal para interiorizarme más en el tema.
 
 \subsection{Consideraciones de diseño}
-A la hora de diseñar \verb{SPF} me inspire en \verb{LaTeX}, pero sin mantenerme atado a sus convenciones o decisiones de diseño, lo trate como una fuente de inspiración. En particular toma otra dirección en cuanto a la forma de los comandos, permitiendo solo un argumento. Junto con esto las opciones deben tener asociada una clave indicando a qué campo corresponde el valor, hice esto porque la forma de escribir opciones en \verb{LaTeX} es confusa; Se pueden combinar opciones con y sin clave, algo que en mi opinión es confuso y se presta a errores. Finalmente simplifique la forma en la que estructura el documento, eliminando commandos y ambientes que son innecesarios en un DSL sencillo.
+A la hora de diseñar \verb{SPF} me inspire en \verb{LaTeX}, pero sin mantenerme atado a sus convenciones o decisiones de diseño, lo trate como una fuente de inspiración. En particular toma otra dirección en cuanto a la forma de los comandos, permitiendo solo un argumento. Junto con esto las opciones deben tener asociada una clave indicando a qué campo corresponde el valor, hice esto porque la forma de escribir opciones en \verb{LaTeX} es confusa; Se pueden combinar opciones con y sin clave, algo que en mi opinión es confuso y se presta a errores. Finalmente simplifique la forma en la que estructura el documento, eliminando comandos y ambientes que son innecesarios en un DSL sencillo.
 
 Los comandos implementados son un subconjunto de los disponibles en \verb{LaTeX}, elegidos para permitir generar documentos (mayormente)completos, manteniendo al mismo tiempo la cantidad total de comandos baja. Cabe notar que los nombres y argumentos de los comandos no se copiaron exactamente, mi objetivo era que este subconjunto tenga una \italic{funcionalidad} similar a la de sus contrapartes en LaTeX.
 
@@ -174,7 +174,7 @@ typeset (elem:xs) =
         Newpage -> makeNewPage
 \end{verbatim}
 
-El segundo algoritmo es significativamente mas complejo, para una explicación en detalle ver \italic{Donald E. Knut,} \quote{Breaking Paragraphs Into Lines} \italic{Digital Typography (1999)}. Afortunadamente no fue necesario implementar este algoritmo, el modulo \verb{Typesetting} de \verb{HPDF}, posee funciones que implementan el algoritmo antes mencionado; Estas son \verb{fillContainer} y \verb{displayFormattedText}. Ambas funciones cumplen la misma función, reciben un estilo, un contenedor y un bloque de texto; Este será typeseteado dentro de los límites fijados por el contenedor, con el estilo dado.
+El segundo algoritmo es significativamente más complejo, para una explicación en detalle ver \italic{Donald E. Knut,} \quote{Breaking Paragraphs Into Lines} \italic{Digital Typography (1999)}. Afortunadamente no fue necesario implementar este algoritmo, el módulo \verb{Typesetting} de \verb{HPDF}, posee funciones que implementan el algoritmo antes mencionado; Estas son \verb{fillContainer} y \verb{displayFormattedText}. Ambas funciones cumplen la misma función, reciben un estilo, un contenedor y un bloque de texto; Este será typeseteado dentro de los límites fijados por el contenedor, con el estilo dado.
 
 Si bien la segunda función es más sencilla de usar tiene una limitación importante, si el texto dado no entra completamente en el contenedor lo descarta, \verb{fillContainer} por el otro lado retorna el contenido que no se pudo typesetear. Debido a esto es usada para typesetear casi todos los elementos del documento.
 
@@ -191,7 +191,7 @@ En cuanto a las estructuras \verb{RenderEnv} y \verb{RenderState} la único nota
 
 \section{Desafios}
 \subsection{Validando de forma eficiente}
-A la hora de validar los contenidos del AST generado por el parser me encontré con un problema, cómo hacer esto de forma fácil y escalable. La primera solución implementada era simple pero no escalable, se basaba en escribir todas las permutaciones posibles para cada comando. Esta es la implementación original de la validación de la opcion de configuracion \verb{pagesize}, con la opcion \verb{custom}:
+A la hora de validar los contenidos del AST generado por el parser me encontré con un problema, cómo hacer esto de forma fácil y escalable. La primera solución implementada era simple pero no escalable, se basaba en escribir todas las permutaciones posibles para cada comando. Esta es la implementación original de la validación de la opción de configuración \verb{pagesize}, con la opción \verb{custom}:
 
 \begin{verbatim}
 [("width", PInt w), ("height", PInt h)] -> Success $ VPageSize (SizeCustom (fromIntegral w) (fromIntegral h))
@@ -219,7 +219,7 @@ instance Applicative Schema where
     (Schema f) <*> (Schema g) = Schema (\o -> f o <*> g o)
 \end{verbatim}
 
-La solución que diseñe se basa en los \verb{Schema}, son estructuras que encapsulan una función que transforma opciones, en la forma de una lista de \verb{POptionPair}, en una \verb{Validation}. La instancia de functores aplicativos es lo que hace escalable a este diseño, pues múltiples validaciones pueden concatenarse mediante \verb{<*>}. Al mismo tiempo también se utilizan funciones de validación genéricas, que permiten ver si una clave de cierto tipo esta presente y\/o si cumple una condición dada. A modo de comparación presentamos la version actual del validador de \verb{pagesize}, con la opción \verb{custom}:
+La solución que diseñe se basa en los \verb{Schema}, son estructuras que encapsulan una función que transforma opciones, en la forma de una lista de \verb{POptionPair}, en una \verb{Validation}. La instancia de functores aplicativos es lo que hace escalable a este diseño, pues múltiples validaciones pueden concatenarse mediante \verb{<*>}. Al mismo tiempo también se utilizan funciones de validación genéricas, que permiten ver si una clave de cierto tipo está presente y\/o si cumple una condición dada. A modo de comparación presentamos la versión actual del validador de \verb{pagesize}, con la opción \verb{custom}:
 
 \begin{verbatim}
 ensureValidKeys "Invalid custom size" ["width", "height"]
@@ -245,23 +245,23 @@ SPF-exe: thread blocked indefinitely in an MVar operation
 
 Segun mi entendimiento esto ocurre ya que Haskell utiliza evaluación \italic{lazy}, donde el thread principal espera el resultado del \verb{unsafePerformIO}, mientras que el thread que debe producir ese resultado no se ejecuta pues Haskell es lazy; Lo que produce un deadlock.
 
-Considerando esta limitación decidí no pasarle ninguna referencia a \verb{newSectionWithPage}, esto causa que el link lleve al principio de la página donde esta el elemento, no el elemento en sí. Si bien no es una implementación ideal la considero suficiente, dado que la función principal de las \italic{bookmarks} es la navegación a la página correspondiente con la cabecera.
+Considerando esta limitación decidí no pasarle ninguna referencia a \verb{newSectionWithPage}, esto causa que el link apunte al principio de la página donde está el elemento, no el elemento en sí. Si bien no es una implementación ideal la considero suficiente, dado que la función principal de las \italic{bookmarks} es la navegación a la página correspondiente con la cabecera.
 
 \subsection{Tests}
-Para probar el proyecto utilice \verb{HSpec}, un framework para realizar \italic{testing} en Haskell. Lo elegi entre las alternativas dado que los tests se escriben utilizando un DSL muy sencillo, haciendo el proceso rapido y facil. Los tests no se incluyeron en la descripcion del funcionamiento del programa pues no son parte de este, son un anexo que permite identificar errores en el mismo.
+Para probar el proyecto utilice \verb{HSpec}, un framework para realizar \italic{testing} en Haskell. Lo elegí entre las alternativas dado que los tests se escriben utilizando un DSL muy sencillo, haciendo el proceso rápido y fácil. Los tests no se incluyeron en la descripción del funcionamiento del programa pues no son parte de este, son un anexo que permite identificar errores en el mismo.
 
-Escribir tests para los modulos \verb{Parser} y \verb{Validation}, usando \verb{HSpec}, fue sencillo. En ambos las funciones que exponenen estos modulos devuelven un resultado o un error. Podemos asi verificar facilmente si una funcion se comporta correctamente analizando cual de los dos casos retorna.
+Escribir tests para los módulos \verb{Parser} y \verb{Validation}, usando \verb{HSpec}, fue sencillo. En ambos las funciones que exponen estos módulos devuelven un resultado o un error. Podemos así verificar fácilmente si una función se comporta correctamente analizando cual de los dos casos retorna.
 
-\subsection{¿Como validamos un PDF?}
-Si bien existen multiples formas de validar un PDF ninguna es ideal en el contexo dado:
+\subsection{¿Cómo validamos un PDF?}
+Si bien existen múltiples formas de validar un PDF ninguna es ideal en el contexto dado:
 
-El test mas simple posible solo verifica que el typesetter produzca un resultado, no analiza su contenido para ver si es correcto. Si bien es muy simple de implementar no verifica nada util, debido a la forma en la que esta estructurado el proyecto el typesetter no produce errores(Exceptuando un error interno, que no tiene realacion con el documento).
+El test más simple posible solo verifica que el typesetter produzca un resultado, no analiza su contenido para ver si es correcto. Si bien es muy simple de implementar no verifica nada útil, debido a la forma en la que está estructurado el proyecto el typesetter no produce errores(Exceptuando un error interno, que no tiene relación con el documento).
 
-Una alternativa es verificar el contenido del PDF, en particular se extrae el texto del PDF producido y se lo compara con el resultado esperado. Si bien esto permite identificar situaciones donde hay contenido que no se ha typeseteado este tipo de errores son infrecuentes. La mayor parte del tiempo el problema yace en que el contenido esta formateado de forma incorrecta, algo que este tipo de test no detecta.
+Una alternativa es verificar el contenido del PDF, en particular se extrae el texto del PDF producido y se lo compara con el resultado esperado. Si bien esto permite identificar situaciones donde hay contenido que no se ha typeseteado este tipo de errores son infrecuentes. La mayor parte del tiempo el problema yace en que el contenido está formateado de forma incorrecta, algo que este tipo de test no detecta.
 
-Finalmente considere un test de comparacion, donde se compara el resultado del typesetter contra un \quote{PDF patron}, cuyos contenidos han sido verificados manualmente. Si bien esto \italic{puede} funcionar es una solucion propensa a fallar, los PDFs suelen contener \italic{timestamps} e IDs aleatorias, al mismo tiempo diferencias en la compresion de los documentos pueden afectar los bytes de los archivos pero no el contenido.
+Finalmente considere un test de comparación, donde se compara el resultado del typesetter contra un \quote{PDF patrón}, cuyos contenidos han sido verificados manualmente. Si bien esto \italic{puede} funcionar es una solución propensa a fallar, los PDFs suelen contener \italic{timestamps} e IDs aleatorias, al mismo tiempo diferencias en la comprensión de los documentos pueden afectar los bytes de los archivos pero no el contenido.
 
-Dadas las limitaciones de los metodos mencionados decidi no añadir tests al typesetter, considere suficiente a todas las pruebas realizadas a lo largo de la elaboracion del trabajo y este informe.
+Dadas las limitaciones de los métodos mencionados decidí no añadir tests al typesetter, consideré suficiente a todas las pruebas realizadas a lo largo de la elaboración del trabajo y este informe.
 
 \newpage
 
