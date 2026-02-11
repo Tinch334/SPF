@@ -9,6 +9,7 @@
 \config{parindent}[indent: 25]
 \config{sectionspacing}[before: 5, after: 5]
 \config{paragraphspacing}[before: 5, after: 10]
+\config{listspacing}[before: 0, after: 15]
 
 \config{sectionnumbering}[numbering: false]
 
@@ -152,7 +153,7 @@ En la figura de abajo se ve como el bloque de texto \quote{autoexplicativa:} exc
     \italic{Typesetting es el proceso de organizar, formatear y disponer texto y elementos gráficos asociados en una página, se busca mejorar la legibilidad y estética. Si esto se hace bien los lectores no van a darse cuenta de que lo que están leyendo fue organizado de forma rígida y poco natural.}
 \end{paragraph}
 \begin{paragraph}[justification: right, style: narrow]
-    \italic{Donald E. Knut - Digital Typography(1999)}
+    \italic{Donald E. Knut,  Digital Typography (1999)}
 \end{paragraph}
 
 \subsection{El algoritmo}
@@ -173,7 +174,7 @@ typeset (elem:xs) =
         Newpage -> makeNewPage
 \end{verbatim}
 
-El segundo algoritmo es significativamente mas complejo, para una explicación en detalle ver \italic{Donald E. Knut - Breaking Paragraphs Into Lines - Digital Typography(1999)}. Afortunadamente no fue necesario implementar este algoritmo, el modulo \verb{Typesetting} de \verb{HPDF}, posee funciones que implementan el algoritmo antes mencionado; Estas son \verb{fillContainer} y \verb{displayFormattedText}. Ambas funciones cumplen la misma función, reciben un estilo, un contenedor y un bloque de texto; Este será typeseteado dentro de los límites fijados por el contenedor, con el estilo dado.
+El segundo algoritmo es significativamente mas complejo, para una explicación en detalle ver \italic{Donald E. Knut,} \quote{Breaking Paragraphs Into Lines} \italic{Digital Typography (1999)}. Afortunadamente no fue necesario implementar este algoritmo, el modulo \verb{Typesetting} de \verb{HPDF}, posee funciones que implementan el algoritmo antes mencionado; Estas son \verb{fillContainer} y \verb{displayFormattedText}. Ambas funciones cumplen la misma función, reciben un estilo, un contenedor y un bloque de texto; Este será typeseteado dentro de los límites fijados por el contenedor, con el estilo dado.
 
 Si bien la segunda función es más sencilla de usar tiene una limitación importante, si el texto dado no entra completamente en el contenedor lo descarta, \verb{fillContainer} por el otro lado retorna el contenido que no se pudo typesetear. Debido a esto es usada para typesetear casi todos los elementos del documento.
 
@@ -247,16 +248,48 @@ Segun mi entendimiento esto ocurre ya que Haskell utiliza evaluación \italic{la
 Considerando esta limitación decidí no pasarle ninguna referencia a \verb{newSectionWithPage}, esto causa que el link lleve al principio de la página donde esta el elemento, no el elemento en sí. Si bien no es una implementación ideal la considero suficiente, dado que la función principal de las \italic{bookmarks} es la navegación a la página correspondiente con la cabecera.
 
 \subsection{Tests}
+Para probar el proyecto utilice \verb{HSpec}, un framework para realizar \italic{testing} en Haskell. Lo elegi entre las alternativas dado que los tests se escriben utilizando un DSL muy sencillo, haciendo el proceso rapido y facil. Los tests no se incluyeron en la descripcion del funcionamiento del programa pues no son parte de este, son un anexo que permite identificar errores en el mismo.
 
+Escribir tests para los modulos \verb{Parser} y \verb{Validation}, usando \verb{HSpec}, fue sencillo. En ambos las funciones que exponenen estos modulos devuelven un resultado o un error. Podemos asi verificar facilmente si una funcion se comporta correctamente analizando cual de los dos casos retorna.
+
+\subsection{¿Como validamos un PDF?}
+Si bien existen multiples formas de validar un PDF ninguna es ideal en el contexo dado:
+
+El test mas simple posible solo verifica que el typesetter produzca un resultado, no analiza su contenido para ver si es correcto. Si bien es muy simple de implementar no verifica nada util, debido a la forma en la que esta estructurado el proyecto el typesetter no produce errores(Exceptuando un error interno, que no tiene realacion con el documento).
+
+Una alternativa es verificar el contenido del PDF, en particular se extrae el texto del PDF producido y se lo compara con el resultado esperado. Si bien esto permite identificar situaciones donde hay contenido que no se ha typeseteado este tipo de errores son infrecuentes. La mayor parte del tiempo el problema yace en que el contenido esta formateado de forma incorrecta, algo que este tipo de test no detecta.
+
+Finalmente considere un test de comparacion, donde se compara el resultado del typesetter contra un \quote{PDF patron}, cuyos contenidos han sido verificados manualmente. Si bien esto \italic{puede} funcionar es una solucion propensa a fallar, los PDFs suelen contener \italic{timestamps} e IDs aleatorias, al mismo tiempo diferencias en la compresion de los documentos pueden afectar los bytes de los archivos pero no el contenido.
+
+Dadas las limitaciones de los metodos mencionados decidi no añadir tests al typesetter, considere suficiente a todas las pruebas realizadas a lo largo de la elaboracion del trabajo y este informe.
+
+\newpage
 
 \section{Recursos usados}
-Para leer más sobre \verb{unsafePerformIO}:
+Recursos usados sobre \italic{typesetting}:
+
+\begin{list}
+\item \italic{Donald E. Knut, Digital Typography (1999)}
+\item \italic{Paul E. Justus,} \quote{There is more to typesetting than setting type} \italic{IEEE Transactions on Professional Communication PC-15 (1972)}
+\end{list}
+
+Recursos usados sobre \verb{Megaparsec}:
+
+\begin{list}
+\item \verb{https://hackage.haskell.org/package/megaparsec}
+\item \verb{https://markkarpov.com/tutorial/megaparsec.htm}
+\item \verb{https://serokell.io/blog/parser-combinators-in-haskell}
+\end{list}
+
+Recursos usados sobre \verb{unsafePerformIO}:
 
 \begin{list}
 \item \verb{https://hoogle.haskell.org/?hoogle=unsafePerformIO}
 \item \verb{https://www.cs.tufts.edu/comp/150PLD/Notes/IOMonad.pptx}
 \item \verb{https://discourse.haskell.org/t/using-unsafeperformio-safely/4146}
 \end{list}
+
+Recursos usados sobre \verb{HSpec}:
 
 \begin{list}
 \item \verb{https://hspec.github.io/writing-specs.html}
