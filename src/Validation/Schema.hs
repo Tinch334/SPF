@@ -21,7 +21,6 @@ import Datatypes.ParseTokens
 import Datatypes.ValidatedTokens
 import Common
 
-import Control.Applicative
 import Control.Monad
 
 import Data.Text (Text)
@@ -45,8 +44,8 @@ instance Applicative Schema where
 --------------------
 -- VALUE VALIDATORS
 --------------------
--- Takes a number, returns it if it satisfies given function returns true, otherwise Nothing.
-validateNumInst :: (Num a, Ord a) => (a -> Bool) -> (a -> b) -> a -> Maybe b
+-- Takes a value, returns it if it satisfies given function returns true, otherwise Nothing.
+validateNumInst :: (a -> Bool) -> (a -> b) -> a -> Maybe b
 validateNumInst vf i n = if vf n then Just (i n) else Nothing
 
 validateEnum :: [(Text, a)] -> Text -> Maybe a

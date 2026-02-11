@@ -12,19 +12,12 @@ import Datatypes.ParseTokens
 import Datatypes.ValidatedTokens
 import Common
 
-import Control.Applicative
-import Control.Monad
-
 import Data.Text (Text)
 import Data.Validation
 import Data.Functor ((<&>))
 import qualified Data.Text as T
-import qualified Data.List as L
 
-import GHC.Float (double2Int)
 import System.FilePath (isValid)
-
-import Text.Megaparsec (SourcePos)
 
 
 type CommandValidationType = Validation [String] VComm
