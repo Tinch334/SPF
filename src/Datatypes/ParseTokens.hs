@@ -146,9 +146,10 @@ instance Show POption where
     show POptionNone = "(No Options)"
 
 instance Show POptionValue where
-    show (POptFloat n) = show n
-    show (POptText t)   = show t
-    show (POptBool b)   = show b
+    show (POptInteger n)    = show n
+    show (POptFloat n)      = show n
+    show (POptText t)       = show t
+    show (POptBool b)       = show b
 
 instance Show PConfig where
     show (PConfig arg opt) = show arg ++ " " ++ show opt

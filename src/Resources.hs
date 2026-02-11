@@ -31,7 +31,7 @@ import Graphics.PDF.Fonts.Font (AnyFont)
 import qualified Graphics.PDF.Fonts.StandardFont as SF
 import Graphics.Svg (loadSvgFile)
 import Graphics.Text.TrueType (buildCache)
-import Graphics.Rasterific.Svg (loadCreateFontCache, renderSvgDocument)
+import Graphics.Rasterific.Svg (renderSvgDocument)
 import qualified Graphics.Svg.Types as ST
 
 
@@ -147,7 +147,6 @@ loadFonts = do
     cbInner <- loadStandardFont SF.Courier_Bold
     ciInner <- loadStandardFont SF.Courier_Oblique
     cbiInner <- loadStandardFont SF.Courier_BoldOblique
-    symbolsInner <- loadStandardFont SF.Symbol
     zapfInner <- loadStandardFont SF.ZapfDingbats
 
     let helveticaFamily = FontFamily hInner hbInner hiInner hbiInner

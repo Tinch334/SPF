@@ -114,7 +114,7 @@ typesetElements elements = do
 pdfLift :: (MonadTrans t1, MonadTrans t2, Monad m, Monad (t2 m)) => m a -> t1 (t2 m) a
 pdfLift = lift . lift
 
---makeStyledText :: VT.VText -> VT.Font -> VT.FontSize -> LoadedFonts -> TM CustomParaStyle StandardStyle ()
+makeStyledText :: VT.VText -> VT.Font -> VT.FontSize -> LoadedFonts -> Para StandardStyle ()
 makeStyledText (VT.VText txtContent style) font size fonts = do
     let styledFont = case style of
             VT.Verbatim -> getVerbatimFont fonts size

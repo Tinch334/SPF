@@ -189,6 +189,7 @@ validateCommand (Located pos comm) = withPos pos $ case comm of
     _                                   -> error "INTERNAL: Attempt to validate unknown command"
 
 -- Generic validator for options that expect font and size.
+genericFontCmd :: ([VText] -> Maybe Font -> Maybe FontSize -> a) -> [PText] -> POption -> Validation [String] a
 genericFontCmd cons text (POptionMap o) =
   runSchema (ensureValidKeys ("Expected some of fields " ++ quoteList ["font", "size"]) ["font", "size"]
     (cons (convertText text) 
@@ -197,6 +198,7 @@ genericFontCmd cons text (POptionMap o) =
     )) o
 genericFontCmd cons text POptionNone = Success $ cons (convertText text) Nothing Nothing
 
+namedFigure :: FilePath -> POption -> Validation [String] VComm
 namedFigure p (POptionMap o) =
     if isValid p then runSchema
         (ensureValidKeys ("Expected some of fields " ++ quoteList ["width", "caption"]) ["width", "caption"]

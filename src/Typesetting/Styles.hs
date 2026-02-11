@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module Typesetting.Styles where
+module Typesetting.Styles (CustomParaStyle(..)) where
 
 import Graphics.PDF
 import Graphics.PDF.Typesetting
@@ -59,6 +59,6 @@ instance ParagraphStyle CustomParaStyle StandardStyle where
                 stroke $ Line lineX (ya - margin) lineX (yb + margin)
             Nothing -> return ()
 
-        drawAction
+        _ <- drawAction
         return ()
     paragraphStyle _ = Nothing

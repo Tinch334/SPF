@@ -24,7 +24,7 @@ import Data.Maybe (fromJust)
 
 import GHC.Float (double2Int, int2Double)
 
-import Graphics.PDF hiding (FontSize, TextType, Helvetica, Courier)
+import Graphics.PDF hiding (FontSize, Helvetica, Courier)
 
 
 ------------------------
