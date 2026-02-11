@@ -2,7 +2,6 @@
 
 module Validation.Schema
     ( Schema(..)
-    , runSchema
     , choiceSchema
     -- Primitives.
     , requireText, tryText
@@ -18,7 +17,6 @@ module Validation.Schema
 
 
 import Datatypes.ParseTokens
-import Datatypes.ValidatedTokens
 import Common
 
 import Control.Monad

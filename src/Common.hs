@@ -9,8 +9,6 @@ module Common
 
 import qualified Data.Text          as T
 import qualified Data.List          as L
-import qualified Data.Validation    as V
-import qualified Data.Map           as M
 
 import qualified System.FilePath    as SF
 

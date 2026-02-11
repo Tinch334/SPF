@@ -14,7 +14,6 @@ module Typesetting.Helpers
 import Datatypes.ValidatedTokens
 import qualified Datatypes.ValidatedTokens as VT
 import Datatypes.Resources
-import Typesetting.Styles
 import Typesetting.Structures
 import qualified Typesetting.Structures as TS
 

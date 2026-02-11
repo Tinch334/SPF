@@ -3,7 +3,6 @@
 module Typesetting.Styles (CustomParaStyle(..)) where
 
 import Graphics.PDF
-import Graphics.PDF.Typesetting
 
 
 -- HPDF allows definition of custom paragraph styles, this controls how the paragraph is typeset and allows for style changes.
